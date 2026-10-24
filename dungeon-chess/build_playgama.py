@@ -24,11 +24,15 @@ assert n == 1, "debug hook block not found"
 
 (out / "index.html").write_text(html, encoding="utf-8")
 shutil.copy(here / "three.min.js", out / "three.min.js")
+shutil.copy(here / "sfx.js", out / "sfx.js")
+shutil.copytree(here / "music", out / "music")
+shutil.copy(here / "CREDITS.md", out / "CREDITS.md")
 (out / "playgama-bridge-config.json").write_text("{}\n", encoding="utf-8")
 
 zpath = here / "dist" / "in-pieces-playgama.zip"
 with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-    for f in sorted(out.iterdir()):
-        z.write(f, f.name)
+    for f in sorted(out.rglob("*")):
+        if f.is_file():
+            z.write(f, f.relative_to(out).as_posix())
 print("built", zpath, f"{zpath.stat().st_size/1024:.0f} KB")
 print([i.filename for i in zipfile.ZipFile(zpath).infolist()])
