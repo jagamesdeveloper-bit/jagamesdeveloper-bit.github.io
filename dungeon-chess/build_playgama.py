@@ -14,7 +14,7 @@ out.mkdir(parents=True)
 
 html = (here / "index.html").read_text(encoding="utf-8")
 
-SDK = '<script src="https://bridge.playgama.com/v1/stable/playgama-bridge.js"></script>'
+SDK = '<script src="https://bridge.playgama.com/v2/stable/playgama-bridge.js"></script>'
 assert "<!--PLAYGAMA_SDK-->" in html, "SDK marker missing from index.html"
 html = html.replace("<!--PLAYGAMA_SDK-->", SDK)
 
@@ -29,7 +29,7 @@ shutil.copytree(here / "music", out / "music")
 shutil.copy(here / "CREDITS.md", out / "CREDITS.md")
 (out / "playgama-bridge-config.json").write_text("{}\n", encoding="utf-8")
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 zpath = here / "dist" / f"in-pieces-{VERSION}.zip"
 with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
     for f in sorted(out.rglob("*")):
