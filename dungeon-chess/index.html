@@ -843,6 +843,14 @@ function makeItem(it){
     const horn=cone(0.14,0.3,iron);horn.rotation.z=-Math.PI/2;horn.position.set(0.5,0.41,0);g.add(horn);
     const hot=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.03,0.2),glow);hot.position.y=0.49;g.add(hot);
     g.add(glowPlane(2.0,0xff7a30,0.7));
+  }else if(it.t==='cauldron'){
+    const iron=TOON({color:0x2a2838});
+    const pot=new THREE.Mesh(new THREE.SphereGeometry(0.34,16,12),iron);pot.scale.y=0.85;pot.position.y=0.36;pot.castShadow=true;g.add(pot);
+    const rim=new THREE.Mesh(new THREE.TorusGeometry(0.34,0.04,8,20),iron);rim.rotation.x=Math.PI/2;rim.position.y=0.5;rim.scale.setScalar(0.8);g.add(rim);
+    const soup=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,0.02,20),TOON({color:0x204008,emissive:0x40a010,emissiveIntensity:0.5}));soup.position.y=0.5;g.add(soup);g.userData.water=soup;
+    for(const[x,z]of[[-0.2,0.12],[0.2,0.12],[0,-0.22]]){const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.03,0.2,6),iron);leg.position.set(x,0.1,z);g.add(leg);}
+    const fire=new THREE.Mesh(new THREE.ConeGeometry(0.16,0.2,8),new THREE.MeshBasicMaterial({color:0xff8a30}));fire.position.y=0.12;g.add(fire);
+    g.add(glowPlane(1.6,0x70d030,0.18));
   }else if(it.t==='merchant'){
     const cloth=TOON({color:0x4a2a70}),gold=GOLD;
     const stall=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.3,0.4),cloth);stall.position.y=0.15;stall.castShadow=true;g.add(stall);
@@ -1028,7 +1036,7 @@ const pDmg=()=>PIECES[P.t].dmg+P.dmgB+(P.avenge&&P.rageT>0?1+P.avenge:0)+(P.last
 const pCd=()=>PIECES[P.t].cd*P.cdMult/(1+0.25*P.haste);
 function genFloor(){
   const last=G.floor%3===0?'boss':'elite';
-  const rr_=Math.random(),mid=(G.floor>=2&&rr_<0.16)?'altar':(G.floor>=2&&rr_<0.30)?'forge':(G.floor>=3&&rr_<0.44)?'merchant':(rr_<0.74?'treasure':'rest');
+  const rr_=Math.random(),mid=(G.floor>=2&&rr_<0.16)?'altar':(G.floor>=2&&rr_<0.30)?'forge':(G.floor>=3&&rr_<0.44)?'merchant':(G.floor>=2&&rr_<0.56)?'kitchen':(rr_<0.78?'treasure':'rest');
   G.rooms=['combat','combat',mid,'combat',last];
   G.roomIdx=0;G.banner=`Floor ${G.floor} — ${theme().name}`;G.bannerT=3;
 }
@@ -1081,7 +1089,7 @@ function loadRoom(){
     }
     if(connected())break;
   }
-  if(kind==='treasure'||kind==='rest'||kind==='altar'||kind==='forge'||kind==='merchant')tiles[4][3].k=0;
+  if(kind==='treasure'||kind==='rest'||kind==='altar'||kind==='forge'||kind==='merchant'||kind==='kitchen')tiles[4][3].k=0;
   room.variant=null;
   if(kind==='combat'&&G.floor>=2&&Math.random()<0.38){
     const vs=[{id:'swarm',name:'Swarm'},{id:'cavalry',name:'Cavalry'},{id:'spiked',name:'Spike Pit'}];
@@ -1115,6 +1123,7 @@ function loadRoom(){
   else if(kind==='rest'){items.push({x:3,y:4,t:'fountain'});room.cleared=true;items.push({x:3,y:0,t:'stairs'});}
   else if(kind==='altar'){items.push({x:3,y:4,t:'altar'});room.cleared=true;items.push({x:3,y:0,t:'stairs'});}
   else if(kind==='forge'){items.push({x:3,y:4,t:'anvil'});room.cleared=true;items.push({x:3,y:0,t:'stairs'});}
+  else if(kind==='kitchen'){items.push({x:3,y:4,t:'cauldron'});room.cleared=true;items.push({x:3,y:0,t:'stairs'});}
   else if(kind==='merchant'){items.push({x:3,y:4,t:'merchant'});room.cleared=true;items.push({x:3,y:0,t:'stairs'});}
   else if(kind==='boss'){
     const bi=bossIndex(),bd=BOSSES[bi],b=makeEnemy(bd.t,3,2);
@@ -1329,6 +1338,7 @@ function arrive(){
   else if(it.t==='fountain'&&!it.used){it.used=true;healPlayer(Math.ceil(P.maxHp*0.45));burst(it.x,it.y,16,[120,200,255],120,0.7,3);}
   else if(it.t==='altar'&&!it.used){it.used=true;burst(it.x,it.y,24,[255,60,100],160,0.8,3.5);spawnWave(it.x-3,it.y-4,0xff3050,2.6,0.7);tone(110,0.6,'sawtooth',0.07,60);pickQ.push({type:'altar'});}
   else if(it.t==='anvil'&&!it.used){it.used=true;burst(it.x,it.y,24,[255,140,60],170,0.8,3.5);spawnWave(it.x-3,it.y-4,0xff7a30,2.4,0.6);tone(200,0.4,'square',0.07,-60);crash(true);pickQ.push({type:'forge'});}
+  else if(it.t==='cauldron'&&!it.used){it.used=true;burst(it.x,it.y,22,[140,255,70],150,0.8,3.5);spawnWave(it.x-3,it.y-4,0x90ff40,2.4,0.6);tone(260,0.4,'sine',0.07,300);pickQ.push({type:'kitchen'});}
   else if(it.t==='merchant'&&!it.used){it.used=true;burst(it.x,it.y,20,[255,210,90],150,0.8,3.5);spawnWave(it.x-3,it.y-4,0xffc040,2.4,0.6);tone(660,0.3,'triangle',0.07,300);pickQ.push({type:'merchant'});}
   else if(it.t==='stairs'){nextRoom();}
 }
@@ -1736,6 +1746,17 @@ function openPick(){
     addCard('⚔','Sharpen','+1 damage.','FREE',()=>{P.dmgB+=1;},'alt');
     addCard('◆','Reinforce','+2 max HP and heal 2.','FREE',()=>{P.maxHp+=2;P.hp=Math.min(P.maxHp,P.hp+2);},'alt');
     addCard('⌛','Quench','Abilities recharge 25% faster and move 10% faster.','FREE',()=>{P.actMult*=0.75;P.cdMult*=0.9;},'alt');
+  }else if(entry.type==='kitchen'){
+    title.textContent='THE KITCHEN';
+    const meals=[
+      ['🍲','Hearty Stew','Heal 70% of your max HP.',()=>healPlayer(Math.ceil(P.maxHp*0.7))],
+      ['🍖','Roast Haunch','+2 max HP and heal 2.',()=>{P.maxHp+=2;P.hp=Math.min(P.maxHp,P.hp+2);}],
+      ['🌶','Fiery Chili','+1 damage, but lose 1 HP.',()=>{P.dmgB+=1;P.hp=Math.max(1,P.hp-1);}],
+      ['🍵','Bitter Tea','Move 12% faster and gain a Parry shield.',()=>{P.cdMult*=0.88;P.parry+=1;P.shield=1;}],
+      ['🥧','Lucky Pie','+2 crit chance levels and more heart drops.',()=>{P.crit+=2;P.luck+=1;}],
+      ['🍄','Mystery Mushroom','Gamble: either +2 damage, or lose 2 HP.',()=>{if(Math.random()<0.5){P.dmgB+=2;floatText(P.x,P.y,'DELICIOUS','#9dff7a');}else{P.hp=Math.max(1,P.hp-2);floatText(P.x,P.y,'YUCK','#ff8a8a');}}],
+    ];
+    for(let i=0;i<3;i++){const m=meals.splice((Math.random()*meals.length)|0,1)[0];addCard(m[0],m[1],m[2],'MEAL',m[3],'alt');}
   }else if(entry.type==='merchant'){
     title.textContent='THE MERCHANT';
     const cost=P.maxHp>5?2:1;
@@ -1902,6 +1923,7 @@ function syncScene(dt){
     if(o.userData.gem){o.userData.gem.rotation.y=time*1.5;o.userData.gem.position.y=0.85+Math.sin(time*2)*0.05;}
     if(o.userData.rune)o.userData.rune.rotation.z=time*0.8;
     if(o.userData.water)o.userData.water.material.emissiveIntensity=it.used?0.1:0.8+0.3*Math.sin(time*4);
+    if(it.t==='cauldron'&&!it.used&&Math.random()<0.5)emit(sparkSys,it.x-3+rand(-0.15,0.15),0.5,it.y-4+rand(-0.15,0.15),rand(-0.2,0.2),rand(0.6,1.2),rand(-0.2,0.2),0.8,0.07,[0.6,1,0.3]);
     if(it.t==='fountain'&&!it.used&&Math.random()<0.5)emit(sparkSys,it.x-3+rand(-0.04,0.04),0.65,it.y-4+rand(-0.04,0.04),rand(-0.5,0.5),rand(1,2),rand(-0.5,0.5),0.7,0.07,[0.4,0.75,1]);
   }
   let bi=0;
@@ -2062,7 +2084,7 @@ function drawOverlay(){
   ctx.fillStyle='#fff';ctx.font='700 12px "Trebuchet MS","Arial Rounded MT Bold",system-ui';ctx.fillText(`Lv ${P.lvl} ${PIECES[P.t].name}`,12,52);
   ctx.textAlign='right';ctx.font='700 14px "Trebuchet MS","Arial Rounded MT Bold",system-ui';ctx.fillStyle='#ffd86b';ctx.fillText(`Floor ${G.floor}`,W-12,14);
   ctx.font='12px "Trebuchet MS","Arial Rounded MT Bold",system-ui';ctx.fillStyle='#d4cde4';
-  const kn={combat:'Combat',elite:'Elite',boss:'BOSS',treasure:'Treasure',rest:'Rest',altar:'Altar',forge:'Forge',merchant:'Merchant'}[room.kind]+(room.variant?' · '+room.variant.name:'');
+  const kn={combat:'Combat',elite:'Elite',boss:'BOSS',treasure:'Treasure',rest:'Rest',altar:'Altar',forge:'Forge',merchant:'Merchant',kitchen:'Kitchen'}[room.kind]+(room.variant?' · '+room.variant.name:'');
   ctx.fillText(`Room ${G.roomIdx+1}/${G.rooms.length} · ${kn}`,W-12,32);
   ctx.fillText(`Captures ${G.kills}`,W-12,48);
   if(room.boss&&!room.boss.dead&&room.boss.spawn<=0){
