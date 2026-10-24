@@ -29,7 +29,8 @@ shutil.copytree(here / "music", out / "music")
 shutil.copy(here / "CREDITS.md", out / "CREDITS.md")
 (out / "playgama-bridge-config.json").write_text("{}\n", encoding="utf-8")
 
-zpath = here / "dist" / "in-pieces-playgama.zip"
+VERSION = "1.0.0"
+zpath = here / "dist" / f"in-pieces-{VERSION}.zip"
 with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
     for f in sorted(out.rglob("*")):
         if f.is_file():
