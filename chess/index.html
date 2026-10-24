@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Chess PvP</title>
+<style>
+:root{--bg:#161512;--panel:#262421;--text:#e9e6df;--muted:#9a968c;--light:#ebecd0;--dark:#739552;--sel:#f6f669;--accent:#81b64c;--bs:min(96vw,calc(100dvh - 270px),640px)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#app{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:8px 0}
+.bar{width:var(--bs);display:flex;align-items:center;gap:8px;min-height:30px}
+.bar .name{font-weight:700;font-size:15px}
+.bar .dot{width:10px;height:10px;border-radius:50%;background:#555}
+.bar.active .dot{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.bar .cap{font-size:17px;letter-spacing:-3px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-shadow:0 0 1px #000}
+.bar .adv{font-size:13px;color:var(--muted)}
+.bar .tag{font-size:12px;font-weight:700;color:#fff;background:#c0392b;border-radius:6px;padding:2px 6px;display:none}
+.bar.check .tag{display:inline}
+.f2f #topbar{transform:rotate(180deg)}
+#board{width:var(--bs);height:var(--bs);display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);border-radius:6px;overflow:hidden;box-shadow:0 6px 24px #000a}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.sq.l{background:var(--light)}.sq.d{background:var(--dark)}
+.sq.last::before{content:"";position:absolute;inset:0;background:rgba(255,235,60,.42)}
+.sq.sel::before{content:"";position:absolute;inset:0;background:rgba(246,246,105,.75)}
+.sq.chk::before{content:"";position:absolute;inset:0;background:radial-gradient(circle,rgba(255,40,40,.95) 0%,rgba(255,40,40,0) 75%)}
+.sq .hint{position:absolute;width:30%;height:30%;border-radius:50%;background:rgba(20,20,20,.28);pointer-events:none}
+.sq .hint.cap{width:92%;height:92%;background:none;border:5px solid rgba(20,20,20,.28)}
+.sq .p{position:relative;font-size:calc(var(--bs)/8*.78);line-height:1;pointer-events:none;z-index:1}
+.sq .p.w{color:#fff;text-shadow:0 0 2px #000,0 0 2px #000,0 1px 2px #000,1px 0 1px #000,-1px 0 1px #000}
+.sq .p.b{color:#1b1b1b;text-shadow:0 0 1px #fff,0 0 1px #fff,0 0 3px #999}
+.f2f .sq .p.top{transform:rotate(180deg)}
+.sq .co{position:absolute;font-size:calc(var(--bs)/8*.17);font-weight:700;pointer-events:none;z-index:2}
+.sq.l .co{color:var(--dark)}.sq.d .co{color:var(--light)}
+.co.r{top:2px;left:3px}.co.f{bottom:1px;right:3px}
+#moves{width:var(--bs);height:28px;overflow-x:auto;white-space:nowrap;font-size:13px;color:var(--muted);scrollbar-width:none;display:flex;align-items:center}
+#moves::-webkit-scrollbar{display:none}
+#moves span{margin-right:8px}#moves b{color:var(--text);margin-left:2px}
+.row{width:var(--bs);display:flex;gap:6px}
+.row button{flex:1;background:var(--panel);color:var(--text);border:0;border-radius:8px;padding:9px 2px;font-size:13px;font-weight:600;cursor:pointer}
+.row button:active{background:#34312d}.row button.on{background:var(--accent);color:#102000}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:10;padding:16px}
+.ov.show{display:flex}
+.box{background:var(--panel);border-radius:16px;padding:22px;text-align:center;max-width:340px;width:100%;box-shadow:0 10px 40px #000a}
+.box h2{margin:0 0 6px;font-size:24px}.box p{margin:0 0 16px;color:var(--muted);line-height:1.4}
+.box .btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.box button{background:var(--accent);color:#102000;border:0;border-radius:10px;padding:11px 20px;font-size:16px;font-weight:700;cursor:pointer}
+.box button.alt{background:#3a3733;color:var(--text)}
+.promo button{font-size:44px;padding:4px 14px;line-height:1.1;background:#3a3733}
+.promo button.w{color:#fff;text-shadow:0 0 2px #000}.promo button.b{color:#1b1b1b;text-shadow:0 0 2px #fff}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="bar" id="topbar"><span class="dot"></span><span class="name"></span><span class="tag">CHECK</span><span class="cap"></span><span class="adv"></span></div>
+  <div id="board"></div>
+  <div class="bar" id="botbar"><span class="dot"></span><span class="name"></span><span class="tag">CHECK</span><span class="cap"></span><span class="adv"></span></div>
+  <div id="moves"></div>
+  <div class="row">
+    <button id="undo">↶ Undo</button>
+    <button id="flip">⟲ Flip</button>
+    <button id="auto">Auto-flip</button>
+    <button id="f2f">Face-to-face</button>
+  </div>
+  <div class="row">
+    <button id="resign">Resign</button>
+    <button id="draw">Offer draw</button>
+    <button id="new">New game</button>
+    <button id="mute">🔊</button>
+  </div>
+</div>
+<div class="ov" id="ov"><div class="box" id="box"></div></div>
+
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const GLYPH={K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟'};
+const g=t=>GLYPH[t]+'︎';
+const VAL={P:1,N:3,B:3,R:5,Q:9,K:0};
+
+/* ---------- rules engine ---------- */
+const KN=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+const KG=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const ST=[[-1,0],[1,0],[0,-1],[0,1]],DG=[[-1,-1],[-1,1],[1,-1],[1,1]];
+const inb=(r,c)=>r>=0&&r<8&&c>=0&&c<8;
+
+function initState(){
+  const b=Array(64).fill(null),back='RNBQKBNR';
+  for(let i=0;i<8;i++){b[i]='b'+back[i];b[8+i]='bP';b[48+i]='wP';b[56+i]='w'+back[i];}
+  return{b,turn:'w',c:{wK:1,wQ:1,bK:1,bQ:1},ep:-1,half:0,full:1};
+}
+function fromFEN(fen){
+  const [pl,tn,ca,ep,hf,fl]=fen.split(' '),b=Array(64).fill(null);
+  let i=0;
+  for(const ch of pl){
+    if(ch==='/')continue;
+    if(ch>='1'&&ch<='8'){i+=+ch;continue;}
+    b[i++]=(ch===ch.toUpperCase()?'w':'b')+ch.toUpperCase();
+  }
+  return{b,turn:tn,c:{wK:+ca.includes('K'),wQ:+ca.includes('Q'),bK:+ca.includes('k'),bQ:+ca.includes('q')},
+    ep:ep&&ep!=='-'?(8-+ep[1])*8+'abcdefgh'.indexOf(ep[0]):-1,half:+(hf||0),full:+(fl||1)};
+}
+function attacked(b,sq,by){
+  const r=sq>>3,c=sq&7,pr=by==='w'?r+1:r-1;
+  if(pr>=0&&pr<8){
+    if(c>0&&b[pr*8+c-1]===by+'P')return true;
+    if(c<7&&b[pr*8+c+1]===by+'P')return true;
+  }
+  for(const[dr,dc]of KN){const rr=r+dr,cc=c+dc;if(inb(rr,cc)&&b[rr*8+cc]===by+'N')return true;}
+  for(const[dr,dc]of KG){const rr=r+dr,cc=c+dc;if(inb(rr,cc)&&b[rr*8+cc]===by+'K')return true;}
+  for(const[dr,dc]of ST){let rr=r+dr,cc=c+dc;while(inb(rr,cc)){const p=b[rr*8+cc];if(p){if(p[0]===by&&(p[1]==='R'||p[1]==='Q'))return true;break;}rr+=dr;cc+=dc;}}
+  for(const[dr,dc]of DG){let rr=r+dr,cc=c+dc;while(inb(rr,cc)){const p=b[rr*8+cc];if(p){if(p[0]===by&&(p[1]==='B'||p[1]==='Q'))return true;break;}rr+=dr;cc+=dc;}}
+  return false;
+}
+function pseudo(s){
+  const b=s.b,me=s.turn,opp=me==='w'?'b':'w',out=[];
+  for(let i=0;i<64;i++){
+    const p=b[i];if(!p||p[0]!==me)continue;
+    const t=p[1],r=i>>3,c=i&7;
+    if(t==='P'){
+      const dir=me==='w'?-1:1,start=me==='w'?6:1,last=me==='w'?0:7,r1=r+dir;
+      if(r1<0||r1>7)continue;
+      const add=(to,ep)=>{if((to>>3)===last){for(const q of'QRBN')out.push({f:i,t:to,p:q});}else out.push({f:i,t:to,ep});};
+      if(!b[r1*8+c]){add(r1*8+c);if(r===start&&!b[(r+2*dir)*8+c])out.push({f:i,t:(r+2*dir)*8+c,dbl:true});}
+      for(const dc of[-1,1]){
+        const cc=c+dc;if(cc<0||cc>7)continue;
+        const to=r1*8+cc,q=b[to];
+        if(q&&q[0]===opp)add(to);else if(to===s.ep)add(to,true);
+      }
+    }else if(t==='N'||t==='K'){
+      for(const[dr,dc]of(t==='N'?KN:KG)){
+        const rr=r+dr,cc=c+dc;if(!inb(rr,cc))continue;
+        const q=b[rr*8+cc];if(!q||q[0]===opp)out.push({f:i,t:rr*8+cc});
+      }
+    }else{
+      const dirs=t==='R'?ST:t==='B'?DG:ST.concat(DG);
+      for(const[dr,dc]of dirs){
+        let rr=r+dr,cc=c+dc;
+        while(inb(rr,cc)){
+          const q=b[rr*8+cc];
+          if(!q)out.push({f:i,t:rr*8+cc});
+          else{if(q[0]===opp)out.push({f:i,t:rr*8+cc});break;}
+          rr+=dr;cc+=dc;
+        }
+      }
+    }
+  }
+  const home=me==='w'?60:4;
+  if(b[home]===me+'K'&&!attacked(b,home,opp)){
+    if(s.c[me+'K']&&b[home+3]===me+'R'&&!b[home+1]&&!b[home+2]&&!attacked(b,home+1,opp)&&!attacked(b,home+2,opp))out.push({f:home,t:home+2,cs:'K'});
+    if(s.c[me+'Q']&&b[home-4]===me+'R'&&!b[home-1]&&!b[home-2]&&!b[home-3]&&!attacked(b,home-1,opp)&&!attacked(b,home-2,opp))out.push({f:home,t:home-2,cs:'Q'});
+  }
+  return out;
+}
+function apply(s,m){
+  const b=s.b.slice(),p=b[m.f],me=s.turn,opp=me==='w'?'b':'w';
+  const epSq=(m.f>>3)*8+(m.t&7);
+  const cap=b[m.t]||(m.ep?b[epSq]:null);
+  b[m.t]=m.p?me+m.p:p;b[m.f]=null;
+  if(m.ep)b[epSq]=null;
+  if(m.cs==='K'){b[m.f+1]=b[m.f+3];b[m.f+3]=null;}
+  if(m.cs==='Q'){b[m.f-1]=b[m.f-4];b[m.f-4]=null;}
+  const c=Object.assign({},s.c);
+  if(p[1]==='K'){c[me+'K']=0;c[me+'Q']=0;}
+  for(const sq of[m.f,m.t]){if(sq===63)c.wK=0;if(sq===56)c.wQ=0;if(sq===7)c.bK=0;if(sq===0)c.bQ=0;}
+  return{b,turn:opp,c,ep:m.dbl?(m.f+m.t)/2:-1,half:(p[1]==='P'||cap)?0:s.half+1,full:s.full+(me==='b'?1:0),cap};
+}
+function kingSq(b,col){return b.indexOf(col+'K');}
+function inCheck(s,col=s.turn){return attacked(s.b,kingSq(s.b,col),col==='w'?'b':'w');}
+function legalMoves(s){
+  const me=s.turn,opp=me==='w'?'b':'w';
+  return pseudo(s).filter(m=>{const ns=apply(s,m);return!attacked(ns.b,kingSq(ns.b,me),opp);});
+}
+function perft(s,d){const ms=legalMoves(s);if(d===1)return ms.length;let n=0;for(const m of ms)n+=perft(apply(s,m),d-1);return n;}
+const sqName=i=>'abcdefgh'[i&7]+(8-(i>>3));
+function san(s,m,ns,legal){
+  let t;
+  const p=s.b[m.f];
+  if(m.cs)t=m.cs==='K'?'O-O':'O-O-O';
+  else{
+    const cap=s.b[m.t]||m.ep;
+    if(p[1]==='P'){t=(cap?'abcdefgh'[m.f&7]+'x':'')+sqName(m.t)+(m.p?'='+m.p:'');}
+    else{
+      let dis='';
+      const others=legal.filter(o=>o!==m&&o.t===m.t&&s.b[o.f]===p);
+      if(others.length){
+        const sameFile=others.some(o=>(o.f&7)===(m.f&7)),sameRank=others.some(o=>(o.f>>3)===(m.f>>3));
+        if(!sameFile)dis='abcdefgh'[m.f&7];else if(!sameRank)dis=String(8-(m.f>>3));else dis=sqName(m.f);
+      }
+      t=p[1]+dis+(cap?'x':'')+sqName(m.t);
+    }
+  }
+  if(inCheck(ns)){t+=legalMoves(ns).length?'+':'#';}
+  return t;
+}
+function insufficient(b){
+  const pcs=b.filter(Boolean).filter(p=>p[1]!=='K');
+  if(!pcs.length)return true;
+  if(pcs.length===1&&(pcs[0][1]==='B'||pcs[0][1]==='N'))return true;
+  if(pcs.every(p=>p[1]==='B')){
+    const cols=new Set();b.forEach((p,i)=>{if(p&&p[1]==='B')cols.add(((i>>3)+(i&7))&1);});
+    return cols.size===1;
+  }
+  return false;
+}
+const posKey=s=>s.b.map(p=>p||'-').join('')+s.turn+s.c.wK+s.c.wQ+s.c.bK+s.c.bQ+(s.ep>=0?s.ep:'');
+
+/* ---------- game state ---------- */
+let state,legal,hist,keys,selected=-1,flipped=false,autoFlip=false,face2face=false,over=false,muted=false,ac=null;
+function tone(f,d,type='triangle',v=0.06){
+  if(muted)return;
+  try{
+    if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==='suspended')ac.resume();
+    const t=ac.currentTime,o=ac.createOscillator(),gn=ac.createGain();
+    o.type=type;o.frequency.value=f;gn.gain.setValueAtTime(v,t);gn.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(gn);gn.connect(ac.destination);o.start(t);o.stop(t+d);
+  }catch(e){}
+}
+function newGame(){
+  state=initState();legal=legalMoves(state);hist=[];keys=[posKey(state)];
+  selected=-1;over=false;flipped=false;render();
+}
+
+/* ---------- UI ---------- */
+const boardEl=$('board'),sqEls=[];
+for(let k=0;k<64;k++){
+  const d=document.createElement('div');d.className='sq '+((((k>>3)+(k&7))&1)?'d':'l');
+  d.onclick=()=>onSquare(flipped?63-k:k);
+  boardEl.appendChild(d);sqEls.push(d);
+}
+function capturedOf(col){ // pieces of colour `col` that have been captured
+  const out=[];for(const h of hist){if(h.cap&&h.cap[0]===col)out.push(h.cap[1]);}
+  return out.sort((a,b)=>VAL[b]-VAL[a]);
+}
+function render(){
+  const lastM=hist.length?hist[hist.length-1].m:null;
+  const chkSq=inCheck(state)?kingSq(state.b,state.turn):-1;
+  const topCol=flipped?'w':'b';
+  for(let k=0;k<64;k++){
+    const sq=flipped?63-k:k,el=sqEls[k],p=state.b[sq];
+    el.className='sq '+((((k>>3)+(k&7))&1)?'d':'l')+
+      (lastM&&(sq===lastM.f||sq===lastM.t)?' last':'')+(sq===selected?' sel':'')+(sq===chkSq?' chk':'');
+    let html='';
+    const r=k>>3,c=k&7;
+    if(c===0)html+=`<span class="co r">${flipped?r+1:8-r}</span>`;
+    if(r===7)html+=`<span class="co f">${'abcdefgh'[flipped?7-c:c]}</span>`;
+    if(selected>=0){
+      const mv=legal.find(m=>m.f===selected&&m.t===sq);
+      if(mv)html+=`<span class="hint${p||mv.ep?' cap':''}"></span>`;
+    }
+    if(p)html+=`<span class="p ${p[0]}${p[0]===topCol?' top':''}">${g(p[1])}</span>`;
+    el.innerHTML=html;
+  }
+  document.body.classList.toggle('f2f',face2face);
+  // info bars
+  const white=capturedOf('b'),black=capturedOf('w'); // what each side has captured
+  const adv=white.reduce((a,t)=>a+VAL[t],0)-black.reduce((a,t)=>a+VAL[t],0);
+  const bars={w:{cap:white,adv:adv},b:{cap:black,adv:-adv}};
+  for(const[id,col]of[['topbar',topCol],['botbar',topCol==='w'?'b':'w']]){
+    const el=$(id),info=bars[col];
+    el.querySelector('.name').textContent=col==='w'?'White':'Black';
+    el.querySelector('.cap').textContent=info.cap.map(t=>GLYPH[t]+'︎').join('');
+    el.querySelector('.adv').textContent=info.adv>0?'+'+info.adv:'';
+    el.classList.toggle('active',!over&&state.turn===col);
+    el.classList.toggle('check',chkSq>=0&&state.turn===col);
+  }
+  // move list
+  const ml=$('moves');ml.innerHTML='';
+  hist.forEach((h,i)=>{
+    const s=document.createElement('span');
+    s.innerHTML=(i%2===0?`${(i>>1)+1}.`:'')+`<b>${h.san}</b>`;
+    ml.appendChild(s);
+  });
+  ml.scrollLeft=ml.scrollWidth;
+  $('auto').classList.toggle('on',autoFlip);
+  $('f2f').classList.toggle('on',face2face);
+}
+function onSquare(sq){
+  if(over)return;
+  if(selected>=0){
+    const cands=legal.filter(m=>m.f===selected&&m.t===sq);
+    if(cands.length){
+      if(cands[0].p)askPromotion(cands);else doMove(cands[0]);
+      return;
+    }
+  }
+  const p=state.b[sq];
+  selected=(p&&p[0]===state.turn&&sq!==selected)?sq:-1;
+  render();
+}
+function doMove(m){
+  const ns=apply(state,m),nl=legalMoves(ns);
+  const text=san(state,m,ns,legal);
+  hist.push({m,san:text,cap:ns.cap,before:state});
+  state=ns;legal=nl;keys.push(posKey(state));selected=-1;
+  tone(ns.cap?300:220,0.08,'square',0.05);
+  if(autoFlip)flipped=state.turn==='b';
+  checkEnd();
+  render();
+}
+function checkEnd(){
+  const chk=inCheck(state);
+  if(!legal.length){
+    const winner=state.turn==='w'?'Black':'White';
+    if(chk)finish('Checkmate',`${winner} wins.`);else finish('Stalemate','The game is a draw.');
+  }else if(insufficient(state.b))finish('Draw','Insufficient material.');
+  else if(state.half>=100)finish('Draw','Fifty-move rule.');
+  else if(keys.filter(k=>k===keys[keys.length-1]).length>=3)finish('Draw','Threefold repetition.');
+  else if(chk)tone(660,0.15,'sawtooth',0.04);
+}
+function finish(title,msg){
+  over=true;tone(440,0.5,'triangle',0.08);
+  modal(title,msg,[{t:'New game',f:newGame},{t:'Close',alt:1}]);
+}
+function modal(title,msg,btns,cls=''){
+  const box=$('box');box.className='box '+cls;
+  box.innerHTML=`<h2>${title}</h2>${msg?`<p>${msg}</p>`:''}<div class="btns"></div>`;
+  const row=box.querySelector('.btns');
+  for(const b of btns){
+    const el=document.createElement('button');el.innerHTML=b.t;if(b.alt)el.className='alt';if(b.cls)el.classList.add(b.cls);
+    el.onclick=()=>{$('ov').classList.remove('show');if(b.f)b.f();};
+    row.appendChild(el);
+  }
+  $('ov').classList.add('show');
+}
+function askPromotion(cands){
+  const col=state.turn;
+  modal('Promote to','',['Q','R','B','N'].map(q=>({t:g(q),cls:col,f:()=>doMove(cands.find(m=>m.p===q))})),'promo');
+}
+$('undo').onclick=()=>{
+  if(!hist.length)return;
+  const h=hist.pop();state=h.before;legal=legalMoves(state);keys.pop();selected=-1;over=false;
+  if(autoFlip)flipped=state.turn==='b';
+  render();
+};
+$('flip').onclick=()=>{flipped=!flipped;render();};
+$('auto').onclick=()=>{autoFlip=!autoFlip;if(autoFlip)flipped=state.turn==='b';render();};
+$('f2f').onclick=()=>{face2face=!face2face;render();};
+$('mute').onclick=()=>{muted=!muted;$('mute').textContent=muted?'🔇':'🔊';};
+$('new').onclick=()=>{if(over||!hist.length)newGame();else modal('New game?','The current game will be lost.',[{t:'New game',f:newGame},{t:'Cancel',alt:1}]);};
+$('resign').onclick=()=>{
+  if(over)return;
+  const loser=state.turn==='w'?'White':'Black',win=state.turn==='w'?'Black':'White';
+  modal(`${loser} resigns?`,'',[{t:'Resign',f:()=>{over=true;render();modal('Resignation',`${win} wins.`,[{t:'New game',f:newGame},{t:'Close',alt:1}]);}},{t:'Cancel',alt:1}]);
+};
+$('draw').onclick=()=>{
+  if(over)return;
+  const asker=state.turn==='w'?'White':'Black',other=state.turn==='w'?'Black':'White';
+  modal('Draw offered',`${asker} offers a draw. Does ${other} accept?`,[{t:'Accept',f:()=>{over=true;render();modal('Draw','Agreed draw.',[{t:'New game',f:newGame},{t:'Close',alt:1}]);}},{t:'Decline',alt:1}]);
+};
+
+newGame();
+window.__chess={initState,fromFEN,perft,legalMoves,apply,get state(){return state;},get hist(){return hist;},get over(){return over;}};
+})();
+</script>
+</body>
+</html>
