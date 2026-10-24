@@ -236,8 +236,8 @@ const ptsMats=[];
 let post=null,lowQ=false,pixelRatio=1;
 
 function fitCamera(){
-  const el=THREE.MathUtils.degToRad(50),lo=-1+2*BOT_H/H,hi=1-2*TOP_H/H;
-  const pts=[[-3.9,0,-4.9],[3.9,0,-4.9],[-3.9,0,4.9],[3.9,0,4.9],[-3,1.6,-4.4],[3,1.6,-4.4]].map(p=>new THREE.Vector3(...p));
+  const el=THREE.MathUtils.degToRad(60),lo=-1+2*BOT_H/H,hi=1-2*TOP_H/H;
+  const pts=[[-3.9,0,-4.9],[3.9,0,-4.9],[-3.9,0,4.9],[3.9,0,4.9],[-3,0.9,-4.4],[3,0.9,-4.4]].map(p=>new THREE.Vector3(...p));
   for(let d=10;d<70;d+=0.2){
     camera.position.set(0,camTarget.y+Math.sin(el)*d,camTarget.z+Math.cos(el)*d);
     camera.lookAt(camTarget);camera.updateMatrixWorld();camera.updateProjectionMatrix();
@@ -706,7 +706,7 @@ function setupRoomVisuals(){
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
     const m=tileMeshes[y][x],t=tiles[y][x];
     if(t.k===1){
-      const h=1.35+rng()*0.25;
+      const h=0.62+rng()*0.1;
       m.material=WALL_MAT;m.scale.set(0.96,h+0.3,0.96);m.position.set(x-3,h/2-0.15,y-4);
       m.rotation.y=(rng()-0.5)*0.12;m.castShadow=true;
     }else{
@@ -1161,9 +1161,12 @@ function occ(x,y,ign){
   if(x<0||y<0||x>=COLS||y>=ROWS)return'wall';
   if(tiles[y][x].k!==0)return'wall';
   if(P.x===x&&P.y===y)return'player';
+  // a tile someone has only just left stays reserved until their slide is nearly done
+  if(P.anim&&!P.anim.lunge&&P.anim.t<P.anim.dur*0.7&&P.anim.fx===x&&P.anim.fy===y)return'wall';
   for(const e of enemies){
     if(e===ign||e.dead)continue;
     if(e.x===x&&e.y===y)return e.spawn>0?'wall':'enemy';
+    const a=e.anim;if(a&&!a.lunge&&a.t<a.dur*0.7&&a.fx===x&&a.fy===y)return'wall';
   }
   return null;
 }
@@ -1210,7 +1213,12 @@ function attackDist(t){
 function setAnim(en,fx,fy,dur,jump){en.anim={fx,fy,t:0,dur,jump};}
 
 /* ---------- player actions ---------- */
-function legalMoves(){return genMoves(P.t,P.x,P.y,'p');}
+function legalMoves(){
+  const mv=genMoves(P.t,P.x,P.y,'p');
+  if(mv.length)return mv;
+  // deadlock rescue: a piece with no legal move may sidestep one tile
+  return ORTH.map(([dx,dy])=>({x:P.x+dx,y:P.y+dy})).filter(m=>!occ(m.x,m.y));
+}
 function onTap(x,y){
   if(state!=='play')return;
   const m=legalMoves().find(m=>m.x===x&&m.y===y);
@@ -1337,10 +1345,11 @@ function castActive(i){
     cands.sort((p,q)=>p[2]-q[2]);
     if(!cands.length)return;
     const ox=P.x,oy=P.y,[nx,ny]=cands[0];
+    P.x=nx;P.y=ny;P.anim=null;
     for(const o of enemies){if(!o.dead&&o.spawn<=0&&Math.abs(o.x-ox)<=1&&Math.abs(o.y-oy)<=1){o.hitDir=[o.x-ox,o.y-oy];hitEnemy(o,2+a.lvl+P.dmgB);if(!o.dead)knock(o,Math.sign(o.x-ox),Math.sign(o.y-oy));}}
     spawnWave(ox-3,oy-4,0x9fd8ff,2.2,0.5);spawnWave(nx-3,ny-4,0x9fd8ff,2.2,0.5);
     burst(ox,oy,14,[160,220,255],150,0.5,3);burst(nx,ny,14,[160,220,255],150,0.5,3);
-    P.x=nx;P.y=ny;P.anim=null;P.inv=Math.max(P.inv,0.4);queued=null;
+    P.inv=Math.max(P.inv,0.4);queued=null;
     tone(700,0.25,'sine',0.08,500);arrive();
   }else if(a.id==='smite'){
     const dmg=3+a.lvl+P.dmgB;
@@ -1435,6 +1444,7 @@ function think(e){
   const rush=room.t>30?0.6:1,maxWinds=Math.min(5,2+Math.floor(G.floor/4));
   if(cap&&(activeWinds()<maxWinds||e.boss)){e.wind={x:cap.x,y:cap.y,t:e.windMax,max:e.windMax};e.stuck=0;tone(380,0.08,'square',0.025);return;}
   moves=moves.filter(m=>!m.cap);
+  if(!moves.length)moves=ORTH.map(([dx,dy])=>({x:e.x+dx,y:e.y+dy})).filter(m=>!occ(m.x,m.y,e)); // deadlock rescue
   if(!moves.length){e.cd=0.4;return;}
   const df=attackDist(e.t);
   let bestM=null,bs=1e9;
@@ -1525,6 +1535,16 @@ function updateFrag(dt){
       t.crumble-=dt;
       if(t.crumble<=0)collapse(x,y);
     }else if(t.crumble!=null){t.crumble=Math.min(1.4,t.crumble+dt*0.6);if(t.crumble>=1.4)t.crumble=null;}
+  }
+}
+let overlapFixes=0;
+function fixOverlaps(){ // safety net: if two pieces ever end up on one tile, move the newcomer to the nearest free tile
+  const seen=new Set();
+  for(const e of enemies){
+    if(e.dead||e.spawn>0)continue;
+    const k=e.x+','+e.y;
+    if(seen.has(k)||(P.x===e.x&&P.y===e.y)){overlapFixes++;relocate(e);burst(e.x,e.y,6,[200,180,255],80,0.3,2);}
+    seen.add(e.x+','+e.y);
   }
 }
 function startCast(e,dur){e.casting={t:dur,max:dur};}
@@ -1683,6 +1703,7 @@ function update(dt){
   if(P.parry&&P.shield<=0){P.shieldT-=dt;if(P.shieldT<=0)P.shield=1;}
   if(queued&&P.cd<=0){const q=queued;queued=null;onTap(q.x,q.y);}
   updateEnemies(dt);
+  fixOverlaps();
   updateZones(dt);
   updateFrag(dt);
   if(tiles[P.y][P.x].sp){
@@ -1726,9 +1747,10 @@ const addMat=(color,op,map)=>new THREE.MeshBasicMaterial({color,transparent:true
 function flat(geo,mat,list){const m=new THREE.Mesh(geo,mat);m.rotation.x=-Math.PI/2;m.visible=false;scene.add(m);list.push(m);}
 for(let i=0;i<64;i++)flat(dotGeo,addMat(0xffffff,0.4),hintDots);
 for(let i=0;i<24;i++)flat(ringGeo,addMat(0xff4a5a,0.9),hintRings);
+for(const m of hintDots.concat(hintRings)){m.material.depthTest=false;m.renderOrder=30;}
 for(let i=0;i<110;i++)flat(planeGeo,addMat(0xff2a3a,0.5,warnTex),telePlanes);
 const queuedMark=new THREE.Mesh(new THREE.RingGeometry(0.4,0.48,4),addMat(0xffd86b,0.9));
-queuedMark.rotation.x=-Math.PI/2;queuedMark.rotation.z=Math.PI/4;queuedMark.visible=false;scene.add(queuedMark);
+queuedMark.rotation.x=-Math.PI/2;queuedMark.rotation.z=Math.PI/4;queuedMark.visible=false;queuedMark.material.depthTest=false;queuedMark.renderOrder=31;scene.add(queuedMark);
 const shieldMesh=new THREE.Mesh(new THREE.SphereGeometry(0.5,20,14),addMat(0x8fd8ff,0.22));
 shieldMesh.visible=false;scene.add(shieldMesh);
 const blobGeo=new THREE.PlaneGeometry(1,1),blobMat=new THREE.MeshBasicMaterial({map:shadowBlobTex,transparent:true,depthWrite:false});
@@ -1891,19 +1913,27 @@ function syncScene(dt){
 
 /* ---------- picking ---------- */
 const raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2();
+const groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0),_hit=new THREE.Vector3();
 function tileFromScreen(px,py){
   ndc.set(px/W*2-1,-(py/H)*2+1);
   raycaster.setFromCamera(ndc,camera);
-  const list=[];
-  for(const row of tileMeshes)for(const m of row)list.push(m);
-  for(const g of entVis)list.push(g);
+  // 1) tapping a piece itself always means that piece's tile
+  const list=[];for(const g of entVis)list.push(g);
   for(const h of raycaster.intersectObjects(list,true)){
     let o=h.object;
-    while(o){
-      if(o.userData.tile)return o.userData.tile;
-      if(o.userData.enemy)return[o.userData.enemy.x,o.userData.enemy.y];
-      o=o.parent;
-    }
+    while(o){if(o.userData.enemy)return[o.userData.enemy.x,o.userData.enemy.y];o=o.parent;}
+  }
+  // 2) otherwise the nearest tile you can actually move to, so no tile is ever hard to hit
+  if(state==='play'){
+    const a=proj(0,0.05,0),b=proj(1,0.05,0),tilePx=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    let best=null,bd=1e9;
+    for(const m of legalMoves()){const c=proj(m.x-3,0.05,m.y-4),d=Math.hypot(c[0]-px,c[1]-py);if(d<bd){bd=d;best=m;}}
+    if(best&&bd<tilePx*0.9)return[best.x,best.y];
+  }
+  // 3) fall back to whatever floor tile is under the finger
+  if(raycaster.ray.intersectPlane(groundPlane,_hit)){
+    const tx=Math.round(_hit.x+3),ty=Math.round(_hit.z+4);
+    if(tx>=0&&ty>=0&&tx<COLS&&ty<ROWS)return[tx,ty];
   }
   return null;
 }
@@ -2092,6 +2122,7 @@ window.__cc={get state(){return state;},get P(){return P;},get G(){return G;},ge
   legalMoves,onTap,startRun,castActive,
   step(sec){for(let t=0;t<sec;t+=0.05)update(0.05);},
   knock(i,sx,sy){knock(enemies[i],sx,sy);},
+  pick(x,y){return tileFromScreen(x,y);},
   screen(tx,ty){return proj(tx-3,0.1,ty-4);},
   spawn(t,x,y){const e=makeEnemy(t,x,y);e.spawn=0;enemies.push(e);return e;},place(x,y){P.x=x;P.y=y;},
   killAll(){for(const e of enemies.slice()){e.hitDir=[0.3,-0.9];hitEnemy(e,999);}},
@@ -2100,7 +2131,7 @@ window.__cc={get state(){return state;},get P(){return P;},get G(){return G;},ge
   relic(id){const r=RELICS.find(x=>x.id===id);if(r&&!P.relics.includes(id)){P.relics.push(id);r.f();}},
   pickQ(t){pickQ.push({type:t});},
   collapse(x,y){collapse(x,y);},
-  settle(){riseT=5;},
+  settle(){riseT=5;},get fixes(){return overlapFixes;},
   revive(){revive();},get pg(){return PG;},get paused(){return paused;},
   give(id){const u=UPS.find(x=>x.id===id);if(u){P.up[id]=(P.up[id]||0)+1;u.f();}else if(ACTIVES[id])P.act.push({id,lvl:1,cd:0});},
   die:()=>die()};
