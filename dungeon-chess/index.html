@@ -888,6 +888,13 @@ for(let y=0;y<ROWS;y++){
     m.add(new THREE.Mesh(tileGeo,olBox));
   }
 }
+/* a collapsed tile leaves a real pit: a dark abyss with a faint glow far below, so it reads as a hole against the lit floor */
+const pitTex=mkTex(64,64,(c,w,h)=>{
+  const g=c.createRadialGradient(w/2,h/2,2,w/2,h/2,w*0.72);g.addColorStop(0,'#0c0518');g.addColorStop(0.5,'#030108');g.addColorStop(1,'#000000');
+  c.fillStyle=g;c.fillRect(0,0,w,h);
+});
+const pitMat=new THREE.MeshBasicMaterial({map:pitTex,fog:false,toneMapped:false}),pitGeo=new THREE.PlaneGeometry(0.985,0.985).rotateX(-Math.PI/2),pitMeshes=[];
+for(let y=0;y<ROWS;y++){pitMeshes.push([]);for(let x=0;x<COLS;x++){const pm=new THREE.Mesh(pitGeo,pitMat);pm.position.set(x-3,-0.2,y-4);pm.visible=false;scene.add(pm);pitMeshes[y].push(pm);}}
 /* ---------- a platform floating over the void ---------- */
 const platGroup=new THREE.Group();scene.add(platGroup);
 const rockMat=TOON({color:0x17102e});
@@ -1364,6 +1371,7 @@ function loadRoom(){
       }
     }
     if(MID_ROOMS.has(kind))tiles[4][3].k=0;
+    if(kind==='boss'){tiles[2][3].k=0;tiles[3][3].k=0;}
     if(connected()&&fullyReachable('N')&&(P.t==='N'||fullyReachable(P.t)))break;
     if(tries===39)for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)tiles[y][x].k=0; // never ship an unwinnable layout
   }
@@ -1418,6 +1426,7 @@ function loadRoom(){
     const bi=bossIndex(),bd=BOSSES[bi],b=makeEnemy(bd.t,3,2);
     b.role=null;b.bk=bi;b.boss=true;b.spawn=1.8;b.hp=b.maxhp=Math.ceil((bd.hp+bd.perFloor*G.floor)*(1+0.02*G.floor)*0.8);b.dmg=2+Math.floor(G.floor/4);
     b.baseCd=bd.cd;b.tA=3;b.tB=7;b.tC=11;b.casting=null;b.phase2=false;b.altC=false;
+    if(tiles[b.y][b.x].k!==0)relocate(b);
     enemies.push(b);room.boss=b;room.waves=[['P','P']];
     slowT=0.5;shake=10;
   }else{
@@ -2481,9 +2490,10 @@ function syncScene(dt){
   riseT+=dt;
   for(let ty=0;ty<ROWS;ty++)for(let tx=0;tx<COLS;tx++){
     const m=tileMeshes[ty][tx],u=m.userData,tl=tiles[ty][tx];
+    pitMeshes[ty][tx].visible=tl.k===2;
     if(u.fall){const f=u.fall;f.vy-=16*dt;m.position.y+=f.vy*dt;m.rotation.x+=f.spin*dt;m.rotation.z+=f.spin*0.7*dt;if(m.position.y<-10)m.visible=false;continue;}
     const k=clamp((riseT-u.delay)/0.55,0,1),ez=1-Math.pow(1-k,3);
-    m.position.y=u.by-(1-ez)*3.5;m.visible=k>0;
+    m.position.y=u.by-(1-ez)*3.5;m.visible=k>0;pitMeshes[ty][tx].visible=false;
     if(tl.frag&&tl.crumble!=null){const a=1-clamp(tl.crumble/1.4,0,1);m.position.x=tx-3+Math.sin(time*60)*0.02*a;m.position.z=ty-4+Math.cos(time*53)*0.02*a;}
     else{m.position.x=tx-3;m.position.z=ty-4;}
   }
