@@ -79,6 +79,13 @@ p{margin:0;max-width:340px;line-height:1.45;color:#bdb6cc;font-size:15px}
   <button class="big sm" id="skinBack">BACK</button>
 </div>
 
+<div id="pauseOv" class="ov solid">
+  <h2>PAUSED</h2>
+  <div id="pauseInfo" style="max-width:340px;font-size:14px;line-height:1.6;color:#d4cde4"></div>
+  <button class="big" id="resume">RESUME</button>
+  <button class="big sm" id="quit">QUIT TO MENU</button>
+</div>
+
 <div id="lb" class="ov solid">
   <h2 id="lbTitle">LEADERBOARD</h2>
   <div id="lbList" style="display:flex;flex-direction:column;gap:6px;align-items:center"></div>
@@ -107,7 +114,8 @@ function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1
 const lerpAng=(a,b,t)=>{const d=((b-a+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;return a+d*t;};
 
 /* ---------- audio ---------- */
-let ac=null,muted=false,platMuted=false,paused=false,adBusy=false;
+let ac=null,muted=false,platMuted=false,paused=false,adBusy=false,userPaused=false;
+function buzz(p){try{if(navigator.vibrate&&!muted)navigator.vibrate(p);}catch(e){}}
 const silent=()=>muted||platMuted||adBusy;
 function audio(){
   if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();
@@ -1397,7 +1405,7 @@ function hurtPlayer(d){
   if(P.inv>0||state!=='play')return false;
   if(P.dodge&&Math.random()<0.09*P.dodge){floatText(P.x,P.y,'DODGE','#c8b8ff');P.inv=0.4;burst(P.x,P.y,8,[200,180,255],100,0.4,2.5);return false;}
   if(P.shield>0){P.shield=0;P.shieldT=14;floatText(P.x,P.y,'BLOCK','#9fd8ff');burst(P.x,P.y,10,[150,220,255],100,0.4,2.5);tone(500,0.12,'square',0.05);P.inv=0.5;return false;}
-  P.hp-=d;P.inv=0.7;shake=9;hurtFlash=0.5;if(P.avenge){P.rageT=6;floatText(P.x,P.y-0.4,'RAGE','#ff8a5a');}
+  buzz(d>=3?[60,30,60]:45);P.hp-=d;P.inv=0.7;shake=9;hurtFlash=0.5;if(P.avenge){P.rageT=6;floatText(P.x,P.y-0.4,'RAGE','#ff8a5a');}
   floatText(P.x,P.y,'-'+d,'#ff6b7a');
   chipAt(P.x-3,0.6,P.y-4,4,MARBLE,0,0);
   burst(P.x,P.y,10,[255,90,110],150,0.5,3);
@@ -1439,7 +1447,7 @@ function die(){
   const isBest=G.final>best;
   if(isBest){best=G.final;try{localStorage.setItem('chesscrawl_best',best);}catch(e){}PG.saveBest(best);}
   setTimeout(()=>{
-    $('stats').innerHTML=`You reached <b>Floor ${G.floor}</b>, room ${G.roomIdx+1}.<br>Level <b>${P.lvl}</b> ${PIECES[P.t].name} · <b>${G.kills}</b> captures · <b>${G.bossKills}</b> bosses · score <b>${G.score}</b><br>${isBest?'🏆 New best!':'Best: Floor '+(Math.floor(best/5)+1)+', room '+(best%5+1)}${G.unlocked&&G.unlocked.length?'<br>🔓 Skin unlocked: <b>'+G.unlocked.join(', ')+'</b>':''}`;
+    $('stats').innerHTML=`You reached <b>Floor ${G.floor}</b>, room ${G.roomIdx+1}.<br>Level <b>${P.lvl}</b> ${PIECES[P.t].name} · <b>${G.kills}</b> captures · <b>${G.bossKills}</b> bosses · score <b>${G.score}</b><br>${P.relics.length?'Relics: '+P.relics.map(id=>(RELICS.find(r=>r.id===id)||{g:''}).g).join(' ')+'<br>':''}${isBest?'🏆 New best!':'Best: Floor '+(Math.floor(best/5)+1)+', room '+(best%5+1)}${G.unlocked&&G.unlocked.length?'<br>🔓 Skin unlocked: <b>'+G.unlocked.join(', ')+'</b>':''}`;
     $('revive').style.display=(!P.revived&&PG.canRewarded())?'':'none';
     $('dead').classList.add('show');
   },1300);
@@ -1519,7 +1527,7 @@ function castActive(i){
     P.stoneT=2+a.lvl;P.inv=Math.max(P.inv,P.stoneT);
     spawnWave(P.x-3,P.y-4,0xd8c890,2.6,0.6);burst(P.x,P.y,16,[220,200,140],120,0.6,3);tone(120,0.4,'sawtooth',0.09,60);
   }
-  a.cd=actCd(a);
+  a.cd=actCd(a);buzz(35);
   floatText(P.x,P.y,def.n.toUpperCase(),'#8fe0ff');
 }
 
@@ -1536,6 +1544,9 @@ function hitEnemy(e,d){
     return false;
   }
   e.dead=true;G.kills++;G.score+=ENEMY[e.t].xp*10;
+  buzz(e.boss?[40,40,90]:14);
+  G.streak=(G.streakT>0?G.streak:0)+1;G.streakT=2.6;
+  if(G.streak>=3){G.score+=G.streak*5;floatText(e.x,e.y-0.7,G.streak+'x COMBO','#ffb347');}
   if(e.vis){
     const pw=e.boss?2.4:(e.t==='Q'||e.t==='R')?1.4:1;
     const tn=ETINT[e.t];
@@ -1893,6 +1904,7 @@ function update(dt){
   if(P.anim){P.anim.t+=dt;if(P.anim.t>=P.anim.dur)P.anim=null;}
   if(state!=='play')return;
   room.t+=dt;
+  if(G.streakT>0)G.streakT-=dt;
   P.cd=Math.max(0,P.cd-dt);P.rageT=Math.max(0,P.rageT-dt);P.inv=Math.max(0,P.inv-dt);P.stoneT=Math.max(0,P.stoneT-dt);
   if(P.hasteT>0){P.hasteT-=dt;if(P.hasteT<=0)P.haste=0;}
   for(const a of P.act)a.cd=Math.max(0,a.cd-dt);
@@ -2159,6 +2171,12 @@ function drawOverlay(){
     ctx.globalAlpha=a;ctx.lineJoin='round';ctx.lineWidth=5;ctx.strokeStyle='#1a0a2e';ctx.strokeText(t.txt,sx,sy);ctx.fillStyle=t.col;ctx.fillText(t.txt,sx,sy);
   }
   ctx.globalAlpha=1;
+  for(const e of enemies){ // health pips over wounded or sturdy enemies
+    if(e.dead||e.boss||e.spawn>0||e.maxhp<2||!e.vis)continue;
+    const ep=epos(e),[bx,by]=proj(ep.x-3,HEIGHT[e.t]*PSY+0.14,ep.y-4),w=Math.min(34,10+e.maxhp*3.2),k=clamp(e.hp/e.maxhp,0,1);
+    ctx.fillStyle='rgba(10,6,24,.8)';ctx.fillRect(bx-w/2-1.5,by-3.5,w+3,7);
+    ctx.fillStyle=k>0.5?'#ff6a7a':'#ff3a4a';ctx.fillRect(bx-w/2,by-2,w*k,4);
+  }
   if(state==='play'&&P.cd>0&&P.vis){
     const p=epos(P),c=proj(p.x-3,0.02,p.y-4),ex=proj(p.x-3+0.5,0.02,p.y-4),ez=proj(p.x-3,0.02,p.y-4+0.5);
     const k=1-P.cd/pCd();
@@ -2175,6 +2193,12 @@ function drawOverlay(){
   const kn={combat:'Combat',elite:'Elite',boss:'BOSS',treasure:'Treasure',rest:'Rest',altar:'Altar',forge:'Forge',merchant:'Merchant',kitchen:'Kitchen'}[room.kind]+(room.variant?' · '+room.variant.name:'');
   ctx.fillText(`Room ${G.roomIdx+1}/${G.rooms.length} · ${kn}`,W-12,32);
   ctx.fillText(`Captures ${G.kills}`,W-12,48);
+  if(G.streak>=2&&G.streakT>0){ctx.globalAlpha=clamp(G.streakT/0.6,0,1);ctx.fillStyle='#ffb347';ctx.font='800 15px "Trebuchet MS","Arial Rounded MT Bold",system-ui';ctx.fillText(`COMBO x${G.streak}`,W-12,64);ctx.globalAlpha=1;}
+  if(state==='play'){ // pause button
+    const[px,py]=pausePos();ctx.fillStyle='rgba(10,12,24,.6)';ctx.beginPath();ctx.arc(px,py,15,0,7);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle='#fff';ctx.fillRect(px-5,py-6,3.5,12);ctx.fillRect(px+1.5,py-6,3.5,12);
+  }
   if(room.boss&&!room.boss.dead&&room.boss.spawn<=0){
     const b=room.boss,w=Math.min(W-40,280),x=(W-w)/2,y=72,tn=BOSSES[b.bk].tint,c=`rgb(${tn[0]*255|0},${tn[1]*255|0},${tn[2]*255|0})`;
     barFill(x,y,w,10,clamp(b.hp/b.maxhp,0,1),'#c01838',c);
@@ -2220,9 +2244,27 @@ function drawOverlay(){
 }
 
 /* ---------- input & flow ---------- */
+const pausePos=()=>[W/2,24];
+function openPause(){
+  if(state!=='play'||userPaused)return;
+  userPaused=true;
+  const ups=UPS.filter(u=>P.up[u.id]).map(u=>`${u.g} ${u.n}${P.up[u.id]>1?' ×'+P.up[u.id]:''}`);
+  const rel=P.relics.map(id=>RELICS.find(r=>r.id===id)).filter(Boolean).map(r=>`${r.g} ${r.n}`);
+  const act=P.act.map(a=>`${ACTIVES[a.id].g} ${ACTIVES[a.id].n} Lv${a.lvl}`);
+  $('pauseInfo').innerHTML=`<b style="color:#ffd86b">Floor ${G.floor}</b> · Lv ${P.lvl} ${PIECES[P.t].name} · ♥ ${Math.ceil(P.hp)}/${P.maxHp} · ⚔ ${pDmg()}`+
+    (act.length?`<br><span style="color:#8fe0ff">${act.join(' · ')}</span>`:'')+
+    (rel.length?`<br><span style="color:#ffd24a">${rel.join(' · ')}</span>`:'')+
+    (ups.length?`<br>${ups.join(' · ')}`:'<br>No upgrades yet.');
+  $('pauseOv').classList.add('show');
+}
+function closePause(){userPaused=false;$('pauseOv').classList.remove('show');}
+$('resume').onclick=closePause;
+$('quit').onclick=()=>{closePause();showMenu();};
+document.addEventListener('visibilitychange',()=>{if(document.hidden)openPause();});
 hud.addEventListener('pointerdown',e=>{
   startMusic();
   if(state!=='play')return;
+  {const[px,py]=pausePos();if(Math.hypot(e.clientX-px,e.clientY-py)<24){openPause();return;}}
   for(let i=0;i<2;i++){const[bx,by]=btnPos(i);if(Math.hypot(e.clientX-bx,e.clientY-by)<36){if(P.act[i])castActive(i);return;}}
   const t=tileFromScreen(e.clientX,e.clientY);
   if(t)onTap(t[0],t[1]);
@@ -2339,7 +2381,7 @@ const PG={
   },
   track(){ // tell the platform when real gameplay starts and stops
     if(!PG.on)return;
-    const want=state==='play'&&!paused;
+    const want=state==='play'&&!paused&&!userPaused;
     if(want===PG.gp)return;
     PG.gp=want;
     try{bridge.platform.sendMessage(want?bridge.PLATFORM_MESSAGE.GAMEPLAY_STARTED:bridge.PLATFORM_MESSAGE.GAMEPLAY_STOPPED);}catch(e){}
@@ -2359,7 +2401,7 @@ function frame(now){
   if(slowT>0)slowT-=rdt;
   const dt=rdt*(slowT>0?0.3:1);
   PG.poll();
-  if(!paused){if(state==='play'||state==='dead')update(dt);else time+=dt;}
+  if(!paused&&!userPaused){if(state==='play'||state==='dead')update(dt);else time+=dt;}
   PG.track();
   syncScene(dt);
   renderFrame();
@@ -2387,7 +2429,7 @@ window.__cc={get state(){return state;},get P(){return P;},get G(){return G;},ge
   settle(){riseT=5;},get fixes(){return overlapFixes;},
   revive(){revive();},get pg(){return PG;},get paused(){return paused;},
   give(id){const u=UPS.find(x=>x.id===id);if(u){P.up[id]=(P.up[id]||0)+1;u.f();}else if(ACTIVES[id])P.act.push({id,lvl:1,cd:0});},
-  get meta(){return meta;},applySkin,SKINS,openLeaderboard,bossIndex,die:()=>die()};
+  get meta(){return meta;},openPause,closePause,get userPaused(){return userPaused;},applySkin,SKINS,openLeaderboard,bossIndex,die:()=>die()};
 })();
 </script>
 </body>
