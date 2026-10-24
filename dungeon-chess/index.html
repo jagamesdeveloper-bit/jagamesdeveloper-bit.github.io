@@ -95,7 +95,7 @@ p{margin:0;max-width:340px;line-height:1.45;color:#bdb6cc;font-size:15px}
   <div class="grid" id="starts"></div>
   <div class="chips" id="mods"></div>
   <div class="hint" id="modInfo"></div>
-  <div class="row"><button class="big sm" id="bSkins">Skins</button><button class="big sm" id="bCol">Collection</button><button class="big sm" id="bLb">Leaderboard</button></div>
+  <div class="row"><button class="big sm" id="bSkins">Skins</button><button class="big sm" id="bCol">Collection</button><button class="big sm" id="bSet">Settings</button><button class="big sm" id="bLb">Leaderboard</button></div>
   <div class="hint">Tap to move · red rings attack · dodge red tiles</div>
 </div>
 
@@ -106,6 +106,7 @@ p{margin:0;max-width:340px;line-height:1.45;color:#bdb6cc;font-size:15px}
 
 <div id="dead" class="ov">
   <h2>SHATTERED</h2>
+  <div class="hint" id="deadCause" style="margin-top:-6px"></div>
   <div class="stats" id="stats"></div>
   <button class="big" id="revive" style="display:none;background:linear-gradient(#7fd8ff,#3a8fd0);color:#031a2a;box-shadow:0 0 22px #4aa8ff77">REVIVE · WATCH AD</button>
   <button class="big" id="again">TRY AGAIN</button>
@@ -122,12 +123,8 @@ p{margin:0;max-width:340px;line-height:1.45;color:#bdb6cc;font-size:15px}
 <div id="pauseOv" class="ov solid">
   <h2>PAUSED</h2>
   <div id="pauseInfo" style="display:flex;flex-direction:column;gap:10px;align-items:center"></div>
-  <div class="settings">
-    <label>Music<input type="range" id="setMusic" min="0" max="100"></label>
-    <label>Effects<input type="range" id="setSfx" min="0" max="100"></label>
-    <label>Screen shake<input type="checkbox" id="setShake"></label>
-  </div>
   <button class="big" id="resume">RESUME</button>
+  <button class="big sm" id="pSet">Settings</button>
   <button class="big sm" id="quit">QUIT TO MENU</button>
 </div>
 
@@ -136,6 +133,16 @@ p{margin:0;max-width:340px;line-height:1.45;color:#bdb6cc;font-size:15px}
   <p id="colInfo" style="min-height:20px"></p>
   <div id="colList" style="display:flex;flex-direction:column;gap:14px;align-items:center"></div>
   <button class="big sm" id="colBack">BACK</button>
+</div>
+
+<div id="setOv" class="ov solid">
+  <h2>SETTINGS</h2>
+  <div class="settings">
+    <label>Music<input type="range" id="setMusic" min="0" max="100"></label>
+    <label>Effects<input type="range" id="setSfx" min="0" max="100"></label>
+    <label>Screen shake<input type="checkbox" id="setShake"></label>
+  </div>
+  <button class="big sm" id="setBack">BACK</button>
 </div>
 
 <div id="tip"></div>
@@ -261,8 +268,8 @@ function musicTick(){
     else if(want[k]===0&&!m.el.paused&&m.g.gain.value<0.01)m.el.pause();
   }
 }
-const setMuteIcon=()=>{$('mute').innerHTML=ic(muted?'snd_off':'snd_on');};setMuteIcon();
-$('mute').onclick=e=>{muted=!muted;setMuteIcon();e.stopPropagation();};
+const setMuteIcon=()=>{$('mute').innerHTML=ic(muted?'snd_off':'snd_on');};muted=!!SET.muted;setMuteIcon();
+$('mute').onclick=e=>{muted=!muted;SET.muted=muted?1:0;saveSet();setMuteIcon();e.stopPropagation();};
 
 /* ---------- data ---------- */
 const gl=t=>ic('p_'+t);
@@ -1217,6 +1224,7 @@ function newRun(startT){
   P={t:startT,start:startT,x:3,y:8,anim:null,hp,maxHp:hp,cd:0,inv:0,xp:0,lvl:1,need:4,
      dmgB:0,cdMult:1,tithe:0,parry:0,shield:0,shieldT:0,capCount:0,luck:0,splash:0,crit:0,thorns:0,lance:0,momentum:0,dodge:0,shove:0,phoenix:0,phoenixUses:0,relics:[],vamp:0,actMult:1,
      haste:0,hasteT:0,stoneT:0,wis:0,avenge:0,rageT:0,mend:0,lastStand:0,act:[],up:{},seed:Math.random()*10,vis:null,face:Math.PI,rise:0};
+  hurtSrc=null;
   G.mods=Object.assign({},modsOn);G.mult=MODS.reduce((m,x)=>m*(G.mods[x.id]?x.m:1),1);
   if(G.mods.glass){P.maxHp=Math.max(3,Math.ceil(P.maxHp/2));P.hp=P.maxHp;P.dmgB+=2;}
   if(G.mods.blitz)P.cdMult*=0.8;
@@ -1262,6 +1270,16 @@ function connectedSolid(){
   return seen.size===free;
 }
 function bossIndex(){return G.bossOrder[(Math.floor(G.floor/3)-1)%BOSSES.length];}
+const MID_ROOMS=new Set(['treasure','rest','altar','forge','merchant','kitchen','library','shrine']);
+function fullyReachable(t){ // every floor tile can be reached by this piece's own moves (a knight can be cut off by pillars)
+  const seen=new Set([8*COLS+3]),q=[8*COLS+3];let free=0;
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(tiles[y][x].k===0)free++;
+  for(let i=0;i<q.length;i++){
+    const n=q[i];
+    for(const m of staticDests(t,n%COLS,(n/COLS)|0))if(!seen.has(m)){seen.add(m);q.push(m);}
+  }
+  return seen.size===free;
+}
 function loadRoom(){
   const kind=G.rooms[G.roomIdx];
   room={kind,seed:Math.random()*1000,waves:[],waveT:0.8,cleared:false,boss:null,t:0,zones:[]};
@@ -1279,9 +1297,11 @@ function loadRoom(){
         tiles[ay][ax].k=1;tiles[ay][6-ax].k=1;
       }
     }
-    if(connected())break;
+    if(MID_ROOMS.has(kind))tiles[4][3].k=0;
+    if(connected()&&fullyReachable('N')&&(P.t==='N'||fullyReachable(P.t)))break;
+    if(tries===39)for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)tiles[y][x].k=0; // never ship an unwinnable layout
   }
-  if(kind==='treasure'||kind==='rest'||kind==='altar'||kind==='forge'||kind==='merchant'||kind==='kitchen'||kind==='library'||kind==='shrine')tiles[4][3].k=0;
+  if(MID_ROOMS.has(kind))tiles[4][3].k=0;
   room.variant=null;
   if(kind==='combat'&&G.floor>=2&&Math.random()<0.38){
     const vs=[{id:'swarm',name:'Swarm'},{id:'cavalry',name:'Cavalry'},{id:'spiked',name:'Spike Pit'}];
@@ -1420,7 +1440,7 @@ function updateZones(dt){
       if(x===P.x&&y===P.y)hit=true;
     }
     shake=Math.max(shake,6);crash(false);
-    if(hit)hurtPlayer(z.dmg);
+    if(hit){hurtSrc=z.owner||{label:'a blast'};hurtPlayer(z.dmg);}
   }
 }
 
@@ -1575,6 +1595,19 @@ function nextRoom(){
   if(G.roomIdx>=G.rooms.length){G.floor++;meta.maxFloor=Math.max(meta.maxFloor,G.floor);checkUnlocks();saveMeta();genFloor();G.score+=100;if(G.floor>3&&(G.floor-1)%3===0)AD.offer('floor');}
   loadRoom();
 }
+let hurtSrc=null;
+const PNAME={P:'Pawn',N:'Knight',B:'Bishop',R:'Rook',Q:'Queen',K:'King',T:'Obelisk'};
+function causeText(){
+  const s=hurtSrc;if(!s)return'';
+  let n;
+  if(s.label)n=s.label;
+  else if(s.boss)n=BOSSES[s.bk].name.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+  else{
+    const base=s.mimic?'mimic':s.role?s.role:(s.aff?s.aff+' ':'')+PNAME[s.t];
+    n=(/^[aeiou]/i.test(base)?'an ':'a ')+base;
+  }
+  return 'Killed by '+n;
+}
 function hurtPlayer(d){
   if(P.inv>0||state!=='play')return false;
   if(P.dodge&&Math.random()<Math.min(0.5,0.09*P.dodge)){floatText(P.x,P.y,'DODGE','#c8b8ff');P.inv=0.4;burst(P.x,P.y,8,[200,180,255],100,0.4,2.5);return false;}
@@ -1601,6 +1634,7 @@ function hurtPlayer(d){
   }
   return true;
 }
+const fmtTime=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
 function countUp(el,to){
   const t0=performance.now();
   (function f(n){const k=Math.min(1,(n-t0)/900);el.textContent=Math.round(to*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(f);})(t0);
@@ -1638,10 +1672,11 @@ function die(){
   if(isBest){best=G.final;try{localStorage.setItem('chesscrawl_best',best);}catch(e){}PG.saveBest(best);}
   setTimeout(()=>{
     const rl=P.relics.map(id=>ic((RELICS.find(r=>r.id===id)||{g:'gem'}).g,20)).join('');
-    $('stats').innerHTML=`<div class="st"><b>${G.floor}</b><small>Floor</small></div><div class="st"><b>${P.lvl}</b><small>${PIECES[P.t].name}</small></div><div class="st"><b>${G.kills}</b><small>Captures</small></div><div class="st"><b>${G.bossKills}</b><small>Bosses</small></div><div class="st wide"><b id="scoreN">0</b><small>Score</small></div>`+
+    $('stats').innerHTML=`<div class="st"><b>${G.floor}</b><small>Floor</small></div><div class="st"><b>${P.lvl}</b><small>${PIECES[P.t].name}</small></div><div class="st"><b>${G.kills}</b><small>Captures</small></div><div class="st"><b>${G.bossKills}</b><small>Bosses</small></div><div class="st"><b>${fmtTime(G.time||0)}</b><small>Time</small></div><div class="st"><b>x${G.bestCombo||0}</b><small>Best combo</small></div><div class="st full"><b id="scoreN">0</b><small>Score</small></div>`+
       (rl?`<div class="st full"><div style="display:flex;gap:10px;justify-content:center;color:var(--gold2);padding:2px 0 4px">${rl}</div><small>Relics</small></div>`:'')+
       (G.mult>1?`<div class="st full"><div class="chips" style="justify-content:center">${MODS.filter(x=>G.mods[x.id]).map(x=>`<span class="chip gold">${x.n}</span>`).join('')}<span class="chip">Score x${G.mult.toFixed(2)}</span></div></div>`:'')+
       `<div class="st full" style="background:none;border:0">${isBest?'<span class="badge2">'+ic('trophy')+'New best</span>':''} ${(G.unlocked||[]).map(n=>`<span class="badge2" style="background:#5aa9d6">New skin: ${n}</span>`).join(' ')}</div>`;
+    $('deadCause').textContent=causeText();
     countUp($('scoreN'),finalScore());
     $('revive').style.display=AD.offerRevive()?'':'none';
     $('dead').classList.add('show');
@@ -1792,6 +1827,7 @@ function hitEnemy(e,d){
   if(e.mimic){pickQ.push({type:'relic'});floatText(e.x,e.y-0.6,'REWARD','#ffd86b');}
   if(P.harvest&&(P.harvested||0)<10&&G.kills%Math.max(5,13-2*P.harvest)===0){P.harvested=(P.harvested||0)+1;P.maxHp++;healPlayer(1);floatText(P.x,P.y-0.5,'+1 MAX HP','#9dffb0');}
   G.streak=(G.streakT>0?G.streak:0)+1;G.streakT=2.6;
+  G.bestCombo=Math.max(G.bestCombo||0,G.streak);
   if(G.streak>=3){G.score+=G.streak*5;floatText(e.x,e.y-0.7,G.streak+'x COMBO','#ffb347');}
   if(e.vis){
     const pw=e.boss?2.4:(e.t==='Q'||e.t==='R')?1.4:1;
@@ -1864,7 +1900,7 @@ function resolveWind(e){
   if(!ok)return;
   const ox=e.x,oy=e.y;
   if(P.x===x&&P.y===y){
-    hurtPlayer(e.dmg);
+    hurtSrc=e;hurtPlayer(e.dmg);
     if(e.aff==='vampiric'){e.hp=Math.min(e.maxhp,e.hp+2);floatText(e.x,e.y,'+2','#ff6a8a');}
     if(state!=='play')return;
     const opts=ORTH.concat(DIAG).map(([dx,dy])=>({x:x+dx,y:y+dy})).filter(p=>!occ(p.x,p.y,e));
@@ -1921,7 +1957,7 @@ function collapse(x,y){
   if(P.x===x&&P.y===y){
     floatText(x,y,'THE FLOOR GIVES WAY!','#ffb066');
     relocate(P);queued=null;
-    hurtPlayer(2+Math.floor(G.floor/6));
+    hurtSrc={label:'the crumbling floor'};hurtPlayer(2+Math.floor(G.floor/6));
   }
 }
 function updateFrag(dt){
@@ -2249,7 +2285,7 @@ function update(dt){
   for(let i=texts.length-1;i>=0;i--)if(texts[i].t<=0)texts.splice(i,1);
   if(P.anim){P.anim.t+=dt;if(P.anim.t>=P.anim.dur)P.anim=null;}
   if(state!=='play')return;
-  room.t+=dt;AD.tick(dt);
+  room.t+=dt;AD.tick(dt);G.time=(G.time||0)+dt;
   if(G.streakT>0)G.streakT-=dt;
   P.cd=Math.max(0,P.cd-dt);P.rageT=Math.max(0,P.rageT-dt);if(P.overT>0)P.overT-=dt;
   P.histT=(P.histT||0)+dt;if(P.histT>=0.25){P.histT=0;(P.hist=P.hist||[]).push({x:P.x,y:P.y,hp:P.hp});if(P.hist.length>16)P.hist.shift();}P.inv=Math.max(0,P.inv-dt);P.stoneT=Math.max(0,P.stoneT-dt);
@@ -2265,7 +2301,7 @@ function update(dt){
   updateFrag(dt);
   if(tiles[P.y][P.x].sp){
     const ph=(time+tiles[P.y][P.x].sp.off)%3;
-    if(ph>2.3&&P.inv<=0)hurtPlayer(1);
+    if(ph>2.3&&P.inv<=0){hurtSrc={label:'spikes'};hurtPlayer(1);}
   }
   if(!room.cleared){
     const alive=enemies.some(e=>!e.dead);
@@ -2743,6 +2779,8 @@ function renderCollection(){
 }
 $('bCol').onclick=()=>{renderCollection();$('col').classList.add('show');$('col').scrollTop=0;};
 $('colBack').onclick=()=>$('col').classList.remove('show');
+$('bSet').onclick=$('pSet').onclick=()=>$('setOv').classList.add('show');
+$('setBack').onclick=()=>$('setOv').classList.remove('show');
 $('setMusic').value=Math.round(SET.music*100);$('setSfx').value=Math.round(SET.sfx*100);$('setShake').checked=!!SET.shake;
 $('setMusic').oninput=e=>{SET.music=e.target.value/100;saveSet();};
 $('setSfx').oninput=e=>{SET.sfx=e.target.value/100;saveSet();};
