@@ -26,3 +26,10 @@ Check the sizes against the current Playgama listing requirements and swap them 
 cd dist/playgama && python3 -m http.server 8000
 ```
 and open http://localhost:8000
+
+## Leaderboard and saved progress
+
+- The game submits the run score with `bridge.leaderboards.setScore('high_score', score)` when you die.
+- Create a leaderboard with the id `high_score` in the Playgama console (and, for other platforms, map it in `playgama-bridge-config.json`).
+- The Leaderboard button adapts to `bridge.leaderboards.type`: `in_game` shows a list in the game, `native` / `native_popup` opens the platform's own board, and anything else shows the player's local top 10.
+- Skin unlocks and lifetime stats are saved to localStorage and `bridge.storage` under `inpieces_meta`.
