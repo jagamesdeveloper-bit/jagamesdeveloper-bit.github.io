@@ -58,3 +58,15 @@ The SDK gives no price/eCPM for a queued ad (the platform auction decides), so t
 - **Interstitials** follow the pacing rules above. Mid-run breaks show a "Short ad break coming up" notice 1.9 s before the ad.
 - **Banner**: shown at the top on the main menu and death screen only (`showBanner('top','menu')`), hidden for all gameplay, retried at most every 20 s after a failure.
 - Per-placement accept counts are stored in `meta.adstats` (local and Playgama storage) so you can see which offers players actually use.
+
+## Store assets (`store/`)
+
+| File | Use |
+|---|---|
+| `cover-1280x720.png` | Landscape cover art |
+| `cover-portrait-720x1280.png` | Portrait cover art |
+| `icon-512.png` | Game icon |
+| `screenshot-0-menu.png` ... `screenshot-3-battle.png` | Gameplay screenshots (780x1560, taken in the current art style) |
+| `in-pieces-playgama.zip` | The build to upload |
+
+The cover art is rendered with the game's own engine (a marble Queen with the Black King bursting into shards behind her), composited with a title that breaks into pieces. Typography uses the system serif at render time.
