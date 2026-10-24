@@ -116,7 +116,7 @@ h1{font-size:26px;letter-spacing:4px}
   <div class="hint" id="modInfo"></div>
   <button class="chip btn gold" id="boonBtn" style="display:none"></button>
   <div class="row"><button class="big sm" id="bSkins">Skins</button><button class="big sm" id="bCol">Collection</button><button class="big sm" id="bLeg">Legacy</button><button class="big sm" id="bSet">Settings</button><button class="big sm" id="bLb">Leaderboard</button></div>
-  <div class="hint">Tap to move · red rings attack · dodge red tiles</div>
+  <div class="hint" id="menuHint">Tap to move · red rings attack · dodge red tiles</div>
 </div>
 
 <div id="pick" class="ov">
@@ -2787,11 +2787,24 @@ hud.addEventListener('pointerdown',e=>{
   }
 });
 addEventListener('keydown',e=>{
-  if(state!=='play')return;
-  if(e.key==='1'){castActive(0);return;}
-  if(e.key==='2'){castActive(1);return;}
+  if(e.repeat&&(e.key==='Escape'||e.key.toLowerCase()==='p'))return;
+  const k=e.key.toLowerCase();
+  if(state!=='play'){if(k==='escape')document.querySelectorAll('.ov.show .close,.ov.show .x').forEach(b=>b.click());return;}
+  if(k==='escape'||k==='p'){if(userPaused)closePause();else openPause();return;}
+  if(userPaused||paused)return;
+  if(k==='1'){castActive(0);return;}
+  if(k==='2'){castActive(1);return;}
   const map={arrowup:[0,-1],w:[0,-1],arrowdown:[0,1],s:[0,1],arrowleft:[-1,0],a:[-1,0],arrowright:[1,0],d:[1,0]};
-  const d=map[e.key.toLowerCase()];if(d)onTap(P.x+d[0],P.y+d[1]);
+  const d=map[k];if(!d)return;
+  e.preventDefault();
+  // pick the legal move that points most closely the way the key says (so Knight, Bishop and Rook work too)
+  let best=null,bs=0.45;
+  for(const m of legalMoves()){
+    const dx=m.x-P.x,dy=m.y-P.y,len=Math.hypot(dx,dy)||1,c=(dx*d[0]+dy*d[1])/len;
+    const sc=c-len*0.01+(dy<0?0.001:0);
+    if(c>0.45&&sc>bs){bs=sc;best=m;}
+  }
+  if(best)onTap(best.x,best.y);
 });
 const TAGS={P:'Grows fast',N:'Leaps in an L',B:'Slides diagonally',R:'Straight lines'};
 for(const t of['P','N','B','R']){
@@ -2806,6 +2819,7 @@ function startRun(t){
   $('menu').classList.remove('show');$('dead').classList.remove('show');$('pick').classList.remove('show');
 }
 const bestText=()=>best?`Best: Floor ${Math.floor(best/5)+1}-${(best%5)+1}`:'';
+try{if(matchMedia('(pointer:fine)').matches)document.getElementById('menuHint').textContent='Arrow keys or WASD to move · 1 and 2 abilities · Esc pauses';}catch(e){}
 function showMenu(){
   try{refreshBoon();}catch(e){}
   if(typeof refreshLegBtn==='function')refreshLegBtn();
