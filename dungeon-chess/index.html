@@ -97,6 +97,7 @@ p{margin:0;max-width:340px;line-height:1.45;color:#bdb6cc;font-size:15px}
   <div class="grid" id="starts"></div>
   <div class="chips" id="mods"></div>
   <div class="hint" id="modInfo"></div>
+  <button class="chip btn gold" id="boonBtn" style="display:none"></button>
   <div class="row"><button class="big sm" id="bSkins">Skins</button><button class="big sm" id="bCol">Collection</button><button class="big sm" id="bLeg">Legacy</button><button class="big sm" id="bSet">Settings</button><button class="big sm" id="bLb">Leaderboard</button></div>
   <div class="hint">Tap to move · red rings attack · dodge red tiles</div>
 </div>
@@ -110,7 +111,8 @@ p{margin:0;max-width:340px;line-height:1.45;color:#bdb6cc;font-size:15px}
   <h2>SHATTERED</h2>
   <div class="hint" id="deadCause" style="margin-top:-6px"></div>
   <div class="stats" id="stats"></div>
-  <button class="big" id="revive" style="display:none;background:linear-gradient(#7fd8ff,#3a8fd0);color:#031a2a;box-shadow:0 0 22px #4aa8ff77">REVIVE · WATCH AD</button>
+  <button class="big" id="revive" style="display:none;background:#5aa9d6;border-bottom-color:#2d6a8f;color:#031a2a">Revive · watch ad</button>
+  <button class="big sm" id="dblShards" style="display:none;background:#8fd4ae;border-bottom-color:#4f8f6c"></button>
   <button class="big" id="again">TRY AGAIN</button>
   <button class="big sm" id="bLb2">LEADERBOARD</button>
 </div>
@@ -153,6 +155,8 @@ p{margin:0;max-width:340px;line-height:1.45;color:#bdb6cc;font-size:15px}
   <div class="cards" id="legList"></div>
   <button class="big sm" id="legBack">BACK</button>
 </div>
+
+<button class="big sm" id="healPill" style="display:none;position:fixed;bottom:176px;left:50%;transform:translateX(-50%);z-index:4;background:#5aa9d6;border-bottom-color:#2d6a8f;color:#031a2a"></button>
 
 <div id="tip"></div>
 
@@ -1657,11 +1661,15 @@ function countUp(el,to){
   const t0=performance.now();
   (function f(n){const k=Math.min(1,(n-t0)/900);el.textContent=Math.round(to*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(f);})(t0);
 }
+function toast(text,ms){
+  const el=$('tip');el.textContent=text;el.classList.remove('on');void el.offsetWidth;el.classList.add('on');
+  clearTimeout(tip.t);tip.t=setTimeout(()=>el.classList.remove('on'),ms||2600);
+}
+function adStat(kind,pl){const st=(meta.adstats=meta.adstats||{inter:0,rew:{}});if(kind==='inter')st.inter++;else st.rew[pl]=(st.rew[pl]||0)+1;saveMeta();}
 function tip(id,text){
   if(state!=='play'||meta.tips.includes(id))return;
   meta.tips.push(id);saveMeta();
-  const el=$('tip');el.textContent=text;el.classList.remove('on');void el.offsetWidth;el.classList.add('on');
-  clearTimeout(tip.t);tip.t=setTimeout(()=>el.classList.remove('on'),4600);
+  toast(text,4600);
 }
 function syncFound(){
   const add=id=>{if(!meta.found.includes(id))meta.found.push(id);};
@@ -1680,7 +1688,7 @@ function saveMeta(){
   PG.saveMeta(j);
 }
 function die(){
-  state='dead';slowT=0.9;
+  state='dead';slowT=0.9;AD.hideHeal();
   if(P.vis){shatter(P.vis,P.t,0,0,1.8,[MARBLE,INNER_STONE],[1,0.85,0.4]);scene.remove(P.vis);disposeGroup(P.vis);P.vis=null;}
   sfx('death',1);sfx('bell',0.7,0.5);shake=14;
   G.final=(G.floor-1)*5+G.roomIdx;
@@ -1695,10 +1703,12 @@ function die(){
     $('stats').innerHTML=`<div class="st"><b>${G.floor}</b><small>Floor</small></div><div class="st"><b>${P.lvl}</b><small>${PIECES[P.t].name}</small></div><div class="st"><b>${G.kills}</b><small>Captures</small></div><div class="st"><b>${G.bossKills}</b><small>Bosses</small></div><div class="st"><b>${fmtTime(G.time||0)}</b><small>Time</small></div><div class="st"><b>x${G.bestCombo||0}</b><small>Best combo</small></div><div class="st full"><b id="scoreN">0</b><small>Score</small></div>`+
       (rl?`<div class="st full"><div style="display:flex;gap:10px;justify-content:center;color:var(--gold2);padding:2px 0 4px">${rl}</div><small>Relics</small></div>`:'')+
       (G.mult>1?`<div class="st full"><div class="chips" style="justify-content:center">${MODS.filter(x=>G.mods[x.id]).map(x=>`<span class="chip gold">${x.n}</span>`).join('')}<span class="chip">Score x${G.mult.toFixed(2)}</span></div></div>`:'')+
-      `<div class="st full" style="background:none;border:0"><span class="badge2" style="background:#8fd4ae">+${G.earned} shards</span> ${isBest?'<span class="badge2">'+ic('trophy')+'New best</span>':''} ${(G.unlocked||[]).map(n=>`<span class="badge2" style="background:#5aa9d6">New skin: ${n}</span>`).join(' ')}</div>`;
+      `<div class="st full" style="background:none;border:0"><span class="badge2" id="shardBadge" style="background:#8fd4ae">+${G.earned} shards</span> ${isBest?'<span class="badge2">'+ic('trophy')+'New best</span>':''} ${(G.unlocked||[]).map(n=>`<span class="badge2" style="background:#5aa9d6">New skin: ${n}</span>`).join(' ')}</div>`;
     $('deadCause').textContent=causeText();
     countUp($('scoreN'),finalScore());
     $('revive').style.display=AD.offerRevive()?'':'none';
+    $('dblShards').style.display=(AD.canOffer()&&G.paid>0&&!G.doubled)?'':'none';
+    $('dblShards').innerHTML=ic('gem')+'Double shards · watch ad';
     $('dead').classList.add('show');
   },1300);
 }
@@ -2218,7 +2228,7 @@ function openPick(){
   const addCard=(g,n,d,tag,fn,cls)=>{
     const b=document.createElement('button');b.className='card'+(cls?' '+cls:'');
     b.innerHTML=`<div class="gl">${g.startsWith('<')?g:ic(g)}</div><div><b>${n}${tag?`<i>${tag}</i>`:''}</b><span>${d}</span></div>`;
-    b.onclick=()=>{fn();$('pick').classList.remove('show');state='play';sfx('select',0.8);};
+    b.onclick=()=>{fn();if(entry.dbl)pickQ.unshift({type:entry.type,rerolled:true,noDbl:true});$('pick').classList.remove('show');state='play';sfx('select',0.8);};
     box.appendChild(b);
   };
   const promote=t=>()=>{
@@ -2299,6 +2309,13 @@ function openPick(){
     rb.onclick=()=>{PG.rewarded(()=>{$('pick').classList.remove('show');pickQ.unshift({type:entry.type,rerolled:true});state='play';openPick();},'reroll');};
     box.appendChild(rb);
   }
+  if((entry.type==='relic'||entry.type==='chest')&&!entry.noDbl&&AD.canOffer()){
+    const db=document.createElement('button');db.className='big sm';db.id='dblPick';
+    db.style.cssText='background:#8fd4ae;border-bottom-color:#4f8f6c;margin-top:4px';
+    db.innerHTML=ic('gem')+'Take two · watch ad';
+    db.onclick=()=>{PG.rewarded(()=>{entry.dbl=true;db.innerHTML=ic('check')+'You get a second pick';db.onclick=null;db.style.opacity='.75';},'double_pick');};
+    box.appendChild(db);
+  }
   sfx('open',0.8);
   $('pick').classList.add('show');
 }
@@ -2322,7 +2339,7 @@ function update(dt){
   if(P.parry&&P.shield<=0){P.shieldT-=dt;if(P.shieldT<=0)P.shield=1;}
   if(queued&&P.cd<=0){const q=queued;queued=null;onTap(q.x,q.y);}
   updateEnemies(dt);
-  updatePads();updateWisp(dt);
+  updatePads();updateWisp(dt);AD.healTick(dt);
   fixOverlaps();
   updateZones(dt);
   updateFrag(dt);
@@ -2726,11 +2743,12 @@ for(const t of['P','N','B','R']){
 }
 function resetPlayerVis(){if(P&&P.vis){scene.remove(P.vis);disposeGroup(P.vis);P.vis=null;}}
 function startRun(t){
-  resetPlayerVis();newRun(t);state='play';startMusic();AD.startRun();PG.preload();setTimeout(()=>tip('move','Tap a glowing dot to move. Tap a red ring to attack.'),700);
+  resetPlayerVis();newRun(t);state='play';startMusic();AD.startRun();PG.preload();if(boonReady){boonReady=false;pickQ.push({type:'relic'});refreshBoon();}setTimeout(()=>tip('move','Tap a glowing dot to move. Tap a red ring to attack.'),700);
   $('menu').classList.remove('show');$('dead').classList.remove('show');$('pick').classList.remove('show');
 }
 const bestText=()=>best?`Best: Floor ${Math.floor(best/5)+1}-${(best%5)+1}`:'';
 function showMenu(){
+  try{refreshBoon();}catch(e){}
   if(typeof refreshLegBtn==='function')refreshLegBtn();
   resetPlayerVis();newRun('P');state='menu';
   $('best').textContent=bestText();
@@ -2847,6 +2865,22 @@ $('bLb').onclick=$('bLb2').onclick=openLeaderboard;
 $('lbBack').onclick=()=>$('lb').classList.remove('show');
 $('again').onclick=()=>{$('dead').classList.remove('show');AD.offer('retry');showMenu();};
 $('revive').onclick=()=>{PG.rewarded(()=>revive(),'revive');};
+$('healPill').onclick=()=>{PG.rewarded(()=>{healPlayer(Math.ceil(P.maxHp*0.5));AD.hideHeal();},'heal');};
+$('dblShards').onclick=()=>{
+  PG.rewarded(()=>{
+    if(G.doubled)return;G.doubled=true;meta.shards=(meta.shards||0)+(G.paid||0);G.earned=(G.paid||0)*2;saveMeta();
+    const b=$('shardBadge');if(b)b.textContent='+'+G.earned+' shards';
+    $('dblShards').style.display='none';sfx('coins',0.9);
+  },'double_shards');
+};
+let boonReady=false;
+function refreshBoon(){
+  const b=$('boonBtn');
+  if(!PG.canRewarded()&&!boonReady){b.style.display='none';return;}
+  b.style.display='';b.innerHTML=boonReady?ic('check')+'Free relic ready':ic('gem')+'Start with a free relic · watch ad';
+  b.style.opacity=boonReady?'.7':'1';
+}
+$('boonBtn').onclick=()=>{if(boonReady)return;PG.rewarded(()=>{boonReady=true;refreshBoon();sfx('confirm',0.8);},'boon');};
 
 /* ---------- Playgama Bridge: every call is a safe no-op when the SDK is not present ---------- */
 function revive(){
@@ -2863,10 +2897,10 @@ const PG={
     if(typeof bridge==='undefined')return;
     try{
       bridge.initialize().then(()=>{
-        PG.on=true;
+        PG.on=true;try{refreshBoon();}catch(e){}
         try{bridge.advertisement.on(bridge.EVENT_NAME.REWARDED_STATE_CHANGED,st=>{
           const R=bridge.REWARDED_STATE||{};
-          if(st===R.REWARDED){const f=PG.onReward;PG.onReward=null;AD.rewardAt=AD.now();AD.rewards++;if(f)f();}
+          if(st===R.REWARDED){const f=PG.onReward;PG.onReward=null;AD.rewardAt=AD.now();AD.rewards++;adStat('rew',PG.pl||'other');if(f)f();}
           else if(st===R.CLOSED){PG.onReward=null;}
           else if(st===R.FAILED){PG.onReward=null;PG.noAdUntil=AD.now()+45;G&&(G.banner='No ad available right now',G.bannerT=2);}
         });}catch(e){}
@@ -2900,7 +2934,7 @@ const PG={
   canRewarded(){try{return PG.on&&bridge.advertisement.isRewardedSupported&&AD.now()>=PG.noAdUntil;}catch(e){return false;}},
   rewarded(cb,placement){ // cb runs only once the platform confirms the reward
     if(!PG.canRewarded()||adBusy)return false;
-    PG.onReward=cb;
+    PG.onReward=cb;PG.pl=placement;
     try{bridge.advertisement.showRewarded(placement);return true;}catch(e){PG.onReward=null;return false;}
   },
   preload(){ // keep a filled ad ready so it shows instantly and never stalls the player
@@ -2908,6 +2942,17 @@ const PG={
     try{if(bridge.advertisement.isInterstitialSupported)Promise.resolve(bridge.advertisement.preloadInterstitial()).catch(()=>{});}catch(e){}
     try{if(bridge.advertisement.isRewardedSupported)Promise.resolve(bridge.advertisement.preloadRewarded()).catch(()=>{});}catch(e){}
   },
+  syncBanner(){ // a top banner on the menu and death screens only, never over gameplay
+    if(!PG.on)return;
+    const n=AD.now();if(n<PG.bannerCheck)return;PG.bannerCheck=n+0.8;
+    try{
+      const a=bridge.advertisement;if(!a.isBannerSupported)return;
+      const want=(state==='menu'||state==='dead')&&!adBusy,st=a.bannerState;
+      if(want&&st!=='shown'&&st!=='loading'&&n>=PG.bannerRetry){PG.bannerRetry=n+20;a.showBanner('top','menu');}
+      else if(!want&&(st==='shown'||st==='loading'))a.hideBanner();
+    }catch(e){}
+  },
+  bannerCheck:0,bannerRetry:0,pl:null,
   noAdUntil:0,onReward:null,
   lbType(){try{return PG.on&&bridge.leaderboards?bridge.leaderboards.type:'not_available';}catch(e){return'not_available';}},
   submit(score){if(!PG.on)return;try{const ty=bridge.leaderboards.type;if(ty&&ty!=='not_available')bridge.leaderboards.setScore(LB_ID,score).catch(()=>{});}catch(e){}},
@@ -2965,10 +3010,25 @@ const AD={
     const why=this.why(ctx);
     this.log.push({ctx,why:why||'shown',t:Math.round(this.now()-this.born)});if(this.log.length>40)this.log.shift();
     if(why){if(why==='new-best')this.lastBest=false;return false;}
+    if(ctx==='floor'){ // mid-run break: warn first so it never feels sudden
+      toast('Short ad break coming up',2000);
+      this.lastAt=this.now();this.runsSinceAd=0;this.patience-=AD_CFG.patienceCost;this.shown++;adStat('inter');
+      setTimeout(()=>{if(state==='play'||state==='pick')PG.showInterstitial();},1900);
+      return true;
+    }
     if(!PG.showInterstitial())return false;
-    this.lastAt=this.now();this.runsSinceAd=0;this.patience-=AD_CFG.patienceCost;this.shown++;
+    this.lastAt=this.now();this.runsSinceAd=0;this.patience-=AD_CFG.patienceCost;this.shown++;adStat('inter');
     return true;
   },
+  canOffer(){return PG.canRewarded()&&!adBusy;},
+  healT:0,healFloor:-1,
+  healTick(dt){
+    if(this.healT>0){this.healT-=dt;if(this.healT<=0||state!=='play'||!room.cleared)this.hideHeal();return;}
+    if(state==='play'&&room&&room.cleared&&P.hp<P.maxHp*0.4&&this.healFloor!==G.floor&&this.canOffer()&&this.runLen()>=AD_CFG.rewardOfferAfterS){
+      this.healFloor=G.floor;this.healT=9;$('healPill').innerHTML=ic('plus')+'Heal 50% · watch ad';$('healPill').style.display='';
+    }
+  },
+  hideHeal(){this.healT=0;$('healPill').style.display='none';},
   offerRevive(){ // only when there is progress worth saving
     return !P.revived&&PG.canRewarded()&&(G.floor>=2||G.score>=150);
   },
@@ -2983,7 +3043,7 @@ function frame(now){
   const rdt=Math.min(0.05,(now-last)/1000);last=now;
   if(slowT>0)slowT-=rdt;
   const dt=rdt*(slowT>0?0.3:1);
-  PG.poll();
+  PG.poll();PG.syncBanner();
   if(!paused&&!userPaused){if(state==='play'||state==='dead')update(dt);else time+=dt;}
   PG.track();
   syncScene(dt);
@@ -3012,7 +3072,7 @@ window.__cc={get state(){return state;},get P(){return P;},get G(){return G;},ge
   settle(){riseT=5;},get fixes(){return overlapFixes;},
   revive(){revive();},get pg(){return PG;},get paused(){return paused;},
   give(id){const u=UPS.find(x=>x.id===id);if(u){P.up[id]=(P.up[id]||0)+1;u.f();}else if(ACTIVES[id])P.act.push({id,lvl:1,cd:0});},
-  get meta(){return meta;},LEGACY,renderLegacy,tip,syncFound,MODS,get modsOn(){return modsOn;},renderMods,renderCollection,finalScore,AD,AD_CFG,get sfxLoaded(){return Object.values(SFX_BUF).reduce((n,l)=>n+l.length,0);},get musicInfo(){return music?Object.fromEntries(Object.entries(music).map(([k,m])=>[k,{paused:m.el.paused,t:m.el.currentTime,g:m.g.gain.value,err:m.el.error&&m.el.error.code}])):null;},sfx,openPause,closePause,get userPaused(){return userPaused;},applySkin,SKINS,openLeaderboard,bossIndex,die:()=>die()};
+  get meta(){return meta;},toast,refreshBoon,get boonReady(){return boonReady;},LEGACY,renderLegacy,tip,syncFound,MODS,get modsOn(){return modsOn;},renderMods,renderCollection,finalScore,AD,AD_CFG,get sfxLoaded(){return Object.values(SFX_BUF).reduce((n,l)=>n+l.length,0);},get musicInfo(){return music?Object.fromEntries(Object.entries(music).map(([k,m])=>[k,{paused:m.el.paused,t:m.el.currentTime,g:m.g.gain.value,err:m.el.error&&m.el.error.code}])):null;},sfx,openPause,closePause,get userPaused(){return userPaused;},applySkin,SKINS,openLeaderboard,bossIndex,die:()=>die()};
 })();
 </script>
 </body>

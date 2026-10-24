@@ -43,3 +43,18 @@ The SDK gives no price/eCPM for a queued ad (the platform auction decides), so t
 - **Rewarded ads** are always optional: Revive (only once there is progress to save), and Reroll on card choices (after the first minute of a run).
 - Tuning for typical play (simulated): casual players about 10 interstitials per hour, engaged about 7, frustrated players none.
 - Placement names `revive` and `reroll` are passed to `showRewarded` so the dashboard can split revenue per placement.
+
+### Ad placements (all opt-in unless noted)
+
+| Placement name | Where | Reward |
+|---|---|---|
+| `revive` | Death screen, once per run, only with real progress | Return at 60% HP with brief invulnerability |
+| `double_shards` | Death screen | Doubles the Legacy shards just earned |
+| `boon` | Main menu | Start the next run with a relic choice |
+| `heal` | Appears after a room is cleared at under 40% HP, once per floor, auto-hides after 9 s | Heal 50% |
+| `double_pick` | Boss relic and chest screens | A second pick |
+| `reroll` | Card choices | Reroll the offered cards |
+
+- **Interstitials** follow the pacing rules above. Mid-run breaks show a "Short ad break coming up" notice 1.9 s before the ad.
+- **Banner**: shown at the top on the main menu and death screen only (`showBanner('top','menu')`), hidden for all gameplay, retried at most every 20 s after a failure.
+- Per-placement accept counts are stored in `meta.adstats` (local and Playgama storage) so you can see which offers players actually use.
