@@ -346,7 +346,7 @@ const BOSSES=[
   {name:'THE BLACK KING',t:'K',hp:18,perFloor:5,cd:0.9,tint:[1,0.8,0.25]},
   {name:'THE IRON ROOK',t:'R',hp:22,perFloor:6,cd:99,tint:[1,0.5,0.2]},
   {name:'THE ARCHBISHOP',t:'B',hp:16,perFloor:5,cd:1.0,tint:[0.3,1,0.6]},
-  {name:'THE BLACK QUEEN',t:'Q',hp:20,perFloor:6,cd:0.65,tint:[1,0.25,0.75]},
+  {name:'THE BLACK QUEEN',t:'Q',hp:24,perFloor:7,cd:0.9,tint:[1,0.25,0.75]},
   {name:'THE PALE KNIGHT',t:'N',hp:17,perFloor:5,cd:1.0,tint:[0.45,0.75,1]},
   {name:'THE OBELISK LORD',t:'T',hp:24,perFloor:6,cd:99,tint:[1,0.45,0.3]},
   {name:'THE PAWN EMPEROR',t:'P',hp:26,perFloor:6,cd:0.85,tint:[0.85,0.55,1]},
@@ -1330,7 +1330,12 @@ function connectedSolid(){
   }
   return seen.size===free;
 }
-function bossIndex(){return G.bossOrder[(Math.floor(G.floor/3)-1)%BOSSES.length];}
+function bossIndex(){ // the Black Queen holds every third boss slot (floors 9, 18, ...); the rest come in a shuffled order
+  const n=Math.floor(G.floor/3);
+  if(n%3===0)return 3;
+  const others=G.bossOrder.filter(i=>i!==3);
+  return others[(n-1-Math.floor(n/3))%others.length];
+}
 const MID_ROOMS=new Set(['treasure','rest','altar','forge','merchant','kitchen','library','shrine']);
 function fullyReachable(t){ // every floor tile can be reached by this piece's own moves (a knight can be cut off by pillars)
   const seen=new Set([8*COLS+3]),q=[8*COLS+3];let free=0;
@@ -1487,6 +1492,16 @@ function raysFrom(x,y,dirs){
   const o=[];
   for(const[dx,dy]of dirs){let nx=x+dx,ny=y+dy;while(nx>=0&&ny>=0&&nx<COLS&&ny<ROWS&&tiles[ny][nx].k!==1){if(tiles[ny][nx].k===0)o.push([nx,ny]);nx+=dx;ny+=dy;}}
   return o;
+}
+function bombard(){ // falling stones in the middle of a fight: standing still is no longer safe
+  const owner={label:'a falling stone',dead:false,frozen:0},dmg=1+Math.floor(G.floor/8),k=Math.random();
+  let tl,col=0xd8b070;
+  if(k<0.4){tl=[];const n=5+Math.floor(G.floor/3);for(let i=0;i<n*3&&tl.length<n;i++){const x=ri(0,COLS-1),y=ri(0,ROWS-1);if(tiles[y][x].k===0&&!tl.some(t=>t[0]===x&&t[1]===y))tl.push([x,y]);}
+    tl=tl.concat(areaTiles(P.x,P.y,0));}
+  else if(k<0.7)tl=Math.random()<0.5?rowTiles(P.y):colTiles(P.x);
+  else tl=areaTiles(clamp(P.x+ri(-2,2),0,COLS-1),clamp(P.y+ri(-2,2),0,ROWS-1),1).concat(areaTiles(ri(1,COLS-2),ri(1,ROWS-2),1));
+  addZone(tl,1.4,dmg,owner,col);sfx('cast',0.7,0.7);
+  tip('bomb','Falling stones! Tiles marked on the floor are about to be hit. Keep moving.');
 }
 function updateZones(dt){
   for(let i=room.zones.length-1;i>=0;i--){
@@ -2105,6 +2120,22 @@ function bossAI(e,dt){
         e.blink={x,y};burst(x,y,10,[100,255,170],80,0.6,3);startCast(e,0.6);break;
       }
     }else if(e.tC<=0){e.tC=15*f;spawnWaveList(['N','N']);}
+  }else if(bk===3){ // the Black Queen: queen lines, blinks that land on you, and a court
+    if(e.tA<=0){
+      e.tA=(e.phase2?3.2:4.2)*(e.blinked?0.6:1);e.blinked=false;
+      addZone(raysFrom(e.x,e.y,DIR8),1.1,e.dmg,e,0xff5ac0);
+      if(e.phase2)addZone([[P.x,P.y]].concat(raysFrom(P.x,P.y,DIR8)),1.7,e.dmg,e,0xffa0e0);
+      startCast(e,1.1);sfx('cast',0.9,1.1);
+    }else if(e.tB<=0){
+      e.tB=8*f;
+      for(let i=0;i<40;i++){
+        const x=ri(0,COLS-1),y=ri(0,ROWS-1);
+        if(occ(x,y,e)||Math.hypot(x-P.x,y-P.y)<2)continue;
+        e.blink={x,y};e.blinked=true;e.tA=0.4;burst(x,y,10,[255,120,200],80,0.6,3);startCast(e,0.6);break;
+      }
+    }else if(e.tC<=0){
+      e.tC=14*f;spawnWaveList(e.phase2?['B','R','N']:['B','R']);G.banner='THE COURT!';G.bannerT=1.2;sfx('bell',0.9,0.7);
+    }
   }else if(bk===4){ // the Pale Knight: leaps onto you and forks the board
     if(e.tA<=0){
       e.tA=6.5*f;addZone(areaTiles(P.x,P.y,1),1.1,e.dmg+1,e,0x7fc8ff);
@@ -2369,6 +2400,10 @@ function update(dt){
   if(P.anim){P.anim.t+=dt;if(P.anim.t>=P.anim.dur)P.anim=null;}
   if(state!=='play')return;
   room.t+=dt;AD.tick(dt);G.time=(G.time||0)+dt;
+  if(G.floor>=4&&state==='play'&&(room.kind==='combat'||room.kind==='elite')&&!room.cleared&&enemies.some(e=>!e.dead)){
+    room.bomb=(room.bomb===undefined?7:room.bomb)-dt;
+    if(room.bomb<=0){room.bomb=Math.max(4.5,9-0.35*G.floor)*rand(0.85,1.15);bombard();}
+  }
   if(G.streakT>0)G.streakT-=dt;
   P.cd=Math.max(0,P.cd-dt);P.rageT=Math.max(0,P.rageT-dt);if(P.overT>0)P.overT-=dt;
   P.histT=(P.histT||0)+dt;if(P.histT>=0.25){P.histT=0;(P.hist=P.hist||[]).push({x:P.x,y:P.y,hp:P.hp});if(P.hist.length>16)P.hist.shift();}P.inv=Math.max(0,P.inv-dt);P.stoneT=Math.max(0,P.stoneT-dt);
@@ -3153,7 +3188,7 @@ function frame(now){
 initPost();resize();showMenu();PG.init();
 requestAnimationFrame(frame);
 window.__cc={get state(){return state;},get P(){return P;},get G(){return G;},get enemies(){return enemies;},get room(){return room;},get tiles(){return tiles;},get items(){return items;},get time(){return time;},get chunks(){return chunks.length;},get post(){return !!post;},get lowQ(){return lowQ;},
-  legalMoves,onTap,startRun,castActive,
+  legalMoves,onTap,startRun,castActive,bossIndex,bombard,
   step(sec){for(let t=0;t<sec;t+=0.05)update(0.05);},
   knock(i,sx,sy){knock(enemies[i],sx,sy);},
   pick(x,y){return tileFromScreen(x,y);},
