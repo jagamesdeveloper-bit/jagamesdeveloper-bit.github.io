@@ -2567,6 +2567,7 @@ function update(dt){
   if(queued&&P.cd<=0){const q=queued;queued=null;onTap(q.x,q.y);}
   updateEnemies(dt);
   updatePads();updateWisp(dt);updateEchoes(dt);AD.healTick(dt);
+  if(state==='play'&&P.hp<=P.maxHp*0.3){P.beatT=(P.beatT||0)-dt;if(P.beatT<=0){P.beatT=1.1;buzz([14,70,14]);sfx('tick',0.28,0.6);}}
   fixOverlaps();
   updateZones(dt);
   updateFrag(dt);
@@ -3143,7 +3144,10 @@ $('bLb').onclick=$('bLb2').onclick=openLeaderboard;
 $('lbBack').onclick=()=>$('lb').classList.remove('show');
 $('again').onclick=()=>{$('dead').classList.remove('show');AD.offer('retry');showMenu();};
 $('revive').onclick=()=>{PG.rewarded(()=>revive(),'revive');};
-$('healPill').onclick=()=>{PG.rewarded(()=>{healPlayer(Math.ceil(P.maxHp*0.5));AD.hideHeal();},'heal');};
+$('healPill').onclick=()=>{
+  if(AD.pillMode==='boss'){PG.rewarded(()=>{P.shield=1;healPlayer(Math.ceil(P.maxHp*0.3));floatText(P.x,P.y-0.5,'SHIELDED','#9fd8ff');sfx('block',0.8,1.2);AD.hideHeal();},'boss_prep');return;}
+  PG.rewarded(()=>{healPlayer(Math.ceil(P.maxHp*0.5));AD.hideHeal();},'heal');
+};
 $('dblShards').onclick=()=>{
   PG.rewarded(()=>{
     if(G.doubled)return;G.doubled=true;meta.shards=(meta.shards||0)+(G.paid||0);G.earned=(G.paid||0)*2;saveMeta();
@@ -3319,11 +3323,14 @@ const AD={
     return true;
   },
   canOffer(){return PG.canRewarded()&&!adBusy;},
-  healT:0,healFloor:-1,
+  healT:0,healFloor:-1,prepFloor:-1,pillMode:'heal',
   healTick(dt){
-    if(this.healT>0){this.healT-=dt;if(this.healT<=0||state!=='play'||!room.cleared)this.hideHeal();return;}
+    if(this.healT>0){this.healT-=dt;if(this.healT<=0||state!=='play'||(this.pillMode==='boss'?(room.kind!=='boss'||room.cleared):!room.cleared))this.hideHeal();return;}
+    if(state==='play'&&room&&room.kind==='boss'&&!room.cleared&&this.prepFloor!==G.floor&&this.canOffer()&&this.runLen()>=AD_CFG.rewardOfferAfterS){
+      this.prepFloor=G.floor;this.healT=10;this.pillMode='boss';$('healPill').innerHTML=ic('shield')+'Boss prep: shield + heal · watch ad';$('healPill').style.display='';return;
+    }
     if(state==='play'&&room&&room.cleared&&P.hp<P.maxHp*0.4&&this.healFloor!==G.floor&&this.canOffer()&&this.runLen()>=AD_CFG.rewardOfferAfterS){
-      this.healFloor=G.floor;this.healT=9;$('healPill').innerHTML=ic('plus')+'Heal 50% · watch ad';$('healPill').style.display='';
+      this.healFloor=G.floor;this.healT=9;this.pillMode='heal';$('healPill').innerHTML=ic('plus')+'Heal 50% · watch ad';$('healPill').style.display='';
     }
   },
   hideHeal(){this.healT=0;$('healPill').style.display='none';},
@@ -3368,7 +3375,7 @@ window.__cc={get state(){return state;},get P(){return P;},get G(){return G;},ge
   pickQ(t){pickQ.push({type:t});},
   collapse(x,y){collapse(x,y);},
   settle(){riseT=5;},get fixes(){return overlapFixes;},
-  heal(n){healPlayer(n);},hurt(d){hurtSrc={label:'test'};return hurtPlayer(d);},zone(t,tm){addZone(t,tm,1,null);},dmg(){return pDmg();},
+  get AD(){return AD;},  heal(n){healPlayer(n);},hurt(d){hurtSrc={label:'test'};return hurtPlayer(d);},zone(t,tm){addZone(t,tm,1,null);},dmg(){return pDmg();},
   revive(){revive();},get pg(){return PG;},get paused(){return paused;},
   give(id){const u=UPS.find(x=>x.id===id);if(u){P.up[id]=(P.up[id]||0)+1;u.f();}else if(ACTIVES[id])P.act.push({id,lvl:1,cd:0});},
   get meta(){return meta;},inspect,SET,cover(o){window.__cover=o;},hit(e,d){e.hitDir=e.hitDir||[0,-1];return hitEnemy(e,d||9999);},get L(){return{hemi,dirLight,playerLight,bossLight,post,scene,THREE,dustSys,sparkSys,moteSys,shatter,OBSIDIAN,innerFor,get flash(){return flashW;},set flash(v){flashW=v;}};},refresh(){setupRoomVisuals();},fx(sec){for(let t=0;t<sec;t+=0.05){updateChunks(0.05);updatePoints(dustSys,0.05);updatePoints(sparkSys,0.05);}},toast,refreshBoon,get boonReady(){return boonReady;},LEGACY,renderLegacy,tip,syncFound,MODS,get modsOn(){return modsOn;},renderMods,renderCollection,finalScore,AD,AD_CFG,get sfxLoaded(){return Object.values(SFX_BUF).reduce((n,l)=>n+l.length,0);},get musicInfo(){return music?Object.fromEntries(Object.entries(music).map(([k,m])=>[k,{paused:m.el.paused,t:m.el.currentTime,g:m.g.gain.value,err:m.el.error&&m.el.error.code}])):null;},sfx,openPause,closePause,get userPaused(){return userPaused;},applySkin,SKINS,openLeaderboard,bossIndex,die:()=>die()};
