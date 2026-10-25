@@ -72,6 +72,8 @@
   function rng(seed) { let a = seed >>> 0; return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
   /* ---------------------------------------------------------------- the room */
+  function Art_rumble() { return window.Art ? window.Art.rumble : 0; }
+
   function leaf(c, x, y, side, s) {
     c.save(); c.translate(x, y); c.rotate(side * (0.7 + hash(s, 1) * 0.5));
     c.fillStyle = 'rgba(150,185,120,0.2)'; c.beginPath(); c.ellipse(side * 9, 0, 10, 4, 0, 0, TAU); c.fill();
@@ -220,6 +222,7 @@
     // light switch
     rr(c, 270, 590, 20, 32, 3); fillStroke(c, '#e6dcc4', 2); c.fillStyle = INK; c.fillRect(278, 598, 4, 9);
     // hanging lamp + moth
+    c.save(); c.translate(1250, 26); c.rotate((Art_rumble() || 0) * Math.sin(t * 3.1) * 0.2); c.translate(-1250, -26);
     c.strokeStyle = INK; c.lineWidth = 3; c.beginPath(); c.moveTo(1250, 26); c.lineTo(1250, 108); c.stroke();
     c.beginPath(); c.moveTo(1214, 152); c.quadraticCurveTo(1250, 98, 1286, 152); c.closePath(); fillStroke(c, awake ? '#ffe9a6' : '#e6b050', 3);
     c.strokeStyle = 'rgba(40,10,10,0.35)'; c.lineWidth = 1; for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(1250 + i * 6, 108 + Math.abs(i) * 4); c.lineTo(1250 + i * 12, 150); c.stroke(); }
@@ -227,6 +230,7 @@
     const ma = t * 2.2, mx = 1250 + Math.cos(ma) * 46, my = 150 + Math.sin(ma * 1.7) * 22, fl = Math.sin(t * 38) * 4;
     c.fillStyle = 'rgba(235,225,200,0.9)'; c.beginPath(); c.ellipse(mx - 3, my - 1, 4, 2.2 + Math.abs(fl) * 0.4, -0.5, 0, TAU); c.ellipse(mx + 3, my - 1, 4, 2.2 + Math.abs(fl) * 0.4, 0.5, 0, TAU); c.fill();
     c.fillStyle = '#4a3a30'; c.fillRect(mx - 1, my - 2, 2, 5);
+    c.restore();
   }
 
   function floor(c, v, t, state) {
@@ -492,9 +496,119 @@
     c.restore();
   }
 
+  // the hallway the giant comes through: a huge dark doorway with warm light spilling in
+  function doorway(c, t, state, v) {
+    if (!vis(v, 2380, 0, 2520, 920)) return;
+    const awake = state === 'awake';
+    c.fillStyle = lin(c, 0, 0, 0, FLOOR, [[0, '#0b060e'], [0.65, '#24121f'], [1, '#6f4226']]);
+    c.fillRect(2392, 28, 150, 872);
+    const g = c.createLinearGradient(2392, 0, 2500, 0); g.addColorStop(0, 'rgba(255,190,110,0)'); g.addColorStop(1, 'rgba(255,196,120,' + (awake ? 0.5 : 0.2) + ')');
+    c.fillStyle = g; c.fillRect(2392, 28, 150, 872);
+    rr(c, 2384, 24, 12, 880, 2); shaded(c, '#5a361f', 2384, 24, 12, 880, 2.6);
+    c.fillStyle = '#2c1a26'; c.fillRect(2392, 24, 150, 8);
+  }
+  function hallLightOnFloor(c, t, state) {
+    c.save(); c.globalCompositeOperation = 'lighter';
+    const k = state === 'awake' ? 0.34 : 0.12;
+    const g = c.createLinearGradient(2500, 0, 2050, 0); g.addColorStop(0, 'rgba(255,190,100,' + k + ')'); g.addColorStop(1, 'rgba(255,190,100,0)');
+    c.fillStyle = g; c.beginPath(); c.moveTo(2500, FLOOR); c.lineTo(2500, FLOOR + 90); c.lineTo(2000, FLOOR + 70); c.lineTo(2050, FLOOR); c.closePath(); c.fill();
+    c.restore();
+  }
+
+  /* ---------------------------------------------------------------- the giant's legs */
+  const GY = 915, ANK = 853;
+  function legEdge(f, hipX, y, side, ay) {
+    const topX = hipX + (f.x - hipX) * 0.55, s = clamp((y + 900) / (ay + 900), 0, 1);
+    const cx = topX + (f.x - topX) * s, hw = 84 + (40 - 84) * s, bulge = 13 * Math.sin(Math.PI * clamp((ay - y) / 320, 0, 1));
+    return cx + side * (hw + bulge * (side < 0 ? 1.1 : 0.5));
+  }
+  function legPath(c, f, hipX, y0, y1, ay, zig) {
+    c.beginPath(); c.moveTo(legEdge(f, hipX, y0, -1, ay), y0);
+    for (let y = y0; y <= y1; y += 22) c.lineTo(legEdge(f, hipX, y, -1, ay), y);
+    c.lineTo(legEdge(f, hipX, y1, -1, ay), y1);
+    if (zig) { const xl = legEdge(f, hipX, y1, -1, ay), xr = legEdge(f, hipX, y1, 1, ay); for (let i = 1; i <= 10; i++) c.lineTo(xl + (xr - xl) * i / 10, y1 + (i % 2 ? 9 : 0)); }
+    else c.lineTo(legEdge(f, hipX, y1, 1, ay), y1);
+    for (let y = y1; y >= y0; y -= 22) c.lineTo(legEdge(f, hipX, y, 1, ay), y);
+    c.lineTo(legEdge(f, hipX, y0, 1, ay), y0); c.closePath();
+  }
+  function drawLeg(c, f, hipX, seed, t) {
+    const ay = ANK - f.lift, top = -900, hem = ay - 300;
+    // pyjama trousers (with a frayed hem)
+    legPath(c, f, hipX, top, hem, ay, true);
+    const x0 = Math.min(legEdge(f, hipX, top, -1, ay), legEdge(f, hipX, hem, -1, ay)) - 4, x1 = Math.max(legEdge(f, hipX, top, 1, ay), legEdge(f, hipX, hem, 1, ay)) + 4;
+    const gx = c.createLinearGradient(x0, 0, x1, 0); gx.addColorStop(0, '#1c2652'); gx.addColorStop(0.4, '#3a4f98'); gx.addColorStop(0.75, '#31458a'); gx.addColorStop(1, '#6a78b8');
+    c.fillStyle = gx; c.fill();
+    c.save(); c.clip();
+    c.strokeStyle = 'rgba(225,232,255,0.34)'; c.lineWidth = 3.2;
+    for (let k = -8; k <= 8; k++) {
+      c.beginPath();
+      for (let y = top; y <= hem + 10; y += 60) { const s = clamp((y + 900) / (ay + 900), 0, 1), cx = (hipX + (f.x - hipX) * 0.55) + (f.x - (hipX + (f.x - hipX) * 0.55)) * s; c.lineTo(cx + k * (14 - s * 4), y); }
+      c.stroke();
+    }
+    c.strokeStyle = 'rgba(10,10,40,0.28)'; c.lineWidth = 6;
+    for (let i = 0; i < 4; i++) { const y = hem - 40 - i * 90 - hash(seed, i) * 30; c.beginPath(); c.moveTo(x0, y); c.quadraticCurveTo((x0 + x1) / 2, y + 26, x1, y + 8); c.stroke(); }
+    c.restore();
+    inkStroke(c, 4);
+    // bare, hairy shin
+    legPath(c, f, hipX, hem + 2, ay, ay, false);
+    const sx0 = legEdge(f, hipX, hem, -1, ay) - 4, sx1 = legEdge(f, hipX, ay, 1, ay) + 14;
+    const gs = c.createLinearGradient(sx0, 0, sx1, 0); gs.addColorStop(0, '#6e4234'); gs.addColorStop(0.35, '#b9805e'); gs.addColorStop(0.7, '#a86f52'); gs.addColorStop(1, '#e3a679');
+    c.fillStyle = gs; c.fill();
+    c.save(); c.clip();
+    c.strokeStyle = 'rgba(55,28,22,0.6)'; c.lineWidth = 1.6; c.lineCap = 'round';
+    for (let i = 0; i < 130; i++) {
+      const y = hem + 10 + hash(seed, i * 3) * (ay - hem - 10), xl = legEdge(f, hipX, y, -1, ay), xr = legEdge(f, hipX, y, 1, ay), x = xl + (xr - xl) * hash(seed, i * 3 + 1);
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x - 5 - hash(seed, i * 3 + 2) * 6, y + 6 + hash(seed, i) * 5); c.stroke();
+    }
+    c.strokeStyle = 'rgba(70,90,160,0.35)'; c.lineWidth = 3;
+    for (let i = 0; i < 3; i++) { const y = hem + 60 + i * 70; c.beginPath(); c.moveTo(f.x - 20 + i * 8, y); c.bezierCurveTo(f.x - 5, y + 20, f.x - 30, y + 40, f.x - 10 + i * 6, y + 70); c.stroke(); }
+    c.fillStyle = 'rgba(255,230,200,0.18)'; c.beginPath(); c.ellipse(f.x - 4, ay - 26, 9, 14, 0, 0, TAU); c.fill();
+    c.restore(); c.lineCap = 'butt';
+    inkStroke(c, 4);
+    // he looms out of the dark: fade the upper leg into shadow
+    legPath(c, f, hipX, top, ay, ay, false);
+    const gd = c.createLinearGradient(0, top, 0, ay); gd.addColorStop(0, 'rgba(8,2,16,0.92)'); gd.addColorStop(0.55, 'rgba(8,2,16,0.55)'); gd.addColorStop(1, 'rgba(8,2,16,0.12)');
+    c.fillStyle = gd; c.fill();
+    // the foot (facing left)
+    c.save(); c.translate(f.x, ay); c.rotate(f.tilt || 0);
+    c.beginPath(); c.moveTo(32, -60); c.lineTo(38, -8); c.quadraticCurveTo(58, 22, 52, 50); c.quadraticCurveTo(48, 66, 28, 66); c.quadraticCurveTo(-30, 50, -90, 66); c.lineTo(-118, 66);
+    c.quadraticCurveTo(-166, 66, -170, 44); c.quadraticCurveTo(-170, 26, -140, 22); c.quadraticCurveTo(-90, 18, -50, 2); c.quadraticCurveTo(-34, -10, -34, -60); c.closePath();
+    const gf = c.createLinearGradient(-170, 0, 55, 0); gf.addColorStop(0, '#a56c4e'); gf.addColorStop(0.5, '#c58b68'); gf.addColorStop(1, '#e3a679');
+    c.fillStyle = gf; c.fill();
+    c.save(); c.clip(); const gb = c.createLinearGradient(0, 20, 0, 68); gb.addColorStop(0, 'rgba(0,0,0,0)'); gb.addColorStop(1, 'rgba(60,20,20,0.5)'); c.fillStyle = gb; c.fillRect(-175, 20, 235, 50); c.restore();
+    inkStroke(c, 4);
+    for (const [tx, ty, rx, ry, na] of [[-98, 24, 14, 11, 4], [-120, 28, 15, 12, 5], [-142, 34, 16, 13, 6]]) {
+      blob(c, tx, ty, rx, ry, na + seed); fillStroke(c, '#b9805e', 3);
+      c.beginPath(); c.ellipse(tx - 6, ty - 1, 5, 7, 0.2, 0, TAU); fillStroke(c, '#d9c98a', 1.8);
+    }
+    blob(c, -156, 51, 25, 20, 9 + seed); fillStroke(c, '#c58b68', 3.4);
+    c.beginPath(); c.ellipse(-173, 46, 8.5, 12, 0.15, 0, TAU); fillStroke(c, '#dccb8c', 2);
+    c.strokeStyle = 'rgba(60,30,22,0.5)'; c.lineWidth = 1.4; for (let i = 0; i < 8; i++) { c.beginPath(); c.moveTo(-30 - i * 9, 10 + hash(seed, i) * 4); c.lineTo(-34 - i * 9, 16 + hash(seed, i + 8) * 5); c.stroke(); }
+    c.restore();
+  }
+
+  function giant(c, g, t) {
+    if (!g) return;
+    // where each landing will be, so the player can read it
+    for (const f of g.feet) {
+      const lifted = clamp(f.lift / 340, 0, 1);
+      c.fillStyle = 'rgba(0,0,0,' + 0.42 * (1 - lifted * 0.7) + ')'; c.beginPath(); c.ellipse(f.x - 50, GY - 1, 140 + lifted * 30, 17, 0, 0, TAU); c.fill();
+    }
+    if (g.mover >= 0 && g.target !== undefined) {
+      const f = g.feet[g.mover], k = clamp(f.t, 0, 1), pulse = 0.5 + 0.5 * Math.sin(t * 22);
+      c.save(); c.translate(g.target - 47, GY - 1);
+      c.beginPath(); c.ellipse(0, 0, 126, 22, 0, 0, TAU); c.fillStyle = 'rgba(150,10,20,' + (0.14 + 0.34 * k + 0.06 * pulse * k) + ')'; c.fill();
+      c.setLineDash([10, 8]); c.lineWidth = 3; c.strokeStyle = 'rgba(255,90,80,' + (0.35 + 0.5 * k) + ')'; c.stroke(); c.setLineDash([]);
+      c.restore();
+    }
+    const order = g.feet.slice().sort((p, q) => q.x - p.x);
+    order.forEach((f, i) => drawLeg(c, f, g.hip, 11 + (g.feet.indexOf(f)) * 17, t));
+  }
+
   function room(c, v, t, stateName, haul, G) {
     wall(c, v, t, stateName === 'awake');
     windowArt(c, t);
+    doorway(c, t, stateName, v);
     decor(c, v, t, stateName === 'awake');
     floor(c, v, t, stateName);
     clutter(c, v, t);
@@ -502,6 +616,7 @@
     mouseHole(c, t, haul, stateName);
     pad(c, t, haul, stateName, G);
     shaft(c, t, v);
+    hallLightOnFloor(c, t, stateName);
   }
 
   /* ---------------------------------------------------------------- screen-space finish */
@@ -806,5 +921,5 @@
     c.beginPath(); c.arc(sx, sy, 2.6, 0, TAU); fillStroke(c, '#8a8c9c', 1.6);
   }
 
-  window.Art = { rr, blob, fillStroke, inkStroke, shade, lin, vis, text, room, postfx, LOOT, thief, arm, rope, shoulder, hip, INK, SERIF, SANS, hash };
+  window.Art = { rumble: 0, giant, rr, blob, fillStroke, inkStroke, shade, lin, vis, text, room, postfx, LOOT, thief, arm, rope, shoulder, hip, INK, SERIF, SANS, hash };
 })();

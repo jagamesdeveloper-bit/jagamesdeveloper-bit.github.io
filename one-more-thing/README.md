@@ -22,7 +22,7 @@ Reeling yourself up to a ledge hauls you over it. Loot inside the doormat zone b
 ## Rules
 
 * Impacts make noise (speed × mass × material). Small bumps are free, big crashes aren't, and the doormat muffles sound.
-* Noise past 100 wakes the giant: you get 11 seconds to get home. Anything still unbanked when he catches you is lost.
+* Noise past 100 wakes the giant. He walks in through the hallway door on the right on huge hairy legs, aiming each step at where you are heading. A red shadow shows every landing spot; a foot or a leg touching you squashes you. Duck under a lifted foot or slip between his planted legs. He is faster than a loaded burglar and slower than an empty-handed one, so drop loot to run. The doormat by the mousehole is safe. Anything unbanked when he gets you is lost.
 * Bank $700 to "pay the rent", but there are $1450 of loot in the room.
 
 ## Loot personalities

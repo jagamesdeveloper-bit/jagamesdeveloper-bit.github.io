@@ -67,7 +67,7 @@
   const TOTAL_VALUE = DEFS.reduce((s, d) => s + d.value, 0);
 
   const QUIPS_ESCAPE = ['Back in the hole. The giant will blame the cat.', 'Smooth. Mostly. A little bit smooth.', 'Tiny thief, giant haul.'];
-  const QUIPS_CAUGHT = ['You were SO close to one more thing.', 'The giant has questions. You have no pockets.', 'Greed: 1, Thief: 0.'];
+  const QUIPS_CAUGHT = ['Flat as a pancake. A very small pancake.', 'He never even noticed. That is the worst part.', 'You could have dropped the TV.'];
 
   /* ============================================================ canvas / sizing */
   const canvas = document.getElementById('c');
@@ -121,7 +121,7 @@
     try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs'], [String(P.best), String(P.runs)]).catch(() => {}); } catch (e) {}
   }
   function platMsg(m, data) { try { if (hasBridge()) window.bridge.platform.sendMessage(m, data); } catch (e) {} }
-  const GAME_VERSION = '1.1.0';
+  const GAME_VERSION = '1.2.0';
   const Tele = {
     send(name, data) { try { if (hasBridge() && window.bridge.analytics) window.bridge.analytics.send(name, data); } catch (e) {} },
     frames: [], windowStart: 0, active: 0, jsErr: 0,
@@ -183,7 +183,7 @@
       t: 0, time: 0, state: 'play', noise: 0, noiseDisp: 0, stage: 0, banked: 0, bankedCount: 0, over: null, overT: 0,
       escapeLeft: ESCAPE_TIME, leaving: false, leaveT: 0, groundT: 0, jumpBuf: 0, landSq: 0, grin: 0, shake: 0, wasGround: false,
       sqS: 0, saS: 0, blink: 3, walk: 0, caughtT: 0, flags: {}, hint: 14, toast: null, stepT: 0, hbT: 0, flash: 0, goalHit: false,
-      lastGreed: '', carriedPeak: 0
+      lastGreed: '', carriedPeak: 0, giant: null, crushed: false, rumble: 0, punch: 0
     };
     buildWorld();
     hands = [mkHand(), mkHand()];
@@ -277,10 +277,11 @@
     if (G.noise >= 100 && G.state === 'play') wakeGiant();
   }
   function wakeGiant() {
-    G.state = 'awake'; G.escapeLeft = ESCAPE_TIME; G.shake = 14; G.flash = 1;
+    G.state = 'awake'; G.escapeLeft = ESCAPE_TIME; G.shake = 14; G.flash = 1; G.rumble = 1; G.hbT = 0;
+    initGiant();
     Snd.wake(); G.stepT = 0.2;
     Tele.send('giant_woke', { banked: G.banked, carrying: haulValue(), items_hauled: hauled.length, time_sec: Math.round(G.time) });
-    toast('HE\'S UP!  RUN HOME TO THE MOUSEHOLE!', ESCAPE_TIME, 'alarm');
+    toast('HE\'S UP! Run home. Dodge the feet, and drop loot to run faster!', 6, 'alarm');
     for (const it of items) if (it.vac && it.vac.on) stopVac(it);
   }
 
@@ -505,6 +506,78 @@
     if (grounded && Math.abs(player.velocity.x) > 0.5) G.walk += Math.abs(player.velocity.x) * 0.13;
   }
 
+  /* ============================================================ the giant */
+  const GY = 915, STRIDE_MAX = 640, STRIDE_MIN = 220;
+  function initGiant() {
+    const hx = 2790;
+    G.giant = { feet: [{ x: hx - 150, lift: 0, from: 0, to: 0, t: 1, tilt: 0 }, { x: hx + 150, lift: 0, from: 0, to: 0, t: 1, tilt: 0 }], hip: hx, mover: -1, idle: 1.2, dur: 1.0, steps: 0, target: undefined, closeness: 0 };
+  }
+  function giantStep(g) {
+    const aim = player.position.x + player.velocity.x * 12;
+    const dir = aim < g.hip ? -1 : 1;
+    const mi = dir < 0 ? (g.feet[0].x > g.feet[1].x ? 0 : 1) : (g.feet[0].x < g.feet[1].x ? 0 : 1);
+    const f = g.feet[mi], other = g.feet[1 - mi];
+    let to = f.x + dir * clamp(Math.abs(aim - f.x), STRIDE_MIN, STRIDE_MAX);
+    if (Math.abs(to - other.x) < 150) to = other.x + dir * 150;
+    f.from = f.x; f.to = to; f.t = 0; g.mover = mi; g.target = to;
+    g.dur = Math.max(0.68, 0.9 - g.steps * 0.02);
+    Snd.whoosh();
+  }
+  function giantLand(g, f) {
+    const d = Math.abs(player.position.x - f.x), near = clamp(1 - d / 900, 0, 1);
+    Snd.stomp(0.45 + 0.55 * near);
+    G.shake = Math.max(G.shake, 8 + 16 * near); G.rumble = 1; G.punch = 1;
+    for (let i = 0; i < 26; i++) parts.push({ x: f.x - 50 + rand(-130, 130), y: GY - rand(0, 12), vx: rand(-260, 260), vy: rand(-130, -20), life: rand(0.8, 1.5), t: 0, col: 'rgba(214,198,176,0.5)', size: rand(8, 18), g: -30 });
+    const top = cam.y - ch / (2 * cam.s), half = cw / (2 * cam.s);
+    for (let i = 0; i < 40; i++) parts.push({ x: cam.x + rand(-half, half), y: top + rand(0, 80), vx: rand(-10, 10), vy: rand(20, 90), life: rand(1, 2), t: 0, col: 'rgba(205,192,170,0.55)', size: rand(1.4, 3.4), g: 30 });
+    // the whole room jumps
+    for (const it of items) if (it.state === 'loose' || it.state === 'hauled') {
+      const dd = Math.abs(it.body.position.x - f.x);
+      if (dd < 520) { const k = 1 - dd / 520; Body.setVelocity(it.body, { x: it.body.velocity.x + rand(-1, 1) * k * 2, y: it.body.velocity.y - 5 * k - 1 }); }
+    }
+    const dd = Math.abs(player.position.x - f.x);
+    if (dd < 460) {
+      const k = 1 - dd / 460;
+      if (G.groundT > 0) Body.setVelocity(player, { x: player.velocity.x, y: player.velocity.y - 4.5 * k });
+      if (dd < 320) for (const h of hands) if (h.on && h.con) { Snd.tear(); endHand(h, true, 'tear'); }
+    }
+    popWord(f.x - 50, GY - 70, 'BOOM', 2, '#ffd1a0');
+  }
+  function crushed() {
+    G.state = 'caught'; G.caughtT = 0; G.crushed = true;
+    for (const h of hands) if (h.on) endHand(h, true, 'tear');
+    for (const it of items) if (it.vac && (it.vac.on || it.vac.snd)) stopVac(it);
+    Body.setVelocity(player, { x: 0, y: 0 }); Body.setStatic(player, true);
+    Snd.stomp(1); G.shake = 26; G.punch = 1.4; G.flash = 0.8;
+    popWord(player.position.x, player.position.y - 50, 'SPLAT!', 1.8, '#ffd1a0');
+  }
+  function giantHit(g) {
+    const px = player.position.x, py = player.position.y, top = py - 42, bot = py + PR, cy = py - 9;
+    for (const f of g.feet) {
+      const ay = 853 - f.lift;
+      if (px > f.x - 150 && px < f.x + 55 && top < ay + 84 && bot > ay - 30) return crushed();
+      const topX = g.hip + (f.x - g.hip) * 0.55, sct = clamp((cy + 900) / (ay + 900), 0, 1), cx = topX + (f.x - topX) * sct, hw = 84 - 44 * sct;
+      if (cy < ay + 30 && Math.abs(px - cx) < hw + 10) return crushed();
+    }
+  }
+  function updateGiant(dt) {
+    const g = G.giant; if (!g || G.state !== 'awake') return;
+    if (g.mover < 0) { g.idle -= dt; if (g.idle <= 0) giantStep(g); }
+    else {
+      const f = g.feet[g.mover]; f.t += dt / g.dur; const k = Math.min(1, f.t), e = k * k * (3 - 2 * k);
+      f.x = lerp(f.from, f.to, e); f.lift = 340 * Math.pow(Math.sin(Math.PI * k), 0.7);
+      f.tilt = -0.3 * Math.sin(Math.PI * k) + (k > 0.8 ? (k - 0.8) * 0.5 : 0);
+      if (k >= 1) { f.lift = 0; f.tilt = 0; g.mover = -1; g.idle = 0.1; g.steps++; g.target = undefined; giantLand(g, f); }
+    }
+    g.hip = (g.feet[0].x + g.feet[1].x) / 2;
+    const px = player.position.x; let dmin = 1e9;
+    for (const f of g.feet) dmin = Math.min(dmin, Math.max(0, Math.abs(px - (f.x - 50)) - 100));
+    g.closeness = clamp(1 - dmin / 1300, 0, 1);
+    G.hbT -= dt; if (G.hbT <= 0) { G.hbT = lerp(0.9, 0.34, g.closeness); Snd.heartbeat(); }
+    G.shake = Math.max(G.shake, 2.2);
+    if (G.state === 'awake' && !inPad(player.position)) giantHit(g);
+  }
+
   /* ============================================================ simulation step */
   function stepSim() {
     const dt = STEP;
@@ -512,9 +585,7 @@
     G.groundT = Math.max(0, G.groundT - dt);
     if (!G.over) {
       G.time += dt;
-      movement(dt);
-      handsUpdate(dt);
-      vacuumUpdate(dt);
+      if (G.state !== 'caught') { movement(dt); handsUpdate(dt); vacuumUpdate(dt); }
     }
     refreshMasks();
     Engine.update(engine, DT);
@@ -562,18 +633,17 @@
       G.stage = stage;
       if (stage === 2) { G.hbT -= dt; if (G.hbT <= 0) { G.hbT = 0.7; Snd.heartbeat(); } }
       Snd.snore(1 - G.noise / 140, G.t);
-    } else if (G.state === 'awake' || G.state === 'leaving') {
-      G.stepT -= dt;
-      if (G.stepT <= 0) { G.stepT = 0.62; Snd.stomp(); G.shake = Math.max(G.shake, 7); }
+    } else if (G.state === 'awake') {
+      updateGiant(dt);
     }
+    G.rumble = Math.max(G.state === 'awake' || G.state === 'leaving' ? 0.4 : 0, G.rumble * 0.96);
+    Art.rumble = G.rumble;
     G.noiseDisp = lerp(G.noiseDisp, G.noise, 0.15);
 
     // leaving / escaping
     const inHome = inPad(player.position);
     if (G.state === 'awake') {
-      G.escapeLeft -= dt;
       if (inHome) { G.state = 'leaving'; G.leaveT = 0; }
-      else if (G.escapeLeft <= 0) { G.state = 'caught'; G.caughtT = 0; Snd.stomp(); }
     }
     if (G.state === 'leaving') {
       G.leaveT -= dt;
@@ -582,7 +652,7 @@
         let next = null, bd = 1e9;
         for (const it of items) if ((it.state === 'hauled' || it.state === 'loose') && dist(it.body.position, HOLE) < 360) { const d = dist(it.body.position, HOLE); if (d < bd) { bd = d; next = it; } }
         if (next) bankItem(next);
-        else if (banking.length === 0) endRun(G.escapeLeft < ESCAPE_TIME - 0.01 && G.noise >= 100 ? 'escaped' : 'sneaked');
+        else if (banking.length === 0) endRun(G.noise >= 100 ? 'escaped' : 'sneaked');
       }
     }
     if (G.state === 'caught') {
@@ -711,6 +781,7 @@
   function updateCam(dt) {
     let s = clamp(Math.min(cw / 900, ch / 560), 0.25, 3);
     if (cw / ch < 0.9) s = Math.max(s, cw / 480); // portrait: zoom in so the burglar is readable
+    s *= 1 + 0.035 * (G.punch || 0); G.punch = (G.punch || 0) * 0.9;
     cam.s = s;
     const hw = cw / (2 * s), hh = ch / (2 * s);
     // on touch screens leave room under the floor for the thumb buttons
@@ -804,17 +875,8 @@
       c.save(); c.translate(p.x, p.y); c.rotate(p.rot); c.globalAlpha = a; const sc = (0.6 + 0.4 * pop) * p.scale;
       txt(c, p.text, 0, 0, 26 * sc, p.color, 'center', 900); c.restore();
     }
-    // giant's hand when caught
-    if (G.state === 'caught' || (G.over && G.over.kind === 'caught')) {
-      const k = G.over ? 1 : clamp(G.caughtT / 1.1, 0, 1), e = k * k * (3 - 2 * k);
-      const hx = player.position.x, hy = lerp(player.position.y - 900, player.position.y - 30, e);
-      c.save(); c.translate(hx, hy);
-      c.fillStyle = '#e9b68c'; c.strokeStyle = OUT; c.lineWidth = 5;
-      Art.rr(c, -80, -420, 160, 420, 50); c.fill(); c.stroke();
-      for (let i = 0; i < 4; i++) { const fx = -70 + i * 46; Art.rr(c, fx - 4, -10, 52, 130 + (i === 1 || i === 2 ? 30 : 0), 24); c.fill(); c.stroke(); }
-      Art.rr(c, 52, -70, 60, 100, 28); c.fill(); c.stroke();
-      c.restore();
-    }
+    // the giant himself
+    if (G.giant && (G.state === 'awake' || G.state === 'leaving' || G.state === 'caught' || G.over)) Art.giant(c, G.giant, t);
   }
 
   function drawReach(c, t) {
@@ -892,6 +954,10 @@
     const gy = groundYAt(pp.x, pp.y + PR - 4), air = clamp((gy - (pp.y + PR)) / 220, 0, 1);
     c.save(); c.translate(pp.x, gy + 2); c.scale(1, 0.22); c.beginPath(); c.arc(0, 0, 22 * (1 - air * 0.5), 0, TAU); c.fillStyle = 'rgba(10,0,20,' + (0.4 * (1 - air * 0.7)) + ')'; c.fill(); c.restore();
 
+    if (G.crushed) {
+      c.save(); c.translate(pp.x, pp.y + PR); c.scale(1.5, 0.15); c.translate(-pp.x, -(pp.y + PR)); Art.thief(c, pose); c.restore();
+      G.pose = pose; return;
+    }
     Art.thief(c, pose);
     G.pose = pose;
 
@@ -1075,13 +1141,13 @@
     inkText(c, label, bx + bw, ny + 23 * U, fs(12), alarm ? '#a3201a' : '#2c5a82', 'right');
     gauge(c, bx, by, bw, bh, clamp(G.noiseDisp / 100, 0, 1), (cc, x, w) => { const g = cc.createLinearGradient(x, 0, x + w, 0); g.addColorStop(0, '#6fb36a'); g.addColorStop(0.5, '#e8b33a'); g.addColorStop(1, '#d0382e'); return g; }, [0.35, 0.7]);
 
-    // escape countdown
+    // how close the giant is
     if (G.state === 'awake') {
       const ew = Math.min(cw * 0.7, 520 * U), ex = (cw - ew) / 2, ey = ny + nh + 16 * U + (ny > pad ? 0 : Math.max(0, lh - nh));
-      const k = clamp(G.escapeLeft / ESCAPE_TIME, 0, 1);
+      const k = G.giant ? G.giant.closeness : 0;
       card(c, ex, ey, ew, 46 * U, '#ea8f7e');
-      inkText(c, 'RUN TO THE MOUSEHOLE!   ' + Math.ceil(G.escapeLeft) + 's', cw / 2, ey + 22 * U, fs(17), INKC, 'center');
-      gauge(c, ex + 14 * U, ey + 30 * U, ew - 28 * U, 8 * U, k, k > 0.3 ? '#e8b33a' : '#d0382e', []);
+      inkText(c, k > 0.7 ? 'HE\'S RIGHT BEHIND YOU!' : 'THE GIANT IS COMING. RUN HOME!', cw / 2, ey + 22 * U, fs(17), INKC, 'center');
+      gauge(c, ex + 14 * U, ey + 30 * U, ew - 28 * U, 8 * U, Math.max(0.04, k), k > 0.6 ? '#d0382e' : '#e8b33a', []);
     }
 
     // toast
@@ -1128,7 +1194,7 @@
       card(c, px, py, pw, ph, '#f0e2bd', 12);
       tape(c, px + pw * 0.15, py + 2, -0.1); tape(c, px + pw * 0.85, py + 2, 0.12);
       const caught = o.kind === 'caught';
-      const title = caught ? 'CAUGHT!' : o.kind === 'clean' ? 'CLEAN SWEEP!' : o.kind === 'escaped' ? 'ESCAPED!' : 'SNEAKED OUT!';
+      const title = caught ? 'SQUASHED!' : o.kind === 'clean' ? 'CLEAN SWEEP!' : o.kind === 'escaped' ? 'ESCAPED!' : 'SNEAKED OUT!';
       c.save(); c.translate(cw / 2, py + 62 * U); c.rotate(-0.06);
       c.font = '900 ' + fs(38) + 'px ' + Art.SERIF; const tw2 = c.measureText(title).width + 36 * U;
       Art.rr(c, -tw2 / 2, -38 * U, tw2, 54 * U, 6); c.lineWidth = 4; c.strokeStyle = caught ? '#a3201a' : '#2d6a3a'; c.stroke();

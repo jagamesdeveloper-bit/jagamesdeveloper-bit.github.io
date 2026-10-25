@@ -122,7 +122,8 @@
       tone(110, 1.1, 'sawtooth', 0.22, 80); tone(165, 1.1, 'sawtooth', 0.14, 120);
       noise(0.5, 0.2, 'lowpass', 400, 120);
     },
-    stomp() { tone(62, 0.35, 'sine', 0.55, 28); noise(0.25, 0.3, 'lowpass', 300, 90); },
+    stomp(v) { v = v === undefined ? 1 : v; tone(58, 0.5, 'sine', 0.62 * v, 24); tone(96, 0.18, 'sine', 0.3 * v, 40); noise(0.4, 0.38 * v, 'lowpass', 420, 70); },
+    whoosh() { noise(0.7, 0.16, 'bandpass', 200, 700, 0, 1.2); tone(46, 0.7, 'sawtooth', 0.05, 38); },
     win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'square', 0.07, null, i * 0.11)); },
     lose() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.28, 'sawtooth', 0.07, null, i * 0.16)); },
     whirrStart() {
