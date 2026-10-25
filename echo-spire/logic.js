@@ -43,9 +43,10 @@
       targets: Array.isArray(h.piece) ? h.piece : [h.piece],
       host: h.on === undefined ? (Array.isArray(h.piece) ? h.piece[0] : h.piece) : h.on,
       at: h.at,
+      dir: h.dir || 1,
     }));
     return {
-      name: def.name, hint: def.hint, sky: def.sky, illusion: !!def.illusion,
+      name: def.name, hint: def.hint, sky: def.sky, illusion: !!def.illusion, par: def.par,
       pieces, flat, offsets, handles,
       start: find(def.start), goal: find(def.goal),
     };
@@ -115,13 +116,26 @@
     });
     adj.ill = new Set();
     if (level.illusion) {
-      for (let i = 0; i < all.length; i++) {
-        if (!all[i].walk || all[i].kind !== 'b') continue;
-        for (let j = i + 1; j < all.length; j++) {
-          if (!all[j].walk || all[j].kind !== 'b') continue;
-          if (visuallyLinked(all[i], all[j]) && !adj[i].includes(j)) { adj[i].push(j); adj[j].push(i); adj.ill.add(i + ',' + j); }
+      // Bucket tiles by where they land on screen; linked tiles are the same spot or one diagonal step apart.
+      const scr = new Map();
+      all.forEach((t, i) => {
+        if (!t.walk || t.kind !== 'b') return;
+        const k = (t.x - t.y) + ',' + (t.x + t.y - 2 * t.z);
+        const list = scr.get(k);
+        if (list) list.push(i); else scr.set(k, [i]);
+      });
+      const OFFS = [[0, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+      all.forEach((t, i) => {
+        if (!t.walk || t.kind !== 'b') return;
+        const sx = t.x - t.y, sy = t.x + t.y - 2 * t.z;
+        for (const o of OFFS) {
+          const list = scr.get((sx + o[0]) + ',' + (sy + o[1]));
+          if (!list) continue;
+          for (const j of list) {
+            if (j > i && visuallyLinked(t, all[j]) && !adj[i].includes(j)) { adj[i].push(j); adj[j].push(i); adj.ill.add(i + ',' + j); }
+          }
         }
-      }
+      });
     }
     return adj;
   }
@@ -150,7 +164,7 @@
     const h = level.handles[hi];
     const next = state.map(s => ({ r: s.r, s: s.s }));
     for (const pi of h.targets) {
-      if (h.type === 'rot') next[pi].r = (next[pi].r + 1) % level.pieces[pi].rot.cycle;
+      if (h.type === 'rot') next[pi].r = mod(next[pi].r + h.dir, level.pieces[pi].rot.cycle);
       else next[pi].s = 1 - next[pi].s;
     }
     return next;
@@ -158,48 +172,54 @@
 
   const stateKey = st => st.map(p => p.r + '.' + p.s).join('|');
 
-  // Shortest list of crank taps that gets the player to the goal. Walking is free, so only taps cost.
+  // Shortest list of crank taps that gets the player to the goal. Walking is free, so only taps cost, and
+  // the search runs over (pose, connected region the player is in) instead of every single tile.
   // Returns { taps, seq: [{ hi, at }] } where `at` is the tile the player must stand on when tapping
   // (that matters when a piece carries the player), or null if unsolvable.
   function solve(level, state, startIdx, maxTaps) {
     maxTaps = maxTaps || 12;
-    const nk = (st, idx) => stateKey(st) + '#' + idx;
-    const parent = new Map([[nk(state, startIdx), null]]);
-    const graphs = new Map();
-    let layer = [{ st: state, idx: startIdx }];
+    const infos = new Map();
+    const info = (st, sk) => {
+      let g = infos.get(sk);
+      if (g) return g;
+      const all = cells(level, st), adj = buildGraph(level, all);
+      const label = new Int32Array(all.length).fill(-1), comps = [];
+      all.forEach((t, i) => {
+        if (!t.walk || label[i] >= 0) return;
+        const id = comps.length, list = [i];
+        label[i] = id;
+        for (let h = 0; h < list.length; h++) for (const n of adj[list[h]]) if (label[n] < 0) { label[n] = id; list.push(n); }
+        comps.push(list);
+      });
+      g = { label, comps };
+      infos.set(sk, g);
+      return g;
+    };
+    const sk0 = stateKey(state);
+    const startComp = info(state, sk0).label[startIdx];
+    const parent = new Map([[sk0 + '#' + startComp, null]]);
+    let layer = [{ st: state, sk: sk0, comp: startComp, rep: startIdx }];
     for (let taps = 0; layer.length && taps <= maxTaps; taps++) {
-      const reach = [];
-      let found = null;
       for (const nd of layer) {
-        const sk = stateKey(nd.st);
-        let adj = graphs.get(sk);
-        if (!adj) { adj = buildGraph(level, cells(level, nd.st)); graphs.set(sk, adj); }
-        const seen = new Set([nd.idx]);
-        const stack = [nd.idx];
-        while (stack.length) {
-          const c = stack.pop();
-          reach.push({ st: nd.st, idx: c });
-          const k = nk(nd.st, c);
-          if (!parent.has(k)) parent.set(k, { from: nk(nd.st, nd.idx), act: null, at: null });
-          if (c === level.goal && !found) found = k;
-          for (const n of adj[c]) if (!seen.has(n)) { seen.add(n); stack.push(n); }
-        }
-      }
-      if (found) {
+        if (info(nd.st, nd.sk).label[level.goal] !== nd.comp) continue;
         const seq = [];
-        for (let k = found, p = parent.get(k); p; k = p.from, p = parent.get(k)) {
-          if (p.act !== null) seq.unshift({ hi: p.act, at: p.at });
-        }
+        for (let k = nd.sk + '#' + nd.comp, p = parent.get(k); p; k = p.from, p = parent.get(k)) seq.unshift({ hi: p.act, at: p.at });
         return { taps, seq };
       }
       const next = [];
-      for (const nd of reach) {
+      for (const nd of layer) {
+        const tiles = info(nd.st, nd.sk).comps[nd.comp];
+        const from = nd.sk + '#' + nd.comp;
         for (let hi = 0; hi < level.handles.length; hi++) {
-          const st2 = tap(level, nd.st, hi);
-          const k2 = nk(st2, nd.idx);
-          if (parent.has(k2)) continue;
-          parent.set(k2, { from: nk(nd.st, nd.idx), act: hi, at: nd.idx });
-          next.push({ st: st2, idx: nd.idx });
+          const st2 = tap(level, nd.st, hi), sk2 = stateKey(st2), g2 = info(st2, sk2);
+          // try the tile the player is already on first, so hints only ask to move when it is needed
+          const order = [nd.rep].concat(tiles);
+          for (const t of order) {
+            const c2 = g2.label[t], k2 = sk2 + '#' + c2;
+            if (parent.has(k2)) continue;
+            parent.set(k2, { from, act: hi, at: t });
+            next.push({ st: st2, sk: sk2, comp: c2, rep: t });
+          }
         }
       }
       layer = next;

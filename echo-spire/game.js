@@ -124,6 +124,12 @@
   const ambient = Array.from({ length: 46 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.8, sp: 0.004 + Math.random() * 0.012, ph: Math.random() * TAU }));
   const clouds = Array.from({ length: 6 }, (_, i) => ({ x: Math.random(), y: 0.08 + i * 0.13 + Math.random() * 0.05, w: 0.25 + Math.random() * 0.3, sp: 0.004 + Math.random() * 0.006 }));
 
+  // Fewest turns for a level, found once on demand (the biggest levels take a moment to search).
+  function parOf(lv) {
+    if (lv.par === undefined) { const r = L.solve(lv, L.initialState(lv), lv.start, 20); lv.par = r ? r.taps : 0; }
+    return lv.par;
+  }
+
   function loadLevel(i) {
     const lv = LEVELS[i];
     G = {
@@ -133,7 +139,7 @@
       hv: lv.handles.map(() => ({ a: 0 })),
       tween: null, walk: null, tap: null,
       player: lv.start, won: false, winT: 0, active: false,
-      sparks: [], puffs: [], ripples: [], ill: new Set(), illEdges: new Set(), hint: null, hintT: 0, time: 0, intro: 0, shake: 0, moves: 0, hit: [], handleHit: [], par: lv.par,
+      sparks: [], puffs: [], ripples: [], ill: new Set(), illEdges: new Set(), hint: null, hintT: 0, time: 0, intro: 0, shake: 0, moves: 0, hit: [], handleHit: [], par: parOf(lv),
       all: null, adj: null,
     };
     refresh();
@@ -213,13 +219,13 @@
     h.targets.forEach(pi => {
       const p = G.lv.pieces[pi], v = G.vis[pi];
       if (h.type === 'rot') {
-        const to = p.rot.cycle === 4 ? v.ang + p.rot.step * 90 : next[pi].r * p.rot.step * 90;
+        const to = p.rot.cycle === 4 ? v.ang + p.rot.step * 90 * h.dir : next[pi].r * p.rot.step * 90;
         items.push({ o: v, k: 'ang', from: v.ang, to });
       } else {
         items.push({ o: v, k: 'sl', from: v.sl, to: next[pi].s });
       }
     });
-    items.push({ o: G.hv[hi], k: 'a', from: G.hv[hi].a, to: G.hv[hi].a + 180 });
+    items.push({ o: G.hv[hi], k: 'a', from: G.hv[hi].a, to: G.hv[hi].a + 180 * h.dir });
     G.st = next;
     G.moves++;
     G.hint = null;
@@ -550,15 +556,21 @@
   function onTap(x, y) {
     if (!G || !G.active || G.won || G.tween || G.intro < 1) return;
     const walking = !!G.walk;
-    if (!walking) {
-      for (const h of G.handleHit) {
-        if (Math.hypot(x - h.x, y - h.y) <= h.r) { activate(h.hi); return; }
-      }
-    }
-    let target = -1;
+    let face = null;
     for (let i = G.hit.length - 1; i >= 0; i--) {
-      if (pointIn(G.hit[i].pts, x, y)) { target = G.hit[i].walk ? G.hit[i].idx : -1; break; }
+      if (pointIn(G.hit[i].pts, x, y)) { face = G.hit[i]; break; }
     }
+    if (!walking) {
+      // A tap on the knob always turns the crank; in the wider ring around it a walkable tile wins.
+      const near = Math.max(18, cam.s * 0.45), far = Math.max(26, cam.s * 0.62);
+      let pick = null, best = Infinity;
+      for (const h of G.handleHit) {
+        const d = Math.hypot(x - h.x, y - h.y);
+        if (d < best && (d <= near || (d <= far && !(face && face.walk)))) { best = d; pick = h; }
+      }
+      if (pick) { activate(pick.hi); return; }
+    }
+    const target = face && face.walk ? face.idx : -1;
     const origin = walking ? G.walk.path[G.walk.i + 1] : G.player;
     if (target < 0 || target === origin) return;
     const path = L.findPath(G.adj, origin, target);
@@ -576,7 +588,7 @@
     const text = $('hint');
     text.classList.remove('dim');
     clearTimeout(fadeHint.t);
-    const sol = L.solve(G.lv, G.st, G.player);
+    const sol = L.solve(G.lv, G.st, G.player, 20);
     if (!sol) { G.hint = null; text.textContent = 'This corner is stuck. Try restarting the level.'; return; }
     if (sol.taps === 0) {
       G.hint = { type: 'goal' }; text.textContent = 'The way is open. Walk to the glow.';
@@ -608,7 +620,7 @@
       const b = document.createElement('button');
       b.textContent = i + 1;
       b.disabled = i >= prog.unlocked;
-      if (prog.best[i] && prog.best[i] <= lv.par) b.classList.add('star');
+      if (prog.best[i] && prog.best[i] <= parOf(lv)) b.classList.add('star');
       b.setAttribute('aria-label', 'Level ' + (i + 1) + ': ' + lv.name);
       b.addEventListener('click', () => play(i));
       box.appendChild(b);
@@ -665,7 +677,6 @@
     render(ts / 1000);
   }
 
-  LEVELS.forEach(lv => { const r = L.solve(lv, L.initialState(lv), lv.start); lv.par = r ? r.taps : 0; });
   resize();
   syncSound();
   buildLevelGrid();

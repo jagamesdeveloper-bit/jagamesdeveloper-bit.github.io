@@ -28,39 +28,45 @@
   const solid = tiles => tiles.filter(t => t[2] > 0).flatMap(t => col(t[0], t[1], 0, t[2]));
 
   // A run of "impossible bridges". Stage k has a rotating piece whose arm only lines up on screen with the
-  // previous platform in one pose (+1 quarter turn): the arm sits one block higher and two cells over, so it
-  // looks attached. Cranks are shared between pieces, and pieces have 2 or 3 poses, so the puzzle is to find
-  // taps that put every piece in its pose at once.
-  //   o.cycles[k]  poses of piece k (2 or 3)      o.cranks[j]  stages that crank j turns
+  // previous platform in one pose: the arm sits one block higher and two cells over, so it looks attached.
+  // Stages alternate between the two diagonals (side 'R' or 'L') so the tower zigzags. A stage that joins the
+  // next platform by illusion too ('visual') leaves room for a four-pose piece. Cranks are shared between
+  // pieces and may turn them backwards, so the puzzle is to find taps that put every piece in its pose.
+  //   o.stages[k] = [poses, side, visualJoin]      o.cranks[j] = [[stages it turns], direction +1 / -1]
   function chain(o) {
-    const n = o.cycles.length;
-    const pal = [VIOLET, CORAL, TEAL, AMBER, '#d97bb0', '#6f9be0'];
-    const stat = line(-2, 0, 0, 1, 0, 3);
+    const n = o.stages.length;
+    const pal = [VIOLET, CORAL, TEAL, AMBER, '#d97bb0', '#6f9be0', '#7cc07a'];
+    const mir = (side, d) => (side === 'L' ? [d[1], d[0], d[2]] : d);
+    const add = (p, d) => [p[0] + d[0], p[1] + d[1], p[2] + d[2]];
+    const firstSide = o.stages[0][1];
+    const stat = firstSide === 'L' ? line(0, -2, 0, 0, 1, 3) : line(-2, 0, 0, 1, 0, 3);
     const pieces = [{ color: CREAM, blocks: stat }];
     const A = [];
-    let ax = 0, ay = 0, az = 0;
-    for (let k = 0; k < n; k++) {
-      A.push([ax, ay, az]);
-      const ux = ax + 3, uy = ay + 1, uz = az + 1;
+    let a = [0, 0, 0];
+    o.stages.forEach(([cycle, side, visual], k) => {
+      A.push(a);
+      const u = add(a, mir(side, [3, 1, 1])), t0 = add(a, mir(side, [3, 2, 1]));
       pieces.push({
-        color: pal[k % pal.length], pivot: [ux + 0.5, uy + 0.5], rot: { cycle: o.cycles[k], step: 1 },
-        blocks: [[ux, uy, uz], [ux, uy + 1, uz], [ux, uy, uz - 1, 'd'], [ux, uy + 1, uz - 1, 'd']],
+        color: pal[k % pal.length], pivot: [u[0] + 0.5, u[1] + 0.5], rot: { cycle, step: side === 'L' ? -1 : 1 },
+        blocks: [[u[0], u[1], u[2]], [t0[0], t0[1], t0[2]], [u[0], u[1], u[2] - 1, 'd'], [t0[0], t0[1], t0[2] - 1, 'd']],
       });
-      ax += 4; ay += 1; az += 1;
+      a = add(u, mir(side, visual ? [2, 1, 1] : [1, 0, 0]));
       // One tile only: a second tile beside it would look attached to the pivot tile and skip the puzzle.
-      const land = k === n - 1 ? [[ax, ay, az], [ax + 1, ay, az]] : [[ax, ay, az]];
-      stat.push(...land, ...solid(land));
-      stat.push(...col(A[k][0] + 2, A[k][1] - 3, 0, A[k][2] + 2), ...col(A[k][0] + 3, A[k][1] - 3, 0, A[k][2] + 1));
-    }
-    const handles = o.cranks.map((targets, j) => {
-      const a = A[Math.min(j, n - 1)];
-      const ped = [a[0] + 1, a[1] + 4 + Math.floor(j / n) * 2, a[2]];
-      stat.push([ped[0], ped[1], ped[2], 'd']);
-      return { type: 'rot', piece: targets.map(t => t + 1), on: 0, at: ped };
+      const land = k === n - 1 ? [a, add(a, mir(side, [1, 0, 0]))] : [a];
+      stat.push(...land, ...land.flatMap(t => col(t[0], t[1], t[2] - 2, 2)));
     });
+    const spots = [[1, 4, 0], [-2, 3, 0], [4, -2, 0]];
+    const handles = o.cranks.map(([targets, dir], j) => {
+      const s = j % n, side = o.stages[s][1];
+      const ped = add(A[s], mir(side, spots[Math.floor(j / n) % spots.length]));
+      stat.push([ped[0], ped[1], ped[2], 'd']);
+      return { type: 'rot', piece: targets.map(t => t + 1), on: 0, at: ped, dir };
+    });
+    stat.push(...(firstSide === 'L' ? col(-3, -1, 0, 4) : col(-1, -3, 0, 4)));
+    const last = o.stages[n - 1][1];
     return {
-      name: o.name, hint: o.hint, sky: o.sky, illusion: true, pieces, handles,
-      start: [-2, 0, 0], goal: [ax + 1, ay, az],
+      name: o.name, hint: o.hint, sky: o.sky, illusion: true, par: o.par, pieces, handles,
+      start: firstSide === 'L' ? [0, -2, 0] : [-2, 0, 0], goal: add(a, mir(last, [1, 0, 0])),
     };
   }
 
@@ -428,13 +434,35 @@
     },
   ];
 
-  const HINT = 'Each turning piece links up in only one pose. One crank turns several at once.';
+  const HINT = 'Each turning piece links up in only one pose. Some cranks turn pieces backwards.';
   const LEVELS = [
     ALL[0], ALL[1], ALL[2], ALL[3], ENDLESS, ALL[9], ALL[6], ALL[7],
-    chain({ name: 'Whispering Steps', hint: HINT, sky: ['#e4f0ff', '#9a86e0'], cycles: [3, 3, 3], cranks: [[1, 2], [0, 2]] }),
-    chain({ name: 'Mirage Stair', hint: HINT, sky: ['#ffe6d2', '#d68cb4'], cycles: [3, 3, 3, 3], cranks: [[0, 3], [2, 3], [1]] }),
-    chain({ name: 'Falling Upward', hint: HINT, sky: ['#d3f5ea', '#6f86d8'], cycles: [3, 3, 3, 3, 3], cranks: [[0, 4], [1], [3, 4], [2]] }),
-    chain({ name: 'The Summit', hint: 'Everything you have learned. Take your time.', sky: ['#ffd2a6', '#4f3fb4'], cycles: [3, 3, 2, 3, 3, 3], cranks: [[4], [3], [0], [2, 4], [1, 4, 5]] }),
+    chain({
+      name: 'Whispering Steps', hint: HINT, sky: ['#e4f0ff', '#9a86e0'],
+      stages: [[3, 'R', 1], [4, 'R', 1], [4, 'R', 1], [3, 'L', 0]],
+      cranks: [[[1, 3], -1], [[0], -1], [[0, 2], -1]], par: 8,
+    }),
+    chain({
+      name: 'Mirage Stair', hint: HINT, sky: ['#ffe6d2', '#d68cb4'],
+      stages: [[3, 'R', 0], [4, 'R', 1], [3, 'L', 0], [4, 'R', 1], [4, 'L', 1]],
+      cranks: [[[1], -1], [[3], -1], [[0, 4], 1], [[0, 2], -1]], par: 9,
+    }),
+    chain({
+      name: 'Falling Upward', hint: HINT, sky: ['#d3f5ea', '#6f86d8'],
+      stages: [[4, 'L', 1], [3, 'R', 1], [4, 'L', 1], [4, 'L', 1], [3, 'L', 0], [3, 'R', 1]],
+      cranks: [[[1, 3], 1], [[5], 1], [[2, 3], -1], [[0, 4], -1], [[4], 1]], par: 10,
+    }),
+    chain({
+      name: 'The Long Way Round', hint: HINT, sky: ['#ffe0b8', '#8c6fd0'],
+      stages: [[4, 'R', 1], [3, 'L', 1], [4, 'L', 1], [3, 'R', 1], [4, 'L', 1], [4, 'R', 1], [4, 'L', 1]],
+      cranks: [[[6], -1], [[2, 3, 4], -1], [[3, 5], 1], [[0, 3], -1], [[0], -1], [[0, 1, 5], -1]], par: 11,
+    }),
+    chain({
+      name: 'The Summit', hint: 'Everything you have learned. Take your time, and use the hint if you need it.',
+      sky: ['#ffd2a6', '#4f3fb4'],
+      stages: [[4, 'L', 1], [4, 'R', 1], [4, 'L', 1], [4, 'R', 1], [3, 'L', 0], [4, 'R', 1], [4, 'L', 1]],
+      cranks: [[[0, 4], 1], [[5], -1], [[6], 1], [[0], -1], [[3], -1], [[0, 2, 4], 1], [[2], 1], [[0, 1, 4], -1]], par: 11,
+    }),
   ];
   LEVELS.chain = chain;
   return LEVELS;
