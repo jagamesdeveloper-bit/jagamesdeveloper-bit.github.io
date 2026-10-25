@@ -2785,7 +2785,7 @@ function drawOverlay(){
     ctx.shadowBlur=0;ctx.font=FNT(700,15);ctx.fillStyle='#ece4f8';ot('FLOOR '+G.floor+' GUARDIAN',W/2,H*0.5+32,4);ctx.globalAlpha=1;
   }
   if(hurtFlash>0){ctx.fillStyle=`rgba(255,20,40,${hurtFlash*0.35})`;ctx.fillRect(0,0,W,H);}
-  if(P.hp<=P.maxHp*0.3&&state==='play'){ctx.fillStyle=`rgba(255,0,40,${0.07+0.05*Math.sin(time*6)})`;ctx.fillRect(0,0,W,H);}
+  if(P.hp<=P.maxHp*0.3&&state==='play'){const pu=0.5+0.5*Math.sin(time*6),g=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.28,W/2,H/2,Math.max(W,H)*0.75);g.addColorStop(0,'rgba(255,0,40,0)');g.addColorStop(1,`rgba(255,0,40,${0.16+0.2*pu})`);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);}
   if(fade>0){ctx.fillStyle=`rgba(0,0,0,${fade})`;ctx.fillRect(0,0,W,H);}
 }
 
