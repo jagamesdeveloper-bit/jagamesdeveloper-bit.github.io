@@ -1,0 +1,8 @@
+{
+  "advertisement": {
+    "minimumDelayBetweenInterstitial": 60,
+    "initialInterstitialDelay": 25,
+    "interstitial": { "placementFallback": "game_over", "placements": [ { "id": "game_over" }, { "id": "level_end" } ] },
+    "rewarded": { "placementFallback": "bonus", "placements": [ { "id": "bonus" }, { "id": "continue" } ] }
+  }
+}
