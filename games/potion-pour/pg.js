@@ -32,7 +32,7 @@
     PG.save = JSON.parse(JSON.stringify(PG.defaults));
     return new Promise(function (resolve) {
       var done = false;
-      function finish() { if (done) return; done = true; resolve(); }
+      function finish() { if (done) return; done = true; PG._inited = true; resolve(); }
       setTimeout(finish, 4500);
       var hasBridge = typeof window.bridge !== 'undefined' && window.bridge;
       if (!hasBridge) { loadLocal(); finish(); return; }
@@ -167,7 +167,7 @@
     userRender(ctx, PG.w, PG.h, dt);
     PG.hud(ctx);
     I.pressed = false; I.released = false; I.clicked = false; I.keysPressed = {};
-    if (!started) { started = true; PG.ready(); }
+    if (!started && PG._inited) { started = true; PG.ready(); }
   }
 
   /* ---------------- input ---------------- */
