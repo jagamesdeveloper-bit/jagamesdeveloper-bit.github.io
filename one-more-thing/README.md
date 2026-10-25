@@ -2,7 +2,7 @@
 
 A 2D physics burglar game. You are a tiny, stretchy thief stealing from a sleeping giant's living room, and everything you steal stays physically stuck to you.
 
-Hand-inked storybook look: wobbly outlines, cel shading, film grain, paper-card HUD. The thief is a regular little burglar (striped shirt, beanie, domino mask) with comically stretchy arms, and loot hangs from his belt on twine.
+Hand-printed storybook look: ink lines that are heavier on the shadow side, flat colour printed slightly off-register, halftone-dot shadows, film grain, an ink-blue night against warm lamplight, a foreground depth layer and a paper-card HUD. The thief is a regular little burglar (striped shirt, beanie, domino mask) with comically stretchy arms, and loot hangs from his belt on twine.
 
 HTML5 canvas + [Matter.js](https://brm.io/matter-js/) 0.19 (bundled locally). The only external script is the Playgama Bridge.
 
@@ -27,7 +27,9 @@ Reeling yourself up to a ledge hauls you over it. Loot inside the doormat zone b
 
 ## Loot personalities
 
-necklace (swings), pocket watch, bouncy ball (destabilises the haul), teapot, candlestick, frying pan (loud), television (heavy), vacuum cleaner (occasionally switches on and drags you), trophy, diamond ring, rubber duck (squeaks on every bump), cheese wheel (heavy, rolls), snow globe (smashes on a hard knock), alarm clock (rings a few seconds after you grab it), music box (leaks noise while carried), toaster (pops toast and jolts your haul).
+necklace (swings), pocket watch, bouncy ball (destabilises the haul), teapot, candlestick, frying pan (loud), television (heavy), vacuum cleaner (occasionally switches on and drags you), trophy, diamond ring, rubber duck (squeaks on every bump), cheese wheel (heavy, rolls), snow globe (smashes on a hard knock), alarm clock (rings a few seconds after you grab it), music box (leaks noise while carried), toaster (pops toast and jolts your haul), cheese wedge (bait), piggy bank (jingles when you run), balloon (floats and lifts you, pops on hard things), catnip mouse (makes the cat much faster while you carry it).
+
+Snap traps sit on the floor: step on one and you're stunned and noisy, so hop over them. A rolling ball or dropped loot can spring them too.
 
 From night 2, Mr. Whiskers the cat naps on the sofa. Noise (or sneaking too close) wakes him, and each night he is a lighter sleeper. He hunts on the floor, leaps onto low furniture, crouches for a moment, then lunges. A hit swats your whole haul loose and stuns you. Jump his lunge or get up high. He bolts when the giant wakes.
 

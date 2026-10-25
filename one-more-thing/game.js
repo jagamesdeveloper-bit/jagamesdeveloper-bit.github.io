@@ -76,7 +76,15 @@
     { id: 'musicbox', name: 'Music box', value: 160, x: 2150, y: 292, mat: 'gold', nm: 0.9, hitR: 30, rest: 56, stiff: 0.13, damp: 0.03, attach: { x: 0, y: -16 }, tip: 'Plays a tune while you carry it.',
       build: (x, y) => Bodies.rectangle(x, y, 50, 34, { chamfer: { radius: 5 }, density: 0.0016, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) },
     { id: 'toaster', name: 'Toaster', value: 110, x: 2110, y: 740, mat: 'metal', nm: 1.0, hitR: 36, rest: 60, stiff: 0.14, damp: 0.03, attach: { x: 0, y: -20 }, tip: 'Pops toast at the worst moments.',
-      build: (x, y) => Bodies.rectangle(x, y, 60, 38, { chamfer: { radius: 8 }, density: 0.0016, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) }
+      build: (x, y) => Bodies.rectangle(x, y, 60, 38, { chamfer: { radius: 8 }, density: 0.0016, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) },
+    { id: 'cheesewedge', name: 'Cheese wedge', value: 60, x: 1470, y: 892, mat: 'soft', hitR: 26, rest: 52, stiff: 0.1, damp: 0.02, attach: { x: 0, y: -12 }, tip: 'Bait. Mind the trap beside it.',
+      build: (x, y) => Bodies.fromVertices(x, y, [[{ x: -14.7, y: 7.3 }, { x: 29.3, y: 7.3 }, { x: -14.7, y: -14.7 }]], { density: 0.0012, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) },
+    { id: 'piggy', name: 'Piggy bank', value: 130, x: 960, y: 727, mat: 'gold', nm: 1.2, hitR: 30, rest: 56, stiff: 0.13, damp: 0.03, attach: { x: 0, y: -14 }, tip: 'Jingles loudly when you run.',
+      build: (x, y) => Bodies.circle(x, y, 22, { density: 0.0017, restitution: 0.12, friction: 0.4, frictionAir: 0.004 }) },
+    { id: 'balloon', name: 'Balloon', value: 80, x: 1680, y: 18, mat: 'rubber', nm: 0.3, hitR: 26, rest: 78, stiff: 0.06, damp: 0.02, attach: { x: 0, y: 19 }, tip: 'Floats, and lifts you. Pops if it hits something hard.',
+      build: (x, y) => Bodies.circle(x, y, 16, { density: 0.00018, restitution: 0.3, friction: 0.1, frictionAir: 0.03 }) },
+    { id: 'catmouse', name: 'Catnip mouse', value: 75, x: 610, y: 759, mat: 'soft', hitR: 28, rest: 50, stiff: 0.1, damp: 0.02, attach: { x: 0, y: -8 }, tip: 'Catnip! Mr. Whiskers goes wild for it.',
+      build: (x, y) => Bodies.rectangle(x, y, 34, 18, { chamfer: { radius: 8 }, density: 0.0012, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) }
   ];
   const TOTAL_VALUE = DEFS.reduce((s, d) => s + d.value, 0);
 
@@ -104,7 +112,7 @@
   resize();
 
   /* ============================================================ platform (Bridge) */
-  const P = { bridge: false, audioOn: true, paused: false, hidden: false, best: 0, runs: 0, bestNight: 1, userMute: false, ready: false };
+  const P = { bridge: false, audioOn: true, paused: false, hidden: false, best: 0, runs: 0, bestNight: 1, introT: 0, introDone: false, userMute: false, ready: false };
   function hasBridge() { return typeof window.bridge !== 'undefined' && window.bridge && P.bridge; }
   function syncAudio() {
     Snd.setMuted(P.userMute || !P.audioOn || P.hidden);
@@ -135,7 +143,7 @@
     try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs', 'omt_night'], [String(P.best), String(P.runs), String(P.bestNight)]).catch(() => {}); } catch (e) {}
   }
   function platMsg(m, data) { try { if (hasBridge()) window.bridge.platform.sendMessage(m, data); } catch (e) {} }
-  const GAME_VERSION = '1.6.0';
+  const GAME_VERSION = '1.7.0';
   const Tele = {
     send(name, data) { try { if (hasBridge() && window.bridge.analytics) window.bridge.analytics.send(name, data); } catch (e) {} },
     frames: [], windowStart: 0, active: 0, jsErr: 0,
@@ -198,12 +206,12 @@
       t: 0, time: 0, state: 'play', noise: 0, noiseDisp: 0, stage: 0, banked: 0, bankedCount: 0, over: null, overT: 0,
       escapeLeft: ESCAPE_TIME, leaving: false, leaveT: 0, groundT: 0, jumpBuf: 0, landSq: 0, grin: 0, shake: 0, wasGround: false,
       sqS: 0, saS: 0, blink: 3, walk: 0, caughtT: 0, flags: {}, hint: 14, toast: null, stepT: 0, hbT: 0, flash: 0, goalHit: false,
-      lastGreed: '', carriedPeak: 0, giant: null, crushed: false, rumble: 0, punch: 0, cracks: [], rings: [], hitstop: 0, slowT: 0, lampDip: 0, bankBump: 0, bankDisp: 0, stepPh: 0, night: NIGHT, defer: [], brokenCount: 0, lostValue: 0, stunT: 0, cat: null
+      lastGreed: '', carriedPeak: 0, giant: null, crushed: false, rumble: 0, punch: 0, cracks: [], rings: [], hitstop: 0, slowT: 0, lampDip: 0, bankBump: 0, bankDisp: 0, stepPh: 0, night: NIGHT, defer: [], brokenCount: 0, lostValue: 0, stunT: 0, cat: null, traps: [], lagX: 0
     };
     G.goal = goalFor(NIGHT); G.stars = [G.goal, Math.round((G.goal + TOTAL_VALUE) / 2 / 50) * 50, TOTAL_VALUE];
     Art.cracksList = G.cracks; Art.rumble = 0; Snd.rumble(false);
     buildWorld();
-    initCat();
+    initCat(); initTraps();
     hands = [mkHand(), mkHand()];
     toast(NIGHT > 1 ? 'Night ' + NIGHT + '. Bank $' + G.goal + '. Mr. Whiskers is napping on the sofa.' : 'Steal what you can carry. Don\'t wake the giant.', 5);
     platMsg('level_started');
@@ -280,7 +288,9 @@
     const duck = ia && ia.id === 'duck' ? ia : ib && ib.id === 'duck' ? ib : null;
     if (duck && rv > 90) { duck.sq = 0.3; Snd.squeak(); if (G.state === 'play' && G.time > 1.2) addNoise(inPad(pos) ? 0.4 : 1.6); popWord(pos.x, pos.y - 18, 'squeak!', 0.8, '#ffe27a'); }
     const globe = ia && ia.id === 'snowglobe' ? ia : ib && ib.id === 'snowglobe' ? ib : null;
-    if (globe && rv > 430 && globe.state !== 'broken') { G.defer.push(() => breakItem(globe, pos)); return; }
+    if (globe && rv > 430 && globe.state !== 'broken') { G.defer.push(() => breakItem(globe, pos, 'globe')); return; }
+    const bln = ia && ia.id === 'balloon' ? ia : ib && ib.id === 'balloon' ? ib : null;
+    if (bln && bln.state !== 'broken') { const oth = bln === ia ? ib : ia, hard = oth && (oth.def.mat === 'metal' || oth.def.mat === 'glass'); if (rv > 260 || (hard && rv > 110)) { G.defer.push(() => breakItem(bln, pos, 'balloon')); return; } }
     const raw = Math.max(0, rv - 120) * Math.sqrt(m) * mat.m * 0.01;
     // a quiet tick for tiny bumps so the world still feels tactile
     if (raw <= 0) { if (rv > 150) Snd.impact(MATS[mat.name].snd, 0.12); return; }
@@ -530,18 +540,45 @@
     if (grounded && Math.abs(player.velocity.x) > 0.5) G.walk += Math.abs(player.velocity.x) * 0.13;
   }
 
-  function breakItem(it, pos) {
+  function breakItem(it, pos, kind) {
     if (it.state !== 'loose' && it.state !== 'hauled') return;
     if (it.state === 'hauled') { if (it.con) Composite.remove(engine.world, it.con); it.con = null; hauled.splice(hauled.indexOf(it), 1); }
     for (const h of hands) if (h.on && h.it === it) endHand(h, true, 'tear');
     it.state = 'broken'; Composite.remove(engine.world, it.body);
     G.brokenCount++; G.lostValue += it.value;
-    Snd.impact('ceramic', 1); Snd.impact('tink', 1);
-    popWord(pos.x, pos.y - 20, 'SMASH!', 1.6, '#cfeaff');
-    for (let i = 0; i < 22; i++) { const a = rand(0, TAU), sp = rand(60, 280); parts.push({ x: pos.x, y: pos.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, life: rand(0.5, 1), t: 0, col: i % 2 ? '#cfeaff' : '#ffffff', size: rand(1.6, 3.6), g: 700 }); }
-    G.shake = Math.max(G.shake, 8);
-    if (G.state === 'play') addNoise(14);
-    toast('You smashed the snow globe! -$' + it.value, 3, 'warn');
+    const bal = kind === 'balloon';
+    if (bal) Snd.bang(); else { Snd.impact('ceramic', 1); Snd.impact('tink', 1); }
+    popWord(pos.x, pos.y - 20, bal ? 'BANG!' : 'SMASH!', 1.6, bal ? '#ffb0a0' : '#cfeaff');
+    for (let i = 0; i < 22; i++) { const a = rand(0, TAU), sp = rand(60, 280); parts.push({ x: pos.x, y: pos.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, life: rand(0.5, 1), t: 0, col: bal ? (i % 2 ? '#d63a2f' : '#8f1f18') : (i % 2 ? '#cfeaff' : '#ffffff'), size: rand(1.6, 3.6), g: 700 }); }
+    G.shake = Math.max(G.shake, bal ? 10 : 8);
+    if (G.state === 'play') addNoise(bal ? 16 : 14);
+    toast(bal ? 'Pop! The balloon is gone. -$' + it.value : 'You smashed the snow globe! -$' + it.value, 3, 'warn');
+  }
+
+  /* ============================================================ floor traps */
+  function initTraps() { G.traps = [500, 1400, 1940].map(x => ({ x, state: 'armed', k: 0 })); }
+  function springTrap(tr, who) {
+    tr.state = 'sprung'; Snd.snapTrap();
+    const gx = tr.x + 24, gy = FLOOR - 16;
+    for (let i = 0; i < 8; i++) parts.push({ x: gx, y: gy, vx: rand(-160, 160), vy: rand(-260, -80), life: rand(0.3, 0.6), t: 0, col: '#f3c43a', size: rand(1.4, 2.6), g: 700 });
+    popWord(tr.x, FLOOR - 50, 'SNAP!', 1.4, '#ffe9a0'); G.shake = Math.max(G.shake, 10);
+    if (G.state === 'play') addNoise(who === 'thief' ? 12 : 10);
+    if (who === 'thief') {
+      G.stunT = G.state === 'awake' ? 0.5 : 1.0; for (const h of hands) if (h.on) endHand(h, true, 'tear');
+      Body.setVelocity(player, { x: player.velocity.x * 0.3, y: -6.5 }); G.hitstop = Math.max(G.hitstop, 0.06);
+      toast('Snapped! Hop over the traps.', 2.5, 'warn');
+    }
+    Tele.send('trap_sprung', { night: G.night, by: who });
+  }
+  function updateTraps(dt) {
+    for (const tr of G.traps) {
+      if (tr.state === 'sprung') { tr.k = Math.min(1, tr.k + dt * 14); continue; }
+      const th = player.position;
+      if (Math.abs(th.x - tr.x) < 30 && th.y + PR >= 886 && G.stunT <= 0) { springTrap(tr, 'thief'); continue; }
+      for (const it of items) {
+        if ((it.state === 'loose' || it.state === 'hauled') && Math.abs(it.body.position.x - tr.x) < 28 && it.body.bounds.max.y > 892 && it.body.speed > 1.0 && it.id !== 'cheesewedge') { springTrap(tr, 'loot'); break; }
+      }
+    }
   }
 
   function quirkUpdate(dt) {
@@ -550,6 +587,15 @@
       if (it.popT > 0) it.popT = Math.max(0, it.popT - dt);
       if (it.state !== 'loose' && it.state !== 'hauled') continue;
       const active = it.state === 'hauled' || isHeld(it), bp = it.body.position;
+      if (it.id === 'balloon') {
+        Body.applyForce(it.body, bp, { x: 0, y: -it.body.mass * 0.00135 });
+        if (it.state === 'hauled') Body.applyForce(player, player.position, { x: 0, y: -player.mass * 0.00045 });
+      }
+      if (it.id === 'piggy') {
+        const sp = it.state === 'hauled' ? Math.hypot(player.velocity.x, player.velocity.y) * 60 : 0;
+        it.jingle = sp > 110 ? 0.25 : Math.max(0, (it.jingle || 0) - dt);
+        if (sp > 90) { if (G.state === 'play') addNoise(0.018 * (sp - 80) * dt); it.jt = (it.jt || 0) - dt; if (it.jt <= 0) { it.jt = 0.22; Snd.jingle(); } }
+      }
       if (it.alarm) {
         const al = it.alarm;
         if (al.ring > 0) {
@@ -615,7 +661,7 @@
   function updateCat(dt) {
     const c = G.cat; if (!c || c.state === 'gone') return;
     c.anim += dt;
-    const th = player.position, thFeet = th.y + PR;
+    const th = player.position, thFeet = th.y + PR, catnip = hauled.some(i => i.id === 'catmouse');
     if (G.state !== 'play' && c.state !== 'flee') { c.state = 'flee'; c.dir = 1; }
     if (c.state === 'sleep') {
       const near = Math.abs(th.x - c.x) < 170 && Math.abs(thFeet - c.y) < 160;
@@ -632,7 +678,7 @@
       case 'wake': c.vx = 0; c.t -= dt; if (c.t <= 0) c.state = 'chase'; break;
       case 'chase': {
         const dx = th.x - c.x; c.dir = dx >= 0 ? 1 : -1;
-        if (c.ground) c.vx = (Math.abs(dx) > 36 && !(inPad(th) && c.x < PAD.x + PAD.w + 120)) ? c.dir * c.sp : 0;
+        if (c.ground) c.vx = (Math.abs(dx) > 36 && !(inPad(th) && c.x < PAD.x + PAD.w + 120)) ? c.dir * c.sp * (catnip ? 1.4 : 1) : 0;
         c.jumpCd -= dt; c.atkCd -= dt;
         if (c.ground && c.jumpCd <= 0 && thFeet < c.y - 70) {
           let best = null; const px = c.x + c.dir * 70;
@@ -668,7 +714,7 @@
     let to = f.x + dir * clamp(Math.abs(aim - f.x), STRIDE_MIN, STRIDE_MAX);
     if (Math.abs(to - other.x) < 150) to = other.x + dir * 150;
     f.from = f.x; f.to = to; f.t = 0; g.mover = mi; g.target = to;
-    g.dur = Math.max(0.56, (0.9 - g.steps * 0.02) / (1 + 0.07 * (G.night - 1)));
+    g.dur = Math.max(0.56, (0.9 - g.steps * 0.02) / (1 + 0.07 * (G.night - 1))) * (G.night === 1 ? 1.1 : 1);
     Snd.whoosh();
   }
   function giantLand(g, f) {
@@ -743,7 +789,7 @@
       if (G.state !== 'caught') {
         G.stunT = Math.max(0, G.stunT - dt);
         if (G.stunT <= 0) { movement(dt); handsUpdate(dt); }
-        vacuumUpdate(dt); quirkUpdate(dt); updateCat(dt);
+        vacuumUpdate(dt); quirkUpdate(dt); updateCat(dt); updateTraps(dt);
       }
     }
     refreshMasks();
@@ -988,6 +1034,11 @@
 
   function drawItem(c, it, t) {
     const b = it.body;
+    if (it.state === 'loose' || it.state === 'hauled') {
+      // soft contact shadow on whatever it is above
+      const gy = groundYAt(b.position.x, b.position.y), h = gy - (b.position.y + it.hitR * 0.5);
+      if (h > -6 && h < 150) { const a = 0.36 * (1 - clamp(h / 150, 0, 1)), rx = it.hitR * (0.85 + h / 260); c.fillStyle = 'rgba(8,6,16,' + a + ')'; c.beginPath(); c.ellipse(b.position.x, gy + 1, rx, 3.6 + h * 0.015, 0, 0, TAU); c.fill(); }
+    }
     c.save(); c.translate(b.position.x, b.position.y); c.rotate(b.angle); c.translate(it.art.x, it.art.y);
     it.hauled = it.state === 'hauled';
     Art.LOOT[it.id](c, it, t);
@@ -1005,6 +1056,7 @@
     for (const r of G.rings) { const e = 1 - Math.pow(1 - r.t, 2), rx = 40 + e * 560; c.beginPath(); c.ellipse(r.x, 912, rx, rx * 0.075, 0, 0, TAU); c.lineWidth = 7 * (1 - r.t) + 1; c.strokeStyle = 'rgba(230,214,190,' + 0.55 * (1 - r.t) + ')'; c.stroke(); }
 
     if (G.cat && G.cat.state !== 'gone') Art.cat(c, G.cat, t);
+    for (const tr of G.traps) Art.trap(c, tr, t);
 
     // loose + hauled loot behind the burglar
     for (const it of items) if (it.state === 'loose') drawItem(c, it, t);
@@ -1059,6 +1111,7 @@
     }
     // the giant himself
     if (G.giant && (G.state === 'awake' || G.state === 'leaving' || G.state === 'caught' || G.over)) Art.giant(c, G.giant, t);
+    Art.foreground(c, cam, cw, ch, t);
   }
 
   function drawReach(c, t) {
@@ -1129,8 +1182,9 @@
     else if (scared || G.stage === 1) mouth = 'gulp';
     else if (G.grin > 0 || hauled.length >= 2) mouth = 'grin';
 
+    G.lagX = lerp(G.lagX || 0, clamp(-vx * 2.4 + (G.stunT > 0 ? Math.sin(t * 30) * 3 : 0), -7, 7), 0.18);
     const pose = {
-      x: pp.x, y: pp.y, r: PR, sq: G.sqS, lean: G.saS, lookX: G.lx, lookY: G.ly, blink: G.blink < 0 ? 1 : 0,
+      lagX: G.lagX, x: pp.x, y: pp.y, r: PR, sq: G.sqS, lean: G.saS, lookX: G.lx, lookY: G.ly, blink: G.blink < 0 ? 1 : 0,
       strain: G.strain, scared, greedy, mouth, walk: G.walk, moving: grounded && Math.abs(vx) > 0.5, grounded, vy, t, face: G.faceDir === undefined ? 1 : G.faceDir
     };
     // shadow on whatever is below him
@@ -1180,7 +1234,7 @@
     const L = lctx; L.setTransform(1, 0, 0, 1, 0, 0);
     L.globalCompositeOperation = 'source-over';
     const dark = awake ? 0.06 : G.stage >= 1 ? 0.3 : 0.36;
-    L.fillStyle = `rgba(10,6,30,${dark})`; L.fillRect(0, 0, lightCv.width, lightCv.height);
+    L.fillStyle = `rgba(6,12,34,${dark})`; L.fillRect(0, 0, lightCv.width, lightCv.height);
     L.globalCompositeOperation = 'destination-out';
     const W2S = (x, y) => ({ x: (cw / 2 + (x - cam.x) * s) * dpr, y: (ch / 2 + (y - cam.y) * s) * dpr });
     const light = (x, y, r, a) => {
@@ -1204,6 +1258,13 @@
     c.globalCompositeOperation = 'lighter';
     const glow = (x, y, r, col) => { const p = W2S(x, y), rr = r * s * dpr, g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, rr); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(p.x - rr, p.y - rr, rr * 2, rr * 2); };
     if (!awake) { glow(1520, 650, 260 * flick, 'rgba(255,170,70,0.20)'); glow(1250, 150, 280 * flick, 'rgba(255,190,90,0.16)'); glow(40, 870, 190, 'rgba(255,170,70,0.2)'); glow(670, 300, 330, 'rgba(110,140,255,0.10)'); }
+    for (const it of items) {
+      if (it.state === 'banking' || it.state === 'banked' || it.state === 'broken') continue;
+      const bp = it.body.position;
+      if (it.id === 'tv') glow(bp.x, bp.y, 190, 'rgba(100,225,215,0.2)');
+      else if (it.id === 'candle') glow(bp.x, bp.y - 30, 140, 'rgba(255,170,70,' + (0.22 + 0.05 * Math.sin(t * 13)) + ')');
+      else if (it.alarm && it.alarm.ring > 0) glow(bp.x, bp.y, 150, 'rgba(255,90,70,0.28)');
+    }
     c.globalCompositeOperation = 'source-over';
     // danger tint
     if (awake) {
@@ -1394,7 +1455,7 @@
     if (G.over && G.overT > 0.5) {
       const o = G.over, k = clamp((G.overT - 0.5) / 0.35, 0, 1);
       c.fillStyle = 'rgba(14,6,22,' + 0.66 * k + ')'; c.fillRect(0, 0, cw, ch);
-      const pw = Math.min(cw - 24, 470 * U), ph = Math.min(ch - 24, 340 * U), px = (cw - pw) / 2, py = Math.round((ch - ph) / 2 - (1 - k) * 20);
+      const wantGrid = ch - 24 >= 430 * U, pw = Math.min(cw - 24, 470 * U), ph = Math.min(ch - 24, (wantGrid ? 430 : 340) * U), px = (cw - pw) / 2, py = Math.round((ch - ph) / 2 - (1 - k) * 20);
       c.globalAlpha = k;
       card(c, px, py, pw, ph, '#f0e2bd', 12);
       tape(c, px + pw * 0.15, py + 2, -0.1); tape(c, px + pw * 0.85, py + 2, 0.12);
@@ -1408,14 +1469,24 @@
       c.restore();
       inkText(c, 'Banked  $' + o.banked + (caught && hauledLost() > 0 ? '    (dropped $' + hauledLost() + ')' : ''), cw / 2, py + 112 * U, fs(22), INKC, 'center');
       for (let i = 0; i < 3; i++) star(c, cw / 2 + (i - 1) * 56 * U, py + 158 * U, 21 * U, i < o.stars);
-      inkText(c, o.success ? 'Night ' + o.night + ' cleared! The giant will be angrier tomorrow.' : (G.brokenCount > 0 && o.kind !== 'caught' ? 'Smashed loot: $' + G.lostValue + '. Careful with the glass.' : o.quip), cw / 2, py + 206 * U, fs(14), '#5a3a52', 'center');
-      inkText(c, (o.newBest ? 'NEW BEST  $' : 'Best  $') + P.best + '   ·   goal $' + G.goal + '   ·   all loot $' + TOTAL_VALUE, cw / 2, py + 230 * U, fs(13), o.newBest ? '#2d7a3a' : RUST, 'center', Art.SANS);
+      if (wantGrid) {
+        const cell = Math.min(40 * U, (pw - 30 * U) / 10), gx0 = cw / 2 - cell * 5, gy0 = py + 196 * U;
+        DEFS.forEach((d, i) => {
+          const it = items.find(q => q.id === d.id), got = it && it.state === 'banked', cx = gx0 + (i % 10 + 0.5) * cell, cy = gy0 + (Math.floor(i / 10) + 0.5) * cell;
+          c.save(); c.translate(cx, cy); const sc = clamp(cell * 0.36 / d.hitR, 0.2, 0.7); c.scale(sc, sc); c.globalAlpha = k * (got ? 1 : 0.2);
+          Art.LOOT[d.id](c, { seed: i * 7.3, state: 'loose', hauled: false, sq: 0, popT: 0, jingle: 0, alarm: null, vac: null, mbOpen: false }, t); c.restore();
+          if (got) { c.strokeStyle = '#2d7a3a'; c.lineWidth = 2.4 * U; c.lineCap = 'round'; c.beginPath(); c.moveTo(cx + cell * 0.14, cy + cell * 0.3); c.lineTo(cx + cell * 0.24, cy + cell * 0.4); c.lineTo(cx + cell * 0.42, cy + cell * 0.16); c.stroke(); c.lineCap = 'butt'; }
+        });
+      }
+      inkText(c, o.success ? 'Night ' + o.night + ' cleared! The giant will be angrier tomorrow.' : (G.brokenCount > 0 && o.kind !== 'caught' ? 'Smashed loot: $' + G.lostValue + '. Careful with the glass.' : o.quip), cw / 2, py + (wantGrid ? 304 : 206) * U, fs(14), '#5a3a52', 'center');
+      inkText(c, (o.newBest ? 'NEW BEST  $' : 'Best  $') + P.best + '   ·   goal $' + G.goal + '   ·   all loot $' + TOTAL_VALUE, cw / 2, py + (wantGrid ? 328 : 230) * U, fs(13), o.newBest ? '#2d7a3a' : RUST, 'center', Art.SANS);
       const bw = Math.min(270 * U, pw - 40), bh = 50 * U, bx = (cw - bw) / 2, by = py + ph - bh - 22 * U;
       btn('again', bx, by, bw, bh);
       card(c, bx, by, bw, bh, '#e5a24e', 12);
       inkText(c, o.success ? 'Night ' + Math.min(9, o.night + 1) + '  (R)' : 'One more try  (R)', cw / 2, by + 33 * U, fs(20), INKC, 'center');
       c.globalAlpha = 1;
     }
+    if (!P.introDone && !G.over) { const a = P.introT < 2.8 ? 1 : clamp(1 - (P.introT - 2.8) / 0.9, 0, 1); if (a > 0) Art.logo(c, cw / 2, ch * 0.27, Math.min(cw * 0.085, 92 * U), P.introT, a); }
     if (P.paused) { c.fillStyle = 'rgba(0,0,0,0.45)'; c.fillRect(0, 0, cw, ch); txt(c, 'PAUSED', cw / 2, ch / 2, fs(34), '#fff3d6', 'center', 900); }
   }
   function hauledLost() { let v = 0; for (const it of items) if (it.state === 'hauled' || (it.state === 'loose' && false)) v += it.value; return v; }
@@ -1425,6 +1496,7 @@
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - last) / 1000 || 0.016); last = now;
+    if (!P.introDone && !P.hidden) { P.introT += dt; if (P.introT > 4) P.introDone = true; }
     if (!P.paused && !P.hidden) {
       const frozen = G.hitstop > 0;
       if (frozen) G.hitstop -= dt; else acc += dt * (G.slowT > 0 ? 0.28 : 1);
