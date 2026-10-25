@@ -95,6 +95,8 @@
   function visuallyLinked(a, b) {
     const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     if (Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz)) < 2) return false;
+    // Same spot on screen: the Penrose staircase closing on itself.
+    if (dx === dy && dy === dz) return true;
     return Math.abs(dx - dy) === 1 && Math.abs(Math.abs((dx + dy) / 2 - dz) - 0.5) < 1e-9;
   }
 
@@ -111,12 +113,13 @@
         if (pt[j].some(q => q[0] === t.x && q[1] === t.y && q[2] === t.z)) adj[i].push(j);
       }
     });
+    adj.ill = new Set();
     if (level.illusion) {
       for (let i = 0; i < all.length; i++) {
         if (!all[i].walk || all[i].kind !== 'b') continue;
         for (let j = i + 1; j < all.length; j++) {
           if (!all[j].walk || all[j].kind !== 'b') continue;
-          if (visuallyLinked(all[i], all[j]) && !adj[i].includes(j)) { adj[i].push(j); adj[j].push(i); }
+          if (visuallyLinked(all[i], all[j]) && !adj[i].includes(j)) { adj[i].push(j); adj[j].push(i); adj.ill.add(i + ',' + j); }
         }
       }
     }

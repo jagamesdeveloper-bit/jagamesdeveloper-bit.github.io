@@ -24,7 +24,79 @@
   const VIOLET = '#8e7fe0';
   const AMBER = '#f0b05a';
 
-  return [
+  // Deco columns from the ground up to just under each given tile.
+  const solid = tiles => tiles.filter(t => t[2] > 0).flatMap(t => col(t[0], t[1], 0, t[2]));
+
+  // A run of "impossible bridges". Stage k has a rotating piece whose arm only lines up on screen with the
+  // previous platform in one pose (+1 quarter turn): the arm sits one block higher and two cells over, so it
+  // looks attached. Cranks are shared between pieces, and pieces have 2 or 3 poses, so the puzzle is to find
+  // taps that put every piece in its pose at once.
+  //   o.cycles[k]  poses of piece k (2 or 3)      o.cranks[j]  stages that crank j turns
+  function chain(o) {
+    const n = o.cycles.length;
+    const pal = [VIOLET, CORAL, TEAL, AMBER, '#d97bb0', '#6f9be0'];
+    const stat = line(-2, 0, 0, 1, 0, 3);
+    const pieces = [{ color: CREAM, blocks: stat }];
+    const A = [];
+    let ax = 0, ay = 0, az = 0;
+    for (let k = 0; k < n; k++) {
+      A.push([ax, ay, az]);
+      const ux = ax + 3, uy = ay + 1, uz = az + 1;
+      pieces.push({
+        color: pal[k % pal.length], pivot: [ux + 0.5, uy + 0.5], rot: { cycle: o.cycles[k], step: 1 },
+        blocks: [[ux, uy, uz], [ux, uy + 1, uz], [ux, uy, uz - 1, 'd'], [ux, uy + 1, uz - 1, 'd']],
+      });
+      ax += 4; ay += 1; az += 1;
+      // One tile only: a second tile beside it would look attached to the pivot tile and skip the puzzle.
+      const land = k === n - 1 ? [[ax, ay, az], [ax + 1, ay, az]] : [[ax, ay, az]];
+      stat.push(...land, ...solid(land));
+      stat.push(...col(A[k][0] + 2, A[k][1] - 3, 0, A[k][2] + 2), ...col(A[k][0] + 3, A[k][1] - 3, 0, A[k][2] + 1));
+    }
+    const handles = o.cranks.map((targets, j) => {
+      const a = A[Math.min(j, n - 1)];
+      const ped = [a[0] + 1, a[1] + 4 + Math.floor(j / n) * 2, a[2]];
+      stat.push([ped[0], ped[1], ped[2], 'd']);
+      return { type: 'rot', piece: targets.map(t => t + 1), on: 0, at: ped };
+    });
+    return {
+      name: o.name, hint: o.hint, sky: o.sky, illusion: true, pieces, handles,
+      start: [-2, 0, 0], goal: [ax + 1, ay, az],
+    };
+  }
+
+  // A staircase that climbs two blocks and still closes on itself on screen: the last tile of the loop sits
+  // exactly where the first one is drawn. A rotating bridge guards the way out.
+  const RING_LO = '#f3dcc6', RING_MID = '#f0bf9e', RING_HI = '#e79aa0';
+  const ringTiles = [
+    [1, 0, 0, 'b', 0, RING_LO], [2, 0, 0, 'b', 0, RING_LO], [3, 0, 0, 'b', 0, RING_LO], [4, 0, 0, 'b', 0, RING_LO],
+    [5, 0, 1, 's', 0, RING_MID], [6, 0, 1, 'b', 0, RING_MID],
+    [6, 1, 1, 'b', 0, RING_MID], [6, 2, 1, 'b', 0, RING_MID], [6, 3, 1, 'b', 0, RING_MID], [6, 4, 1, 'b', 0, RING_MID],
+    [6, 5, 2, 's', 1, RING_HI], [6, 6, 2, 'b', 0, RING_HI],
+    [5, 6, 2, 'b', 0, RING_HI], [4, 6, 2, 'b', 0, RING_HI], [3, 6, 2, 'b', 0, RING_HI], [2, 6, 2, 'b', 0, RING_HI],
+    [2, 5, 2, 'b', 0, RING_HI], [2, 4, 2, 'b', 0, RING_HI], [2, 3, 2, 'b', 0, RING_HI], [2, 2, 2, 'b', 0, RING_HI],
+  ];
+  const ENDLESS = {
+    name: 'The Endless Stair',
+    hint: 'Climb the stairs. They end exactly where they began.',
+    sky: ['#fbe3d0', '#6e5fc8'],
+    illusion: true,
+    pieces: [
+      {
+        color: CREAM,
+        blocks: [
+          ...line(-2, 0, 0, 1, 0, 3), ...ringTiles,
+          ...line(10, 6, 2, 1, 0, 2), ...col(10, 6, 0, 2), ...col(11, 6, 0, 2),
+          [8, 9, 0, 'd'],
+          ...col(0, -3, 0, 4), ...col(1, -3, 0, 2), ...col(9, 0, 0, 4), ...col(10, 0, 0, 2),
+        ],
+      },
+      { color: CORAL, pivot: [8.5, 6.5], rot: { cycle: 4, step: 1 }, blocks: line(8, 5, 2, 0, 1, 3) },
+    ],
+    handles: [{ type: 'rot', piece: 1, on: 0, at: [8, 9, 0] }],
+    start: [-2, 0, 0], goal: [11, 6, 2],
+  };
+
+  const ALL = [
     // 1 ---------------------------------------------------------------
     {
       name: 'The First Door',
@@ -98,7 +170,7 @@
     // 4 ---------------------------------------------------------------
     {
       name: 'Impossible Stairs',
-      hint: 'If two paths look like they touch, they do.',
+      hint: 'If two paths look like they touch, they do. A violet glow marks the join.',
       sky: ['#d9e4ff', '#b48fe0'],
       illusion: true,
       pieces: [
@@ -355,4 +427,15 @@
       start: [-2, 0, 0], goal: [6, 6, 2],
     },
   ];
+
+  const HINT = 'Each turning piece links up in only one pose. One crank turns several at once.';
+  const LEVELS = [
+    ALL[0], ALL[1], ALL[2], ALL[3], ENDLESS, ALL[9], ALL[6], ALL[7],
+    chain({ name: 'Whispering Steps', hint: HINT, sky: ['#e4f0ff', '#9a86e0'], cycles: [3, 3, 3], cranks: [[1, 2], [0, 2]] }),
+    chain({ name: 'Mirage Stair', hint: HINT, sky: ['#ffe6d2', '#d68cb4'], cycles: [3, 3, 3, 3], cranks: [[0, 3], [2, 3], [1]] }),
+    chain({ name: 'Falling Upward', hint: HINT, sky: ['#d3f5ea', '#6f86d8'], cycles: [3, 3, 3, 3, 3], cranks: [[0, 4], [1], [3, 4], [2]] }),
+    chain({ name: 'The Summit', hint: 'Everything you have learned. Take your time.', sky: ['#ffd2a6', '#4f3fb4'], cycles: [3, 3, 2, 3, 3, 3], cranks: [[4], [3], [0], [2, 4], [1, 4, 5]] }),
+  ];
+  LEVELS.chain = chain;
+  return LEVELS;
 });

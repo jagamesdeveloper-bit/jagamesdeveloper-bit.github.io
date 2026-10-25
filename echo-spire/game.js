@@ -67,6 +67,7 @@
     crank: () => { tone(170, 0.6, 'sawtooth', 0.025, 0, 330); tone(660, 0.1, 'square', 0.02); },
     nope: () => tone(160, 0.2, 'square', 0.03, 0, 110),
     tap: () => tone(700, 0.07, 'sine', 0.03),
+    echo: () => { tone(880, 1, 'sine', 0.04, 0, 440); tone(1320, 1, 'sine', 0.02, 0.08, 660); },
     win: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.55, 'sine', 0.06, i * 0.11)),
   };
 
@@ -132,7 +133,7 @@
       hv: lv.handles.map(() => ({ a: 0 })),
       tween: null, walk: null, tap: null,
       player: lv.start, won: false, winT: 0, active: false,
-      sparks: [], puffs: [], hint: null, hintT: 0, time: 0, intro: 0, shake: 0, moves: 0, hit: [], handleHit: [], par: lv.par,
+      sparks: [], puffs: [], ripples: [], ill: new Set(), illEdges: new Set(), hint: null, hintT: 0, time: 0, intro: 0, shake: 0, moves: 0, hit: [], handleHit: [], par: lv.par,
       all: null, adj: null,
     };
     refresh();
@@ -144,9 +145,24 @@
     hint.classList.remove('dim');
   }
 
-  function refresh() {
+  // fx: announce impossible joins that did not exist before (after a turn finishes).
+  function refresh(fx) {
     G.all = L.cells(G.lv, G.st);
     G.adj = L.buildGraph(G.lv, G.all);
+    const tiles = new Set();
+    let fresh = false;
+    const tfs = G.lv.pieces.map(p => tfOf(p, G.vis[p.id]));
+    G.adj.ill.forEach(e => {
+      const ab = e.split(',').map(Number);
+      tiles.add(ab[0]); tiles.add(ab[1]);
+      if (fx && !G.illEdges.has(e)) {
+        const a = anchorOf(ab[0], tfs), b = anchorOf(ab[1], tfs);
+        G.ripples.push({ x: (a.s[0] + b.s[0]) / 2, y: (a.s[1] + b.s[1]) / 2, age: 0 });
+        fresh = true;
+      }
+    });
+    if (fresh) sfx.echo();
+    G.ill = tiles; G.illEdges = G.adj.ill;
   }
 
   function computeCamera() {
@@ -208,7 +224,7 @@
     G.moves++;
     G.hint = null;
     sfx.crank();
-    startTween(items, 0.8, () => { refresh(); checkWin(); });
+    startTween(items, 0.8, () => { refresh(true); checkWin(); });
     fadeHint();
   }
 
@@ -268,6 +284,8 @@
         w.t -= 1; w.i++; G.player = w.path[w.i]; sfx.step();
         const a = anchorOf(G.player, G.lv.pieces.map(p => tfOf(p, G.vis[p.id])));
         G.puffs.push({ x: a.s[0], y: a.s[1], age: 0, life: 0.5 });
+        const p0 = w.path[w.i - 1], p1 = w.path[w.i];
+        if (G.adj.ill.has(Math.min(p0, p1) + ',' + Math.max(p0, p1))) { G.ripples.push({ x: a.s[0], y: a.s[1], age: 0 }); sfx.echo(); }
       }
       if (w.i >= w.path.length - 1) { G.walk = null; checkWin(); }
     }
@@ -277,6 +295,10 @@
       if (G.winT > 1.3 && !G.winShown) showWin();
     }
 
+    for (let i = G.ripples.length - 1; i >= 0; i--) {
+      G.ripples[i].age += dt;
+      if (G.ripples[i].age > 1.2) G.ripples.splice(i, 1);
+    }
     for (let i = G.puffs.length - 1; i >= 0; i--) {
       G.puffs[i].age += dt;
       if (G.puffs[i].age > G.puffs[i].life) G.puffs.splice(i, 1);
@@ -342,7 +364,9 @@
         // lighter inlay marks the tiles you can walk on
         const cx = (pts[0][0] + pts[2][0]) / 2, cy = (pts[0][1] + pts[2][1]) / 2;
         const inset = pts.map(p => [cx + (p[0] - cx) * 0.62, cy + (p[1] - cy) * 0.62]);
-        poly(inset); ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fill();
+        poly(inset);
+        ctx.fillStyle = G.ill.has(f.idx) ? 'rgba(206,176,255,' + (0.5 + 0.25 * Math.sin(G.time * 3 + f.idx)) + ')' : 'rgba(255,255,255,.2)';
+        ctx.fill();
       }
       G.hit.push({ pts, idx: f.idx, walk: G.lv.flat[f.idx].b.kind !== 'd' });
     }
@@ -487,6 +511,15 @@
       else it.draw();
     });
 
+    G.ripples.forEach(r => {
+      const t = r.age / 1.2;
+      for (let k = 0; k < 2; k++) {
+        const tt = Math.max(0, t - k * 0.18);
+        if (tt <= 0) continue;
+        ctx.strokeStyle = 'rgba(214,190,255,' + (1 - tt) * 0.9 + ')'; ctx.lineWidth = 3 - k;
+        ctx.beginPath(); ctx.ellipse(r.x, r.y, cam.s * (0.2 + tt * 1.5), cam.s * (0.1 + tt * 0.75), 0, 0, TAU); ctx.stroke();
+      }
+    });
     G.puffs.forEach(p => {
       const t = p.age / p.life;
       ctx.fillStyle = 'rgba(255,255,255,' + (1 - t) * 0.5 + ')';
