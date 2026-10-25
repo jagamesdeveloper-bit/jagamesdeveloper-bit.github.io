@@ -337,9 +337,26 @@ function tone(f,dur,type,vol,f2,delay,lp){
     out.connect(sfxBus);o.start(t);o.stop(t+dur+0.05);
   }catch(e){}
 }
+let noiseBuf=null;
+function hiss(f,f2,dur,vol,q,delay){ // band-passed noise, the wet part of a clay sound
+  if(silent()||!ac||!sfxBus)return;
+  try{
+    if(!noiseBuf){noiseBuf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}
+    const t=ac.currentTime+(delay||0),src=ac.createBufferSource(),fl=ac.createBiquadFilter(),g=ac.createGain();
+    src.buffer=noiseBuf;src.loop=true;fl.type='bandpass';fl.Q.value=q||1.4;fl.frequency.setValueAtTime(f,t);fl.frequency.exponentialRampToValueAtTime(Math.max(60,f2||f),t+dur);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(Math.max(0.0002,vol*SET.sfx),t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(fl);fl.connect(g);g.connect(sfxBus);src.start(t,Math.random()*0.5);src.stop(t+dur+0.05);
+  }catch(e){}
+}
+const pv=()=>0.9+Math.random()*0.2;
 const PENT=[0,2,4,7,9];
 const SYN={
-  ui(){tone(1100,0.05,'triangle',0.1,700);},
+  ui(){const r=pv();tone(520*r,0.09,'sine',0.16,300*r);hiss(700,350,0.05,0.05,2);},
+  clayStep(){const r=pv();tone(150*r,0.13,'sine',0.38,58*r);hiss(420,160,0.07,0.1,1.1);},
+  clayHit(){const r=pv();tone(240*r,0.1,'sine',0.3,95*r);hiss(950,300,0.1,0.14,1.6);},
+  clayKill(){const r=pv();tone(320*r,0.15,'sine',0.34,60*r);hiss(1600,380,0.16,0.18,1.8);tone(210*r,0.11,'sine',0.2,70,0.08);hiss(900,300,0.1,0.1,2,0.08);},
+  clayHurt(){const r=pv();tone(130*r,0.22,'sine',0.5,48*r);hiss(600,150,0.22,0.22,1);tone(90,0.16,'triangle',0.25,45,0.05);},
+  clayStretch(){const r=pv();tone(110*r,0.22,'triangle',0.2,280*r,0,700);hiss(500,900,0.2,0.07,2.2);},
   pick(){tone(660,0.07,'triangle',0.12);tone(990,0.09,'triangle',0.1,null,0.05);},
   combo(n){const k=Math.max(0,n-1),f=330*Math.pow(2,(PENT[k%5]+12*Math.floor(k/5))/12);tone(Math.min(f,1900),0.18,'sine',0.14);tone(Math.min(f*2,3800),0.1,'triangle',0.05,null,0.02);},
   beat(){tone(70,0.16,'sine',0.5,38);tone(62,0.2,'sine',0.4,34,0.17);},
@@ -822,12 +839,20 @@ const SKINS=[
   {id:'bone',name:'Bone',c:0xb09a68,e:0xffe0a0,css:'#e8d8a8',req:'Reach floor 13',ok:m=>m.maxFloor>=13},
   {id:'void',name:'Void',c:0x120a24,e:0x8040ff,css:'#2a1850',req:'Defeat 10 bosses in total',ok:m=>m.bosses>=10},
   {id:'gilded',name:'Gilded',c:0xa87008,e:0xffa010,css:'#ffc23a',req:'Reach floor 10',ok:m=>m.maxFloor>=10},
+  {id:'clay',name:'Clay',c:0xb8683e,e:0x3a1808,css:'#c9784a',req:'Play 8 runs',ok:m=>m.runs>=8,fx:'jelly',kind:'Jelly wobble'},
+  {id:'seraph',name:'Seraph',c:0xf0ead8,e:0xffe890,css:'#fff2b8',req:'Reach floor 5',ok:m=>m.maxFloor>=5,fx:'halo',kind:'Floating halo'},
+  {id:'cinder',name:'Cinder',c:0x3a1a14,e:0xff5a1a,css:'#ff7a30',req:'Capture 300 enemies in total',ok:m=>(m.kills||0)>=300,fx:'ember',kind:'Ember trail'},
+  {id:'spectre',name:'Spectre',c:0xaad8e8,e:0x70e0ff,css:'#9fe8f8',req:'Play 20 runs',ok:m=>m.runs>=20,fx:'ghost',kind:'Ghostly and see-through'},
+  {id:'storm',name:'Storm',c:0x2a3a6a,e:0x60a0ff,css:'#6a9aff',req:'Defeat 3 bosses in total',ok:m=>m.bosses>=3,fx:'spark',kind:'Crackling lightning'},
+  {id:'prism',name:'Prism',c:0xe8e8f4,e:0xff80ff,css:'#f0a8ff',req:'Reach floor 16',ok:m=>m.maxFloor>=16,fx:'rainbow',kind:'Shifting colours'},
+  {id:'orbital',name:'Orbital',c:0x30284a,e:0x9a70ff,css:'#7a5ad0',req:'Defeat 7 bosses in total',ok:m=>m.bosses>=7,fx:'orbit',kind:'Orbiting moons'},
 ];
 let meta={maxFloor:1,bosses:0,runs:0,kills:0,skin:'marble',seen:['marble'],found:[],tips:[],shards:0,legacy:{}};
 {const m=parseJ('inpieces_meta',null);if(m&&typeof m==='object')meta=Object.assign(meta,m);}
 function applySkin(id){
   const sk=SKINS.find(x=>x.id===id&&x.ok(meta))||SKINS[0];meta.skin=sk.id;
   MARBLE.color.setHex(sk.c);MARBLE.emissive.setHex(sk.e);
+  MARBLE.transparent=sk.fx==='ghost';MARBLE.opacity=sk.fx==='ghost'?0.55:1;MARBLE.depthWrite=sk.fx!=='ghost';MARBLE.needsUpdate=true;
 }
 applySkin(meta.skin);
 const innerMats={};
@@ -1721,7 +1746,7 @@ function doPlayerMove(m){
   }else{
     const fx=P.x,fy=P.y;P.x=m.x;P.y=m.y;
     setAnim(P,fx,fy,P.t==='N'?0.26:0.1+dist*0.02,P.t==='N');
-    sfx('step',0.55,0.9+dist*0.03);
+    sfx('step',0.55,0.9+dist*0.03);syn('clayStep');
     for(let i=0;i<4;i++){const k=Math.random();emit(sparkSys,fx-3+(m.x-fx)*k,0.12,fy-4+(m.y-fy)*k,rand(-0.2,0.2),rand(0.2,0.7),rand(-0.2,0.2),0.3,0.05,[1,0.88,0.6]);}
     if(dist>1)for(let i=0;i<5;i++)emit(dustSys,fx-3+(m.x-fx)*Math.random(),0.08,fy-4+(m.y-fy)*Math.random(),rand(-0.3,0.3),rand(0.1,0.4),rand(-0.3,0.3),0.5,0.3,[0.6,0.56,0.5],1.5);
     arrive();
@@ -1785,7 +1810,7 @@ function hurtPlayer(d){
   if(P.dodge&&Math.random()<Math.min(0.5,0.09*P.dodge)){floatText(P.x,P.y,'DODGE','#c8b8ff');P.inv=0.4;burst(P.x,P.y,8,[200,180,255],100,0.4,2.5);return false;}
   if(P.shield>0){P.shield=0;P.shieldT=14;floatText(P.x,P.y,'BLOCK','#9fd8ff');burst(P.x,P.y,10,[150,220,255],100,0.4,2.5);sfx('block',0.9);P.inv=0.5;return false;}
   if(P.armor&&d>=2)d=Math.max(1,d-P.armor);
-  camRoll=(Math.random()<0.5?-1:1)*0.02;buzz(d>=3?[60,30,60]:45);slowT=Math.max(slowT,d>=3?0.16:0.1);P.hp-=d;P.inv=0.7;shake=9;hurtFlash=0.5;if(P.avenge){P.rageT=6;floatText(P.x,P.y-0.4,'RAGE','#ff8a5a');}
+  camRoll=(Math.random()<0.5?-1:1)*0.02;syn('clayHurt');buzz(d>=3?[60,30,60]:45);slowT=Math.max(slowT,d>=3?0.16:0.1);P.hp-=d;P.inv=0.7;shake=9;hurtFlash=0.5;if(P.avenge){P.rageT=6;floatText(P.x,P.y-0.4,'RAGE','#ff8a5a');}
   floatText(P.x,P.y,'-'+d,'#ff6b7a');
   chipAt(P.x-3,0.6,P.y-4,4,MARBLE,0,0);
   burst(P.x,P.y,10,[255,90,110],150,0.5,3);
@@ -1994,7 +2019,7 @@ function castActive(i){
     P.stoneT=2+a.lvl;P.inv=Math.max(P.inv,P.stoneT);
     spawnWave(P.x-3,P.y-4,0xd8c890,2.6,0.6);burst(P.x,P.y,16,[220,200,140],120,0.6,3);sfx('stone',0.9);
   }
-  a.cd=actCd(a);buzz(35);
+  a.cd=actCd(a);syn('clayStretch');buzz(35);
   floatText(P.x,P.y,def.n.toUpperCase(),'#8fe0ff');
 }
 
@@ -2007,6 +2032,7 @@ function hitEnemy(e,d){
   if(e.aff==='ghostly'&&!e.phased&&!e.boss&&d<99){e.phased=true;e.flash=0.2;floatText(e.x,e.y,'PHASE','#e8f4ff');burst(e.x,e.y,10,[220,240,255],110,0.5,2.6);sfx('glass',0.7,1.4);return false;}
   e.hp-=d;e.flash=0.15;
   if(P.exec&&e.hp>0&&!e.boss&&d<99&&e.hp<=e.maxhp*(0.1+0.15*P.exec)){e.hp=0;floatText(e.x,e.y-0.5,'EXECUTED','#ff8a8a');}
+  syn(e.hp>0?'clayHit':'clayKill');
   floatText(e.x,e.y,'-'+d,d>=6?'#ff9a3a':'#ffe27a',1+Math.min(0.9,(d-1)*0.06));
   const hd=e.hitDir||[0,0];
   {const k=e.hp>0?0.05:(e.boss?0.5:0.12+0.02*Math.min(G.streak||0,5));punch=[hd[0]*k,hd[1]*k];}
@@ -2740,6 +2766,9 @@ function syncScene(dt){
       const orbit=new THREE.Group();
       for(let i=0;i<3;i++){const o=new THREE.Mesh(new THREE.SphereGeometry(0.04,8,6),new THREE.MeshBasicMaterial({color:0xffe08a}));o.position.set(Math.cos(i*2.094)*0.5,0.45+Math.sin(i*2.094)*0.12,Math.sin(i*2.094)*0.5);o.userData.disp=true;orbit.add(o);}
       P.vis.add(orbit);P.vis.userData.orbit=orbit;
+      {const fx=(SKINS.find(x=>x.id===meta.skin)||SKINS[0]).fx;
+       if(fx==='halo'){const h=new THREE.Mesh(new THREE.TorusGeometry(0.2,0.028,8,28),new THREE.MeshBasicMaterial({color:0xffe27a}));h.rotation.x=Math.PI/2;h.position.y=HEIGHT[P.t]*PSY+0.3;h.userData.disp=true;P.vis.add(h);P.vis.userData.halo=h;}
+       if(fx==='orbit'){const sg=new THREE.Group();[[0.55,0.15,0xc8a0ff,0],[0.72,0.1,0x80e0ff,2.1],[0.62,0.125,0xffc080,4.2]].forEach(([r,sz,col,ph])=>{const m=new THREE.Mesh(new THREE.SphereGeometry(sz,10,8),new THREE.MeshBasicMaterial({color:col}));m.position.set(Math.cos(ph)*r,0.5+Math.sin(ph*1.7)*0.18,Math.sin(ph)*r);m.userData.disp=true;m.userData.r=r;m.userData.ph=ph;sg.add(m);});P.vis.add(sg);P.vis.userData.sats=sg;}}
     }
     const p=epos(P),g=P.vis;
     let rise=0;if(P.rise>0){P.rise-=dt;rise=Math.max(0,P.rise/0.6);}
@@ -2754,6 +2783,15 @@ function syncScene(dt){
     const sk_=SKINS.find(x=>x.id===meta.skin)||SKINS[0];
     MARBLE.color.setHex(P.stoneT>0?0x8c8068:blink?0xff8a8a:sk_.c);
     MARBLE.emissive.setHex(blink?0xff2030:P.stoneT>0?0xd0b070:sk_.e);MARBLE.emissiveIntensity=blink?1.4:0.16+0.06*Math.sin(time*2);
+    {const fx=sk_.fx;
+     if(fx==='jelly'){const q=1+(p.sq-1)*2.4+0.055*Math.sin(time*5.5);g.scale.set(s/q,s*q,s/q);}
+     else if(fx==='halo'&&g.userData.halo){const h=g.userData.halo;h.position.y=HEIGHT[P.t]*PSY+0.3+0.03*Math.sin(time*3);h.rotation.z=time*1.4;}
+     else if(fx==='ember'){if(Math.random()<dt*45)emit(sparkSys,p.x-3+rand(-0.15,0.15),0.15+rand(0,0.45),p.y-4+rand(-0.15,0.15),rand(-0.1,0.1),rand(0.5,1.5),rand(-0.1,0.1),0.75,0.06,[1,rand(0.3,0.6),0.12]);}
+     else if(fx==='ghost'){if(Math.random()<dt*14)emit(sparkSys,p.x-3+rand(-0.2,0.2),0.2+rand(0,0.5),p.y-4+rand(-0.2,0.2),0,rand(0.3,0.7),0,1,0.07,[0.7,0.92,1]);g.position.y+=0.05*Math.sin(time*2.4);}
+     else if(fx==='spark'){if(Math.random()<dt*9)burst(P.x+rand(-0.3,0.3),P.y+rand(-0.3,0.3),4,[130,200,255],170,0.22,2.3);}
+     else if(fx==='rainbow'&&!blink){MARBLE.emissive.setHSL((time*0.22)%1,0.85,0.55);MARBLE.emissiveIntensity=0.45;MARBLE.color.setHSL((time*0.22+0.5)%1,0.25,0.88);}
+     else if(fx==='orbit'&&g.userData.sats){g.userData.sats.children.forEach((m,i)=>{const a=m.userData.ph+time*(1.3+i*0.45);m.position.set(Math.cos(a)*m.userData.r,0.5+Math.sin(a*1.7)*0.18,Math.sin(a)*m.userData.r);});}
+    }
     playerLight.position.set(p.x-3,1.3,p.y-4+0.3);
     shieldMesh.visible=P.shield>0||P.stoneT>0;shieldMesh.material.color.setHex(P.stoneT>0?0xffe0a0:0x8fd8ff);shieldMesh.position.set(p.x-3,0.5,p.y-4);shieldMesh.scale.setScalar(1+0.04*Math.sin(time*6));
     const b=getBlob(bi++);b.visible=true;b.position.set(p.x-3,0.022,p.y-4);
@@ -3103,7 +3141,7 @@ function renderSkins(){
   for(const sk of SKINS){
     const on=sk.ok(meta),eq=meta.skin===sk.id;
     const b=document.createElement('button');b.className='card'+(on?'':' lock');
-    b.innerHTML=`<div class="sw" style="background:${sk.css}"></div><div><b>${sk.name}${eq?'<i>EQUIPPED</i>':''}</b><span>${on?(eq?'&nbsp;':'Owned'):ic('lock')+sk.req}</span></div>`;
+    b.innerHTML=`<div class="sw" style="background:${sk.css}"></div><div><b>${sk.name}${eq?'<i>EQUIPPED</i>':''}</b><span>${on?(sk.kind||(eq?'&nbsp;':'Owned')):ic('lock')+sk.req}</span></div>`;
     b.onclick=()=>{if(!on)return;meta.skin=sk.id;applySkin(sk.id);resetPlayerVis();saveMeta();renderSkins();sfx('select',0.8);};
     box.appendChild(b);
   }
