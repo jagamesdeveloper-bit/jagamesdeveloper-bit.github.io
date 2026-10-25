@@ -143,7 +143,7 @@
     try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs', 'omt_night'], [String(P.best), String(P.runs), String(P.bestNight)]).catch(() => {}); } catch (e) {}
   }
   function platMsg(m, data) { try { if (hasBridge()) window.bridge.platform.sendMessage(m, data); } catch (e) {} }
-  const GAME_VERSION = '1.7.1';
+  const GAME_VERSION = '1.7.2';
   const Tele = {
     send(name, data) { try { if (hasBridge() && window.bridge.analytics) window.bridge.analytics.send(name, data); } catch (e) {} },
     frames: [], windowStart: 0, active: 0, jsErr: 0,
@@ -1370,7 +1370,7 @@
     const lw = Math.min(238 * U, cw * (narrow ? 0.58 : 0.34)), lh = 84 * U;
     card(c, pad, pad, lw, lh);
     tape(c, pad + lw * 0.2, pad + 1, -0.08);
-    inkText(c, 'NIGHT ' + G.night + '  ·  BANKED', pad + 14 * U, pad + 22 * U, fs(11), RUST, 'left', Art.SANS);
+    inkText(c, (narrow ? 'NIGHT ' + G.night : 'NIGHT ' + G.night + '  ·  BANKED'), pad + 14 * U, pad + 22 * U, fs(11), RUST, 'left', Art.SANS);
     c.save(); c.translate(pad + 14 * U, pad + 49 * U); const bsc = 1 + 0.24 * G.bankBump; c.scale(bsc, bsc); inkText(c, '$' + Math.round(G.bankDisp), 0, 0, fs(28), G.bankBump > 0.08 ? '#2d7a3a' : INKC, 'left'); c.restore();
     inkText(c, 'GOAL $' + G.goal, pad + lw - 14 * U, pad + 22 * U, fs(11), G.banked >= G.goal ? '#2d7a3a' : RUST, 'right', Art.SANS);
     gauge(c, pad + 14 * U, pad + 55 * U, lw - 28 * U, 8 * U, clamp(G.banked / G.goal, 0, 1), G.banked >= G.goal ? '#7bbf6a' : '#e2b13a', [0.25, 0.5, 0.75]);
@@ -1429,7 +1429,7 @@
     }
     if (!touchMode && G.hint > 0 && !G.over) {
       c.globalAlpha = clamp(G.hint, 0, 1) * 0.95;
-      txt(c, 'A/D move   W hop   HOLD mouse: grab + reel   CLICK loot: stash   Q: drop   R: restart', cw / 2, ch - 14 * U, fs(13), '#f1e5c6', 'center', 700);
+      txt(c, (cw < 900 ? 'A/D move   W hop   hold mouse: grab' : 'A/D move   W hop   HOLD mouse: grab + reel   CLICK loot: stash   Q: drop   R: restart'), cw / 2, ch - 14 * U, fs(13), '#f1e5c6', 'center', 700);
       c.globalAlpha = 1;
     }
     if (canLeave()) {
@@ -1460,12 +1460,13 @@
       card(c, px, py, pw, ph, '#f0e2bd', 12);
       tape(c, px + pw * 0.15, py + 2, -0.1); tape(c, px + pw * 0.85, py + 2, 0.12);
       const caught = o.kind === 'caught';
-      const title = caught ? 'SQUASHED!' : o.kind === 'clean' ? 'CLEAN SWEEP!' : o.kind === 'escaped' ? 'ESCAPED!' : 'SNEAKED OUT!';
+      const empty = !caught && o.banked <= 0;
+      const title = caught ? 'SQUASHED!' : empty ? 'EMPTY HANDS' : o.kind === 'clean' ? 'CLEAN SWEEP!' : o.kind === 'escaped' ? 'ESCAPED!' : 'SNEAKED OUT!';
       c.save(); c.translate(cw / 2, py + 62 * U); c.rotate(-0.06);
       c.font = '900 ' + fs(38) + 'px ' + Art.SERIF; const tw2 = c.measureText(title).width + 36 * U;
-      Art.rr(c, -tw2 / 2, -38 * U, tw2, 54 * U, 6); c.lineWidth = 4; c.strokeStyle = caught ? '#a3201a' : '#2d6a3a'; c.stroke();
+      Art.rr(c, -tw2 / 2, -38 * U, tw2, 54 * U, 6); c.lineWidth = 4; c.strokeStyle = caught || empty ? '#a3201a' : '#2d6a3a'; c.stroke();
       Art.rr(c, -tw2 / 2 + 5, -33 * U, tw2 - 10, 44 * U, 4); c.lineWidth = 1.5; c.stroke();
-      inkText(c, title, 0, 0, fs(38), caught ? '#a3201a' : '#2d6a3a', 'center');
+      inkText(c, title, 0, 0, fs(38), caught || empty ? '#a3201a' : '#2d6a3a', 'center');
       c.restore();
       inkText(c, 'Banked  $' + o.banked + (caught && hauledLost() > 0 ? '    (dropped $' + hauledLost() + ')' : ''), cw / 2, py + 112 * U, fs(22), INKC, 'center');
       for (let i = 0; i < 3; i++) star(c, cw / 2 + (i - 1) * 56 * U, py + 158 * U, 21 * U, i < o.stars);
@@ -1478,7 +1479,7 @@
           if (got) { c.strokeStyle = '#2d7a3a'; c.lineWidth = 2.4 * U; c.lineCap = 'round'; c.beginPath(); c.moveTo(cx + cell * 0.14, cy + cell * 0.3); c.lineTo(cx + cell * 0.24, cy + cell * 0.4); c.lineTo(cx + cell * 0.42, cy + cell * 0.16); c.stroke(); c.lineCap = 'butt'; }
         });
       }
-      inkText(c, o.success ? 'Night ' + o.night + ' cleared! The giant will be angrier tomorrow.' : (G.brokenCount > 0 && o.kind !== 'caught' ? 'Smashed loot: $' + G.lostValue + '. Careful with the glass.' : o.quip), cw / 2, py + (wantGrid ? 304 : 206) * U, fs(14), '#5a3a52', 'center');
+      inkText(c, o.success ? 'Night ' + o.night + ' cleared! The giant will be angrier tomorrow.' : (G.brokenCount > 0 && o.kind !== 'caught' ? 'Smashed loot: $' + G.lostValue + '. Careful with the glass.' : (empty ? 'A whole night and not a single thing to show for it.' : o.quip)), cw / 2, py + (wantGrid ? 304 : 206) * U, fs(14), '#5a3a52', 'center');
       inkText(c, (o.newBest ? 'NEW BEST  $' : 'Best  $') + P.best + '   ·   goal $' + G.goal + '   ·   all loot $' + TOTAL_VALUE, cw / 2, py + (wantGrid ? 328 : 230) * U, fs(13), o.newBest ? '#2d7a3a' : RUST, 'center', Art.SANS);
       const bw = Math.min(270 * U, pw - 40), bh = 50 * U, bx = (cw - bw) / 2, by = py + ph - bh - 22 * U;
       btn('again', bx, by, bw, bh);
