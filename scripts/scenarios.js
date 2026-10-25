@@ -1,6 +1,29 @@
 // per-game screenshot scenarios for look.js
 const tap = async (page, x, y) => { await page.mouse.click(x, y); await page.waitForTimeout(120); };
 module.exports = {
+  'ghost-grocer': {
+    menu: async (page) => { await page.waitForTimeout(800); },
+    play: async (page) => { await page.evaluate(() => { const G = window.__gg; window.__pg_debug.save.nights = 2; G.start(4); G.spawn(); G.spawn(); G.spawn(); G.st.ghosts.forEach((g, i) => { g.x = g.tx; g.y = 500; g.t = 5; g.pat = g.mpat * [0.9, 0.5, 0.2][i]; }); G.take(0); G.take(2); G.st.coinsNight = 34; G.st.t = 30; }); await page.waitForTimeout(700); },
+    polt: async (page) => { await page.evaluate(() => { const G = window.__gg; window.__pg_debug.save.nights = 3; G.start(5); G.spawn(); G.spawn(); G.st.ghosts.forEach(g => { g.x = g.tx; g.t = 5; }); G.startPolt(); G.st.polt.warn = 0.01; }); await page.waitForTimeout(1400); },
+    over: async (page) => { await page.evaluate(() => { const G = window.__gg; G.start(3); G.st.coinsNight = 48; G.st.served = 11; G.endNight(true); }); await page.waitForTimeout(1300); },
+    lost: async (page) => { await page.evaluate(() => { const G = window.__gg; G.start(6); G.st.coinsNight = 30; G.st.served = 7; G.st.hearts = 0; G.endNight(false); }); await page.waitForTimeout(1300); },
+    shop: async (page) => { await page.evaluate(() => { window.__pg_debug.save.coins = 190; window.__gg.st.state = 'shop'; }); await page.waitForTimeout(600); },
+  },
+  'skyline-snap': {
+    menu: async (page) => { await page.waitForTimeout(700); },
+    play: async (page) => { await page.evaluate(() => { const S = window.__sky; S.start(); for (let i = 1; i < 9; i++) S.st.floors.push({ x: Math.sin(i) * 6, w: 150 - i * 3, i }); S.st.coinsRun = 4; S.st.tut = false; }); await page.waitForTimeout(1500); },
+    sunset: async (page) => { await page.evaluate(() => { const S = window.__sky; S.start(); for (let i = 1; i < 24; i++) S.st.floors.push({ x: Math.sin(i) * 8, w: 140 - i, i }); S.st.tut = false; }); await page.waitForTimeout(2200); },
+    night: async (page) => { await page.evaluate(() => { const S = window.__sky; S.start(); for (let i = 1; i < 56; i++) S.st.floors.push({ x: Math.sin(i * 0.7) * 10, w: 130 - i * 0.6, i }); S.st.tut = false; }); await page.waitForTimeout(2500); },
+    over: async (page) => { await page.evaluate(() => { const S = window.__sky; S.start(); for (let i = 1; i < 18; i++) S.st.floors.push({ x: Math.sin(i) * 8, w: 140 - i, i }); S.st.coinsRun = 9.5; S.st.perfects = 7; S.gameOver(); }); await page.waitForTimeout(1600); },
+    shop: async (page) => { await page.evaluate(() => { window.__pg_debug.save.coins = 210; window.__sky.st.state = 'shop'; }); await page.waitForTimeout(600); },
+  },
+  'jelly-jam': {
+    menu: async (page) => { await page.waitForTimeout(700); },
+    play: async (page) => { await page.evaluate(() => { const J = window.__jelly; J.start(false); const g = J.st.g; const pat = ['..1122..', '.11.2233', '44..33..', '44.5556.', '0000000.', '.66.11..', '.6..1...', '........']; pat.forEach((row, y) => row.split('').forEach((ch, x) => { if (ch !== '.') g[y][x] = { c: +ch, pid: +ch * 10 + Math.floor(y / 2), f: (x + y) % 5 === 0, wob: 0, sc: 1 }; })); J.st.score = 4820; J.st.coinsRun = 12; J.st.combo = 2; J.st.hand = [{ cells: [[0, 0]], c: 0, id: 1, used: false, pop: 1 }, { cells: [[0, 0], [1, 0], [0, 1]], c: 4, id: 2, used: false, pop: 1 }, { cells: [[0, 0], [1, 0], [2, 0], [3, 0]], c: 2, id: 3, used: false, pop: 1 }]; J.st.drag = { slot: 0, moved: true, pos: null }; });
+      await page.evaluate(() => { const J = window.__jelly, P = window.__pg_debug; const d = J.st.drag; d.ox = 7; d.oy = 4; d.valid = true; d.pos = { x: 300, y: 300 }; }); await page.waitForTimeout(500); },
+    over: async (page) => { await page.evaluate(() => { const J = window.__jelly; J.start(false); for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if ((x * 3 + y * 5) % 4) J.st.g[y][x] = { c: (x + y) % 7, pid: x * 9 + y, f: (x * 7 + y) % 6 === 0, wob: 0, sc: 1 }; J.st.score = 9120; J.st.lines = 14; J.st.pure = 2; J.st.coinsRun = 21; J.gameOver(); }); await page.waitForTimeout(1500); },
+    shop: async (page) => { await page.evaluate(() => { window.__pg_debug.save.coins = 260; window.__jelly.st.state = 'shop'; }); await page.waitForTimeout(600); },
+  },
   'dino-dig': {
     dig: async (page) => { await page.waitForTimeout(600); for (let i = 0; i < 5; i++) { await page.evaluate(() => { const D = window.__dino; D.hit(0, 2, 2, true); D.hit(1, 3, 1.4, true); }); await page.waitForTimeout(90); } },
     deep: async (page) => { await page.evaluate(() => { const P = window.__pg_debug, D = window.__dino; P.save.u = { pick: 14, crew: 6, brush: 6, cash: 3, tnt: 2, ticket: 1 }; P.save.depth = 86; D.st.row0 = 86; D.resetRows(); D.st.cash = 48200; }); await page.waitForTimeout(1500); },
