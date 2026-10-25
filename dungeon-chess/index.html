@@ -1333,12 +1333,12 @@ function burst(tx,ty,n,col,sp=100,life=0.5,size=3){
   }
 }
 const texts=[];
-function floatText(tx,ty,txt,col='#fff',big=1){texts.push({x:tx-3,y:1.3,z:ty-4,txt,col,t:0.9,big});}
+function floatText(tx,ty,txt,col='#fff',big=1){texts.push({x:tx-3,y:1.3,z:ty-4,txt,col,t:0.9,big,dx:rand(-0.35,0.35)});}
 
 /* =====================================================================
    GAME LOGIC
    ===================================================================== */
-let punch=[0,0],state='menu',time=0,shake=0,fade=0,hurtFlash=0,slowT=0,flashW=0,riseT=0,zoomKick=0;
+let punch=[0,0],camRoll=0,state='menu',time=0,shake=0,fade=0,hurtFlash=0,slowT=0,flashW=0,riseT=0,zoomKick=0;
 let G,P,tiles,items,enemies,room,queued,pickQ;
 const entVis=new Set();
 let best=0;
@@ -1684,6 +1684,7 @@ function rollDamage(){
 }
 function doPlayerMove(m){
   let counter=false;
+  camRoll=clamp(-Math.sign(m.x-P.x)*0.014,-0.02,0.02);
   const dist=Math.max(Math.abs(m.x-P.x),Math.abs(m.y-P.y));
   P.face=Math.atan2(m.x-P.x,m.y-P.y);
   if(m.cap){
@@ -1721,6 +1722,7 @@ function doPlayerMove(m){
     const fx=P.x,fy=P.y;P.x=m.x;P.y=m.y;
     setAnim(P,fx,fy,P.t==='N'?0.26:0.1+dist*0.02,P.t==='N');
     sfx('step',0.55,0.9+dist*0.03);
+    for(let i=0;i<4;i++){const k=Math.random();emit(sparkSys,fx-3+(m.x-fx)*k,0.12,fy-4+(m.y-fy)*k,rand(-0.2,0.2),rand(0.2,0.7),rand(-0.2,0.2),0.3,0.05,[1,0.88,0.6]);}
     if(dist>1)for(let i=0;i<5;i++)emit(dustSys,fx-3+(m.x-fx)*Math.random(),0.08,fy-4+(m.y-fy)*Math.random(),rand(-0.3,0.3),rand(0.1,0.4),rand(-0.3,0.3),0.5,0.3,[0.6,0.56,0.5],1.5);
     arrive();
   }
@@ -1783,7 +1785,7 @@ function hurtPlayer(d){
   if(P.dodge&&Math.random()<Math.min(0.5,0.09*P.dodge)){floatText(P.x,P.y,'DODGE','#c8b8ff');P.inv=0.4;burst(P.x,P.y,8,[200,180,255],100,0.4,2.5);return false;}
   if(P.shield>0){P.shield=0;P.shieldT=14;floatText(P.x,P.y,'BLOCK','#9fd8ff');burst(P.x,P.y,10,[150,220,255],100,0.4,2.5);sfx('block',0.9);P.inv=0.5;return false;}
   if(P.armor&&d>=2)d=Math.max(1,d-P.armor);
-  buzz(d>=3?[60,30,60]:45);slowT=Math.max(slowT,d>=3?0.16:0.1);P.hp-=d;P.inv=0.7;shake=9;hurtFlash=0.5;if(P.avenge){P.rageT=6;floatText(P.x,P.y-0.4,'RAGE','#ff8a5a');}
+  camRoll=(Math.random()<0.5?-1:1)*0.02;buzz(d>=3?[60,30,60]:45);slowT=Math.max(slowT,d>=3?0.16:0.1);P.hp-=d;P.inv=0.7;shake=9;hurtFlash=0.5;if(P.avenge){P.rageT=6;floatText(P.x,P.y-0.4,'RAGE','#ff8a5a');}
   floatText(P.x,P.y,'-'+d,'#ff6b7a');
   chipAt(P.x-3,0.6,P.y-4,4,MARBLE,0,0);
   burst(P.x,P.y,10,[255,90,110],150,0.5,3);
@@ -2022,6 +2024,7 @@ function hitEnemy(e,d){
   G.streak=(G.streakT>0?G.streak:0)+1;G.streakT=2.6;
   G.bestCombo=Math.max(G.bestCombo||0,G.streak);
   if(G.streak>=3){G.score+=G.streak*5;floatText(e.x,e.y-0.7,G.streak+'x COMBO','#ffb347');}
+  {const tn2=e.boss?BOSSES[e.bk].tint:ETINT[e.t];spawnWave(e.x-3,e.y-4,((tn2[0]*255|0)<<16)|((tn2[1]*255|0)<<8)|(tn2[2]*255|0),e.boss?4:1.7,e.boss?0.6:0.3);}
   slowT=Math.max(slowT,0.03+0.012*Math.min(G.streak,8));
   if(G.streak>=2)syn('combo',G.streak);
   {const ms={5:'RAMPAGE!',10:'UNSTOPPABLE!',15:'GODLIKE!'}[G.streak];
@@ -2056,6 +2059,7 @@ function hitEnemy(e,d){
 function levelFx(){
   spawnWave(P.x-3,P.y-4,0x8fe0ff,4.5,0.7);spawnWave(P.x-3,P.y-4,0xe8fbff,2.6,0.5);
   burst(P.x,P.y,26,[150,230,255],180,0.8,3.4);floatText(P.x,P.y-0.7,'LEVEL UP','#9fe8ff',1.35);
+  for(const c of [[255,120,160],[255,230,120],[120,255,190],[150,170,255]])burst(P.x,P.y,10,c,260,1,3.2);
   sfx('confirm',0.7,1.2);syn('level');P.lvlPulse=1;flashW=Math.max(flashW,0.08);
 }
 function addXp(v){
@@ -2659,6 +2663,7 @@ function syncScene(dt){
   camera.position.set(camBase.x+sw+par+(sk?rand(-sk,sk):0)+punch[0]*pk,camBase.y+(sk?rand(-sk,sk):0),camBase.z+(pp0.y-4)*0.03+punch[1]*pk);
   punch[0]*=Math.exp(-dt*11);punch[1]*=Math.exp(-dt*11);
   camera.lookAt(camTarget);
+  if(SET.shake&&Math.abs(camRoll)>0.0004)camera.rotateZ(camRoll);camRoll*=Math.exp(-dt*6);
   camera.fov+=((40-zoomKick)-camera.fov)*Math.min(1,dt*8);camera.updateProjectionMatrix();zoomKick*=Math.exp(-dt*5);
   if(window.__cover){camera.position.set(...window.__cover.pos);camera.lookAt(...window.__cover.look);camera.fov=window.__cover.fov;camera.updateProjectionMatrix();}
   // the platform assembles itself out of the void whenever a room loads
@@ -2780,6 +2785,7 @@ function syncScene(dt){
     if(e.casting){jx=Math.sin(time*60)*0.04;jz=Math.cos(time*55)*0.03;}
     g.position.set(p.x-3+jx,y+Math.sin(time*3+e.seed)*0.01,p.y-4+jz);
     if(e.flash>0)sc*=1+e.flash*(e.boss?0.8:1.7);
+    if(e.wind){const k=1-e.wind.t/e.wind.max;sc*=1+0.13*k*k;}
     g.scale.set(sc/p.sq,sc*p.sq,sc/p.sq);
     g.rotation.y=lerpAng(g.rotation.y,Math.atan2(pp.x-p.x,pp.y-p.y)+(e.t==='N'?0.95:0),Math.min(1,dt*8));
     const tn=e.boss?BOSSES[e.bk].tint:ETINT[e.t];
@@ -2810,7 +2816,7 @@ function syncScene(dt){
     }
   }
   for(const z of room.zones){
-    const k=1-z.t/z.max,op=0.42+0.55*k+0.12*Math.sin(time*26);
+    const k=1-z.t/z.max,op=0.42+0.55*k+0.12*Math.sin(time*26)+(z.t<0.3?0.22*Math.sin(time*64):0);
     for(const[x,y]of z.tiles)useP(x-3,y-4,0.94,0.94,op,0,z.col);
   }
   for(let i=pi;i<telePlanes.length;i++)telePlanes[i].visible=false;
@@ -2875,9 +2881,9 @@ function drawOverlay(){
   if(!G||state==='menu')return; // the menu shows the bare dungeon behind it
   ctx.font=FNT(800,18);ctx.textAlign='center';ctx.textBaseline='middle';
   for(const t of texts){
-    const a=clamp(t.t/0.5,0,1),age=0.9-t.t,[sx,sy]=proj(t.x,t.y+age*0.7,t.z);
+    const a=clamp(t.t/0.5,0,1),age=0.9-t.t,[sx,sy]=proj(t.x+t.dx*age,t.y+age*0.7-0.8*age*age*0.5,t.z);
     const pop=(t.big||1)*(1+0.7*Math.max(0,1-age/0.14)); // starts oversized and snaps down
-    ctx.save();ctx.translate(sx,sy);ctx.scale(pop,pop);
+    ctx.save();ctx.translate(sx,sy);if(t.big>1.2)ctx.rotate(Math.sin(age*38)*0.07*Math.max(0,1-age/0.5));ctx.scale(pop,pop);
     ctx.globalAlpha=a;ctx.lineJoin='round';ctx.lineWidth=5;ctx.strokeStyle='#1a0a2e';ctx.strokeText(t.txt,0,0);ctx.fillStyle=t.col;ctx.fillText(t.txt,0,0);
     ctx.restore();
   }
