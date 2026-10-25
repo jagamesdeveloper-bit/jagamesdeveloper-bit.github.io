@@ -67,6 +67,7 @@
     crank: () => { tone(170, 0.6, 'sawtooth', 0.025, 0, 330); tone(660, 0.1, 'square', 0.02); },
     nope: () => tone(160, 0.2, 'square', 0.03, 0, 110),
     tap: () => tone(700, 0.07, 'sine', 0.03),
+    plate: () => { tone(220, 0.25, 'triangle', 0.05, 0, 150); tone(440, 0.12, 'square', 0.015); },
     echo: () => { tone(880, 1, 'sine', 0.04, 0, 440); tone(1320, 1, 'sine', 0.02, 0.08, 660); },
     win: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.55, 'sine', 0.06, i * 0.11)),
   };
@@ -104,6 +105,13 @@
           z0: b.z, z1: b.z + (i + 1) / STAIR_STEPS,
         });
       }
+    } else if (b.kind === 'l') {
+      const bx = b.x, by = b.y, z = b.z;
+      b._boxes = [
+        { x0: bx + 0.40, x1: bx + 0.60, y0: by + 0.40, y1: by + 0.60, z0: z, z1: z + 1 },
+        { x0: bx + 0.14, x1: bx + 0.86, y0: by + 0.45, y1: by + 0.55, z0: z + 0.16, z1: z + 0.24 },
+        { x0: bx + 0.14, x1: bx + 0.86, y0: by + 0.45, y1: by + 0.55, z0: z + 0.58, z1: z + 0.66 },
+      ];
     } else {
       b._boxes = [{ x0: b.x, x1: b.x + 1, y0: b.y, y1: b.y + 1, z0: b.z, z1: b.z + 1 }];
     }
@@ -161,14 +169,14 @@
     G.adj.ill.forEach(e => {
       const ab = e.split(',').map(Number);
       tiles.add(ab[0]); tiles.add(ab[1]);
-      if (fx && !G.illEdges.has(e)) {
+      if (fx && !G.lv.blind && !G.illEdges.has(e)) {
         const a = anchorOf(ab[0], tfs), b = anchorOf(ab[1], tfs);
         G.ripples.push({ x: (a.s[0] + b.s[0]) / 2, y: (a.s[1] + b.s[1]) / 2, age: 0 });
         fresh = true;
       }
     });
-    if (fresh) sfx.echo();
-    G.ill = tiles; G.illEdges = G.adj.ill;
+    if (fresh && !G.lv.blind) sfx.echo();
+    G.ill = G.lv.blind ? new Set() : tiles; G.illEdges = G.adj.ill;
   }
 
   function computeCamera() {
@@ -239,6 +247,14 @@
     fadeHint.t = setTimeout(() => $('hint').classList.add('dim'), 3500);
   }
 
+  // Stepping onto a plate works the mechanism, like tapping its crank.
+  function firePlate() {
+    const hi = G.lv.plateMap.get(G.player);
+    if (G.won || G.tween || hi === undefined) return;
+    sfx.plate();
+    activate(hi);
+  }
+
   function startWalk(path) {
     G.walk = { path, i: 0, t: 0 };
     fadeHint();
@@ -262,7 +278,7 @@
 
   function anchorOf(idx, tfs) {
     const f = G.lv.flat[idx], b = f.b;
-    const top = b.kind === 's' ? b.z + 0.62 : b.z + 1;
+    const top = b.kind === 's' ? b.z + 0.62 : b.kind === 'l' ? b.z + 0.5 : b.z + 1;
     const w = tfs[f.pi].f(b.x + 0.5, b.y + 0.5, top);
     return { w, s: proj(w[0], w[1], w[2]), key: w[0] + w[1] + w[2] };
   }
@@ -293,7 +309,7 @@
         const p0 = w.path[w.i - 1], p1 = w.path[w.i];
         if (G.adj.ill.has(Math.min(p0, p1) + ',' + Math.max(p0, p1))) { G.ripples.push({ x: a.s[0], y: a.s[1], age: 0 }); sfx.echo(); }
       }
-      if (w.i >= w.path.length - 1) { G.walk = null; checkWin(); }
+      if (w.i >= w.path.length - 1) { G.walk = null; checkWin(); firePlate(); }
     }
 
     if (G.won) {
@@ -373,6 +389,25 @@
         poly(inset);
         ctx.fillStyle = G.ill.has(f.idx) ? 'rgba(206,176,255,' + (0.5 + 0.25 * Math.sin(G.time * 3 + f.idx)) + ')' : 'rgba(255,255,255,.2)';
         ctx.fill();
+        if (G.lv.plateMap.has(f.idx)) {
+          const pcx = (pts[0][0] + pts[2][0]) / 2, pcy = (pts[0][1] + pts[2][1]) / 2, pp = 0.5 + 0.5 * Math.sin(G.time * 3);
+          const rg = ctx.createRadialGradient(pcx, pcy, 0, pcx, pcy, cam.s * 0.5);
+          rg.addColorStop(0, 'rgba(255,236,170,' + (0.95) + ')'); rg.addColorStop(0.55, 'rgba(255,200,110,' + (0.55 + 0.25 * pp) + ')'); rg.addColorStop(1, 'rgba(255,190,100,0)');
+          ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(pcx, pcy, cam.s * 0.5, cam.s * 0.26, 0, 0, TAU); ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.ellipse(pcx, pcy, cam.s * 0.24, cam.s * 0.125, 0, 0, TAU); ctx.stroke();
+          if (!G.lv.blind) {
+            // pips in the colour of each piece this plate turns; hollow means it turns them backwards
+            const ph = G.lv.handles[G.lv.plateMap.get(f.idx)];
+            ph.targets.forEach((pi, k) => {
+              const a = Math.PI * 0.5 + (k - (ph.targets.length - 1) / 2) * 0.7;
+              const px = pcx + Math.cos(a) * cam.s * 0.2, py = pcy + Math.sin(a) * cam.s * 0.1 + cam.s * 0.02;
+              ctx.beginPath(); ctx.arc(px, py, Math.max(2.5, cam.s * 0.075), 0, TAU);
+              ctx.fillStyle = G.lv.pieces[pi].color;
+              if (ph.dir < 0) { ctx.lineWidth = 2; ctx.strokeStyle = G.lv.pieces[pi].color; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fill(); ctx.stroke(); } else ctx.fill();
+            });
+          }
+        }
       }
       G.hit.push({ pts, idx: f.idx, walk: G.lv.flat[f.idx].b.kind !== 'd' });
     }
@@ -483,6 +518,7 @@
     items.push({ key: ga.key + 0.05, draw: () => drawGoal(ga, time) });
 
     lv.handles.forEach((h, hi) => {
+      if (h.plateOnly) return;
       const w = tfs[h.host].f(h.at[0] + 0.5, h.at[1] + 0.5, h.at[2] + 1);
       items.push({ key: w[0] + w[1] + w[2] + 0.3, draw: () => drawHandle(h, hi, proj(w[0], w[1], w[2]), time) });
     });
@@ -594,7 +630,10 @@
       G.hint = { type: 'goal' }; text.textContent = 'The way is open. Walk to the glow.';
     } else {
       const s = sol.seq[0];
-      if (s.at !== G.player && L.findPath(G.adj, G.player, s.at)) {
+      if (s.plate) {
+        G.hint = { type: 'stand', idx: s.at, hi: -1 };
+        text.textContent = s.at === G.player ? 'Step off the glowing plate and back on.' : 'Walk onto the glowing plate.';
+      } else if (s.at !== G.player && L.findPath(G.adj, G.player, s.at)) {
         G.hint = { type: 'stand', idx: s.at, hi: s.hi }; text.textContent = 'Stand on the marked tile, then use the pulsing crank.';
       } else {
         G.hint = { type: 'crank', hi: s.hi }; text.textContent = 'Try the pulsing crank.';

@@ -30,7 +30,7 @@ defs.forEach((def, n) => {
   const sol = L.solve(lv, init, lv.start);
   const ms = Date.now() - t0;
   const parOk = lv.par === undefined || (sol && sol.taps === lv.par);
-  const ok = sol && sol.taps > 0 && overlaps === 0 && parOk;
+  const ok = sol && (sol.taps > 0 || lv.walkOnly) && overlaps === 0 && parOk;
   if (!ok) bad++;
   const seq = sol ? sol.seq.map(s => `${s.hi}@${s.at}`).join(' ') : '';
   console.log(`${ok ? 'OK ' : 'BAD'} ${n + 1} ${def.name}: ${sol ? sol.taps + ' taps [' + seq + ']' : 'UNSOLVABLE'}, poses=${seen.size}, overlaps=${overlaps}, ${ms}ms`);

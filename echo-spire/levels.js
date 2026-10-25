@@ -24,6 +24,21 @@
   const VIOLET = '#8e7fe0';
   const AMBER = '#f0b05a';
 
+  // Architecture for the background: stepped pyramids, arches and obelisks make a level read as a monument.
+  const ziggurat = (x, y, z, n) => {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const w = 2 * (n - i) - 1;
+      for (let dx = 0; dx < w; dx++) for (let dy = 0; dy < w; dy++) out.push([x + i + dx, y + i + dy, z + i, 'd']);
+    }
+    return out;
+  };
+  const arch = (x, y, z, dx, dy, span, h) => {
+    const out = [...col(x, y, z, h), ...col(x + dx * span, y + dy * span, z, h)];
+    for (let i = 0; i <= span; i++) out.push([x + dx * i, y + dy * i, z + h, 'd']);
+    return out;
+  };
+
   // Deco columns from the ground up to just under each given tile.
   const solid = tiles => tiles.filter(t => t[2] > 0).flatMap(t => col(t[0], t[1], 0, t[2]));
 
@@ -55,6 +70,20 @@
       const land = k === n - 1 ? [a, add(a, mir(side, [1, 0, 0]))] : [a];
       stat.push(...land, ...land.flatMap(t => col(t[0], t[1], t[2] - 2, 2)));
     });
+    // o.landings: no cranks at all. Stepping onto landing j turns the pieces listed for it.
+    if (o.landings) {
+      stat.push(...(firstSide === 'L' ? col(-3, -1, 0, 4) : col(-1, -3, 0, 4)));
+      // pillars off to each side on screen, so the tower reads as a monument
+      const cx = Math.round(a[0] / 2), cy = Math.round(a[1] / 2), h = a[2] + 3;
+      stat.push(...col(cx - 5, cy + 5, 0, h), ...col(cx - 4, cy + 5, 0, h - 2), ...col(cx + 6, cy - 4, 0, h + 1), ...col(cx + 6, cy - 3, 0, h - 1));
+      const lastSide = o.stages[n - 1][1];
+      return {
+        name: o.name, hint: o.hint, sky: o.sky, illusion: true, blind: !!o.blind, par: o.par, pieces,
+        handles: o.landings.map(([targets, dir]) => ({ type: 'rot', piece: targets.map(t => t + 1), on: 0, plateOnly: true, dir })),
+        plates: o.landings.map((_, j) => ({ at: A[j], handle: j })),
+        start: firstSide === 'L' ? [0, -2, 0] : [-2, 0, 0], goal: add(a, mir(lastSide, [1, 0, 0])),
+      };
+    }
     const spots = [[1, 4, 0], [-2, 3, 0], [4, -2, 0]];
     const handles = o.cranks.map(([targets, dir], j) => {
       const s = j % n, side = o.stages[s][1];
@@ -67,6 +96,33 @@
     return {
       name: o.name, hint: o.hint, sky: o.sky, illusion: true, par: o.par, pieces, handles,
       start: firstSide === 'L' ? [0, -2, 0] : [-2, 0, 0], goal: add(a, mir(last, [1, 0, 0])),
+    };
+  }
+
+  // A carousel: a turntable hub with arms, ringed by platforms at different heights and depths. Standing on the
+  // hub's glowing plate turns the whole thing a quarter. In each pose an arm tip lines up with a different
+  // platform, by real contact or by illusion, so the puzzle is working out which platform to ferry to next.
+  //   o.arms = [+x, +y, -x, -y] arm lengths     o.cz = hub height     o.platforms = tiles around it
+  function carousel(o) {
+    const D = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+    const hub = [[0, 0, o.cz], [0, 0, o.cz - 1, 'd'], [0, 0, o.cz - 2, 'd']];
+    o.arms.forEach((len, d) => {
+      for (let i = 1; i <= len; i++) {
+        hub.push([D[d][0] * i, D[d][1] * i, o.cz], [D[d][0] * i, D[d][1] * i, o.cz - 1, 'd']);
+      }
+    });
+    const stat = [];
+    o.platforms.forEach(t => { stat.push([t[0], t[1], t[2]], ...col(t[0], t[1], t[2] - 2, 2)); });
+    (o.scenery || []).forEach(c => stat.push(...col(c[0], c[1], c[2], c[3])));
+    return {
+      name: o.name, hint: o.hint, sky: o.sky, illusion: true, par: o.par,
+      pieces: [
+        { color: CREAM, blocks: stat },
+        { color: o.color || VIOLET, pivot: [0.5, 0.5], rot: { cycle: 4, step: 1 }, blocks: hub },
+      ],
+      handles: [{ type: 'rot', piece: 1, on: 0, plateOnly: true }],
+      plates: (o.plates || [[0, 0, o.cz]]).map(at => ({ at, handle: 0 })),
+      start: o.start, goal: o.goal,
     };
   }
 
@@ -100,6 +156,83 @@
     ],
     handles: [{ type: 'rot', piece: 1, on: 0, at: [8, 9, 0] }],
     start: [-2, 0, 0], goal: [11, 6, 2],
+  };
+
+  const paint = (blocks, color) => blocks.map(b => [b[0], b[1], b[2], b[3] || 'b', b[4] || 0, color]);
+
+  // The Penrose triangle: a beam along x, a beam along y and a beam straight up, each four blocks long. The top
+  // of the vertical beam is drawn exactly over the start of the first beam, so the three look like one closed
+  // triangle. You walk the first two beams; the third side only exists on screen.
+  const TRIANGLE = {
+    name: 'The Impossible Triangle',
+    hint: 'Walk two sides of the triangle. The third side is only an illusion.',
+    sky: ['#ffe6d2', '#6f5dc8'],
+    illusion: true,
+    pieces: [{
+      color: CREAM,
+      blocks: [
+        ...paint(line(0, 0, 0, 1, 0, 5), CORAL),
+        ...paint(line(4, 1, 0, 0, 1, 4), TEAL),
+        ...paint(col(4, 4, 1, 3), AMBER), ...paint([[4, 4, 4]], AMBER),
+        ...line(4, 5, 0, 0, 1, 2),
+        ...line(3, 4, 4, -1, 0, 2), ...col(3, 4, 2, 2), ...col(2, 4, 2, 2),
+        ...col(-2, -3, 0, 5), ...col(-1, -3, 0, 3), ...col(1, -4, 0, 6), ...col(7, -1, 0, 4), ...col(8, 2, 0, 3),
+      ],
+    }],
+    handles: [],
+    walkOnly: true,
+    start: [4, 6, 0], goal: [2, 4, 4],
+  };
+
+  // Plates: stepping onto the glowing tile works the mechanism, no crank needed.
+  const PRESSURE = {
+    name: 'Pressure',
+    hint: 'Step on the glowing plate.',
+    sky: ['#d9f1ff', '#a58fe6'],
+    pieces: [
+      {
+        color: CREAM,
+        blocks: [
+          ...line(0, 0, 0, 1, 0, 3), ...line(6, 0, 0, 1, 0, 3),
+          ...col(-1, -3, 0, 3), ...col(1, -4, 0, 5), ...col(2, -4, 0, 2), ...col(8, -3, 0, 4), ...col(9, -3, 0, 2),
+        ],
+      },
+      { color: CORAL, pivot: [4.5, 0.5], rot: { cycle: 4, step: 1 }, blocks: line(4, -1, 0, 0, 1, 3) },
+    ],
+    handles: [{ type: 'rot', piece: 1, on: 0, plateOnly: true }],
+    plates: [{ at: [2, 0, 0], handle: 0 }],
+    start: [0, 0, 0], goal: [8, 0, 0],
+  };
+
+  // A tower with a ladder on one side. Turn it until the ladder reaches the ground, climb, and step across to a
+  // platform that sits one block higher and two cells over, but looks attached from here.
+  const CLOCKTOWER = {
+    name: 'The Clocktower',
+    hint: 'Turn the tower. Climb what can be climbed.',
+    sky: ['#fbe4c8', '#5d56c0'],
+    illusion: true,
+    blind: true,
+    pieces: [
+      {
+        color: CREAM,
+        blocks: [
+          ...line(0, 0, 0, 1, 0, 3),
+          ...line(6, 1, 4, 1, 0, 2), ...col(6, 1, 2, 2), ...col(7, 1, 2, 2),
+          [1, 3, 0, 'd'],
+          ...ziggurat(-6, 3, 0, 2), ...col(8, -3, 0, 5), ...col(9, -3, 0, 3), ...col(2, -4, 0, 3),
+        ],
+      },
+      {
+        color: TEAL, pivot: [4.5, 0.5], rot: { cycle: 4, step: 1 },
+        blocks: [
+          [4, 0, 0, 'd'], [4, 0, 1, 'd'], [4, 0, 2, 'd'], [4, 0, 3],
+          [4, 1, 0],
+          [4, 1, 1, 'l', 0, '#c58b3b'], [4, 1, 2, 'l', 0, '#c58b3b'], [4, 1, 3, 'l', 0, '#c58b3b'], [4, 1, 4, 'l', 0, '#c58b3b'],
+        ],
+      },
+    ],
+    handles: [{ type: 'rot', piece: 1, on: 0, at: [1, 3, 0] }],
+    start: [0, 0, 0], goal: [7, 1, 4],
   };
 
   const ALL = [
@@ -434,36 +567,32 @@
     },
   ];
 
-  const HINT = 'Each turning piece links up in only one pose. Some cranks turn pieces backwards.';
+  const BLIND = 'Nothing glows here. Trust your eyes.';
   const LEVELS = [
-    ALL[0], ALL[1], ALL[2], ALL[3], ENDLESS, ALL[9], ALL[6], ALL[7],
+    ALL[0], ALL[1], ALL[2], ALL[3], ENDLESS, TRIANGLE, PRESSURE, ALL[9], ALL[7], CLOCKTOWER,
     chain({
-      name: 'Whispering Steps', hint: HINT, sky: ['#e4f0ff', '#9a86e0'],
-      stages: [[3, 'R', 1], [4, 'R', 1], [4, 'R', 1], [3, 'L', 0]],
-      cranks: [[[1, 3], -1], [[0], -1], [[0, 2], -1]], par: 8,
+      name: 'Whispering Steps', hint: 'Each landing is a plate. Stepping on one turns the bridges it is wired to.',
+      sky: ['#e4f0ff', '#9a86e0'], par: 6,
+      stages: [[3, 'L', 1], [4, 'R', 1], [3, 'L', 0], [2, 'R', 0]],
+      landings: [[[0], -1], [[0, 1, 2], 1], [[0, 2, 3], 1], [[1], 1]],
     }),
     chain({
-      name: 'Mirage Stair', hint: HINT, sky: ['#ffe6d2', '#d68cb4'],
-      stages: [[3, 'R', 0], [4, 'R', 1], [3, 'L', 0], [4, 'R', 1], [4, 'L', 1]],
-      cranks: [[[1], -1], [[3], -1], [[0, 4], 1], [[0, 2], -1]], par: 9,
+      name: 'Mirage Stair', hint: BLIND, sky: ['#ffe6d2', '#d68cb4'], par: 8, blind: true,
+      stages: [[2, 'L', 0], [4, 'R', 1], [3, 'L', 1], [4, 'R', 1], [3, 'L', 0]],
+      landings: [[[0, 3, 4], -1], [[1], -1], [[2, 3, 4], 1], [[1, 2], -1], [[1], -1]],
     }),
     chain({
-      name: 'Falling Upward', hint: HINT, sky: ['#d3f5ea', '#6f86d8'],
-      stages: [[4, 'L', 1], [3, 'R', 1], [4, 'L', 1], [4, 'L', 1], [3, 'L', 0], [3, 'R', 1]],
-      cranks: [[[1, 3], 1], [[5], 1], [[2, 3], -1], [[0, 4], -1], [[4], 1]], par: 10,
+      name: 'Falling Upward', hint: BLIND, sky: ['#d3f5ea', '#6f86d8'], par: 10, blind: true,
+      stages: [[4, 'L', 1], [3, 'R', 0], [4, 'L', 1], [4, 'L', 1], [2, 'R', 0]],
+      landings: [[[0, 1, 3], -1], [[1, 2, 3], -1], [[0, 2, 4], 1], [[2, 3], 1], [[1, 2, 3], -1]],
     }),
     chain({
-      name: 'The Long Way Round', hint: HINT, sky: ['#ffe0b8', '#8c6fd0'],
-      stages: [[4, 'R', 1], [3, 'L', 1], [4, 'L', 1], [3, 'R', 1], [4, 'L', 1], [4, 'R', 1], [4, 'L', 1]],
-      cranks: [[[6], -1], [[2, 3, 4], -1], [[3, 5], 1], [[0, 3], -1], [[0], -1], [[0, 1, 5], -1]], par: 11,
-    }),
-    chain({
-      name: 'The Summit', hint: 'Everything you have learned. Take your time, and use the hint if you need it.',
-      sky: ['#ffd2a6', '#4f3fb4'],
-      stages: [[4, 'L', 1], [4, 'R', 1], [4, 'L', 1], [4, 'R', 1], [3, 'L', 0], [4, 'R', 1], [4, 'L', 1]],
-      cranks: [[[0, 4], 1], [[5], -1], [[6], 1], [[0], -1], [[3], -1], [[0, 2, 4], 1], [[2], 1], [[0, 1, 4], -1]], par: 11,
+      name: 'The Summit', hint: 'Everything you have learned. Use the hint if you need it.', sky: ['#ffd2a6', '#4f3fb4'], par: 11, blind: true,
+      stages: [[3, 'R', 0], [3, 'L', 0], [4, 'L', 1], [3, 'R', 1], [4, 'L', 1], [3, 'R', 0]],
+      landings: [[[0, 4, 5], -1], [[1], -1], [[1, 2, 5], -1], [[3], 1], [[4, 5], 1], [[2], 1]],
     }),
   ];
   LEVELS.chain = chain;
+  LEVELS.carousel = carousel;
   return LEVELS;
 });

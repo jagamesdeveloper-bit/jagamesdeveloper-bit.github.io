@@ -44,10 +44,14 @@
       host: h.on === undefined ? (Array.isArray(h.piece) ? h.piece[0] : h.piece) : h.on,
       at: h.at,
       dir: h.dir || 1,
+      plateOnly: !!h.plateOnly,
     }));
+    // Plates: walking onto the tile fires a handle, as if it had been tapped.
+    const plates = (def.plates || []).map(p => ({ idx: find(p.at), hi: p.handle }));
+    const plateMap = new Map(plates.map(p => [p.idx, p.hi]));
     return {
-      name: def.name, hint: def.hint, sky: def.sky, illusion: !!def.illusion, par: def.par,
-      pieces, flat, offsets, handles,
+      name: def.name, hint: def.hint, sky: def.sky, illusion: !!def.illusion, blind: !!def.blind, walkOnly: !!def.walkOnly, par: def.par,
+      pieces, flat, offsets, handles, plates, plateMap,
       start: find(def.start), goal: find(def.goal),
     };
   }
@@ -78,7 +82,10 @@
   // Cells a walkable tile can step into. A connection needs both sides to agree.
   function ports(t) {
     const out = [];
-    if (t.kind === 'b') {
+    if (t.kind === 'l') {
+      // a ladder cell stands level with the top of the blocks around it, one cell below
+      for (const d of DIRS) out.push([t.x + d[0], t.y + d[1], t.z - 1]);
+    } else if (t.kind === 'b') {
       for (const d of DIRS) {
         out.push([t.x + d[0], t.y + d[1], t.z]);
         out.push([t.x + d[0], t.y + d[1], t.z + 1]);
@@ -112,6 +119,17 @@
         const j = at.get(p[0] + ',' + p[1] + ',' + p[2]);
         if (j === undefined || j === i || !all[j].walk) continue;
         if (pt[j].some(q => q[0] === t.x && q[1] === t.y && q[2] === t.z)) adj[i].push(j);
+      }
+    });
+    // ladders also climb: up and down to other ladder cells, and onto the block they stand on
+    all.forEach((t, i) => {
+      if (t.kind !== 'l') return;
+      for (const dz of [1, -1]) {
+        const j = at.get(t.x + ',' + t.y + ',' + (t.z + dz));
+        if (j === undefined || !all[j].walk) continue;
+        if (all[j].kind !== 'l' && !(dz === -1 && all[j].kind === 'b')) continue;
+        if (!adj[i].includes(j)) adj[i].push(j);
+        if (!adj[j].includes(i)) adj[j].push(i);
       }
     });
     adj.ill = new Set();
@@ -203,14 +221,23 @@
       for (const nd of layer) {
         if (info(nd.st, nd.sk).label[level.goal] !== nd.comp) continue;
         const seq = [];
-        for (let k = nd.sk + '#' + nd.comp, p = parent.get(k); p; k = p.from, p = parent.get(k)) seq.unshift({ hi: p.act, at: p.at });
+        for (let k = nd.sk + '#' + nd.comp, p = parent.get(k); p; k = p.from, p = parent.get(k)) seq.unshift({ hi: p.act, at: p.at, plate: !!p.plate });
         return { taps, seq };
       }
       const next = [];
       for (const nd of layer) {
         const tiles = info(nd.st, nd.sk).comps[nd.comp];
         const from = nd.sk + '#' + nd.comp;
+        for (const pl of level.plates) {
+          if (!tiles.includes(pl.idx) || (pl.idx === nd.rep && tiles.length < 2)) continue;
+          const st2 = tap(level, nd.st, pl.hi), sk2 = stateKey(st2), g2 = info(st2, sk2);
+          const k2 = sk2 + '#' + g2.label[pl.idx];
+          if (parent.has(k2)) continue;
+          parent.set(k2, { from, act: pl.hi, at: pl.idx, plate: true });
+          next.push({ st: st2, sk: sk2, comp: g2.label[pl.idx], rep: pl.idx });
+        }
         for (let hi = 0; hi < level.handles.length; hi++) {
+          if (level.handles[hi].plateOnly) continue;
           const st2 = tap(level, nd.st, hi), sk2 = stateKey(st2), g2 = info(st2, sk2);
           // try the tile the player is already on first, so hints only ask to move when it is needed
           const order = [nd.rep].concat(tiles);
