@@ -15,6 +15,7 @@
     return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
   }
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const lerp = (a, b, t) => a + (b - a) * t;
 
   // hand-cut rounded rectangle: corners and edges are nudged deterministically
   function rr(c, x, y, w, h, r) {
@@ -585,56 +586,72 @@
     legPath(c, f, hipX, top, ay, ay, false);
     const gd = c.createLinearGradient(0, top, 0, ay); gd.addColorStop(0, 'rgba(8,2,16,0.92)'); gd.addColorStop(0.55, 'rgba(8,2,16,0.55)'); gd.addColorStop(1, 'rgba(8,2,16,0.12)');
     c.fillStyle = gd; c.fill();
-    drawFoot(c, f, ay, seed);
+    drawFoot(c, f, ay, seed, t);
   }
 
-  function toe(c, x, y, rx, ry, seed, big) {
-    blob(c, x, y, rx, ry, seed);
-    const g = c.createLinearGradient(0, y - ry, 0, y + ry); g.addColorStop(0, '#d9a47e'); g.addColorStop(1, '#a56c4e');
-    c.fillStyle = g; c.fill(); c.save(); c.clip();
-    c.fillStyle = 'rgba(255,230,196,0.35)'; c.beginPath(); c.ellipse(x + rx * 0.1, y - ry * 0.55, rx * 0.7, ry * 0.28, 0, 0, TAU); c.fill();
-    c.fillStyle = 'rgba(50,16,20,0.28)'; c.beginPath(); c.ellipse(x + rx * 0.1, y + ry * 0.95, rx * 1.1, ry * 0.4, 0, 0, TAU); c.fill();
-    c.restore(); blob(c, x, y, rx, ry, seed); inkStroke(c, big ? 3.6 : 3);
-    // nail on the leading top edge
-    c.save(); c.translate(x - rx * (big ? 0.62 : 0.4), y - ry * (big ? 0.28 : 0.5)); c.rotate(big ? 0.25 : -0.45);
-    c.beginPath(); c.ellipse(0, 0, rx * (big ? 0.42 : 0.5), ry * (big ? 0.7 : 0.45), 0, 0, TAU); fillStroke(c, '#dccb8c', 1.8);
-    c.fillStyle = 'rgba(255,255,240,0.55)'; c.beginPath(); c.ellipse(-rx * 0.08, -ry * 0.12, rx * 0.12, ry * 0.2, 0, 0, TAU); c.fill();
-    c.restore();
-    if (big) { c.strokeStyle = 'rgba(70,32,26,0.45)'; c.lineWidth = 1.8; c.lineCap = 'round'; for (const k of [0.15, 0.4]) { c.beginPath(); c.arc(x + rx * k, y - ry * 0.1, ry * 0.7, -2.2, -0.7); c.stroke(); } c.lineCap = 'butt'; }
-  }
-
-  function drawFoot(c, f, ay, seed) {
+  // heavy leather work boot, facing left. The origin is the ankle; the sole sits 62px below it.
+  function drawFoot(c, f, ay, seed, t) {
     c.save(); c.translate(f.x, ay); c.rotate(f.tilt || 0);
-    // heel, arch, ball, instep (left open at the top so no seam shows where it meets the shin)
-    const outline = () => {
-      c.beginPath();
-      c.moveTo(31, -62); c.quadraticCurveTo(34, -30, 30, -8);
-      c.quadraticCurveTo(60, 16, 55, 46); c.quadraticCurveTo(52, 67, 32, 66);
-      c.quadraticCurveTo(-4, 55, -40, 58); c.quadraticCurveTo(-62, 67, -92, 66); c.lineTo(-130, 66);
-      c.quadraticCurveTo(-150, 64, -150, 48); c.lineTo(-140, 28);
-      c.quadraticCurveTo(-96, 20, -62, 2); c.quadraticCurveTo(-38, -10, -34, -62);
+    const LEATHER = '#43312a', DARK = '#271a16';
+    // striped wool sock showing above the cuff
+    rr(c, -46, -134, 96, 40, 5); fillStroke(c, '#cdc4b0', 3);
+    c.save(); c.clip(); c.fillStyle = '#b3382e'; c.fillRect(-50, -124, 104, 8); c.fillRect(-50, -108, 104, 5); c.strokeStyle = 'rgba(80,60,40,0.3)'; c.lineWidth = 1.4;
+    for (let x = -42; x < 50; x += 6) { c.beginPath(); c.moveTo(x, -134); c.lineTo(x, -94); c.stroke(); } c.restore();
+    // the upper
+    const upper = () => {
+      c.beginPath(); c.moveTo(48, -104); c.lineTo(50, -30); c.quadraticCurveTo(66, -4, 64, 34); c.lineTo(62, 52); c.lineTo(-176, 52);
+      c.quadraticCurveTo(-194, 50, -192, 32); c.quadraticCurveTo(-186, 10, -150, 4); c.quadraticCurveTo(-96, -2, -66, -20); c.quadraticCurveTo(-46, -40, -44, -104); c.closePath();
     };
-    outline();
-    const g = c.createLinearGradient(0, -62, 0, 68); g.addColorStop(0, '#9c6448'); g.addColorStop(0.28, '#b27856'); g.addColorStop(0.55, '#c58b66'); g.addColorStop(0.8, '#a8704f'); g.addColorStop(1, '#8c5640');
+    upper();
+    const g = c.createLinearGradient(0, -104, 0, 56); g.addColorStop(0, '#5a4034'); g.addColorStop(0.5, LEATHER); g.addColorStop(1, DARK);
     c.fillStyle = g; c.fill();
     c.save(); c.clip();
-    c.fillStyle = 'rgba(40,12,20,0.36)'; c.beginPath(); c.moveTo(-150, 66); c.quadraticCurveTo(-60, 46, 62, 62); c.lineTo(62, 72); c.lineTo(-150, 72); c.closePath(); c.fill();
-    c.strokeStyle = 'rgba(255,226,190,0.42)'; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(-58, 4); c.quadraticCurveTo(-92, 17, -134, 28); c.stroke();
-    c.strokeStyle = 'rgba(70,36,30,0.34)'; c.lineWidth = 2;
-    for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(-36, -6 + i * 3); c.quadraticCurveTo(-70, 10 + i * 2, -112 + i * 10, 22 + i * 4); c.stroke(); }
-    c.strokeStyle = 'rgba(86,100,176,0.4)'; c.lineWidth = 2.6; c.beginPath(); c.moveTo(-30, -16); c.bezierCurveTo(-52, 6, -70, -2, -98, 16); c.stroke();
-    c.beginPath(); c.moveTo(34, -50); c.quadraticCurveTo(38, -28, 33, -6); c.strokeStyle = 'rgba(60,28,24,0.4)'; c.lineWidth = 3; c.stroke();        // achilles groove
-    c.fillStyle = 'rgba(255,232,200,0.3)'; c.beginPath(); c.ellipse(6, -34, 10, 9, 0, 0, TAU); c.fill();                                              // ankle bone
-    c.strokeStyle = 'rgba(70,36,30,0.55)'; c.lineWidth = 2; c.beginPath(); c.arc(6, -34, 10, 0.5, 2.4); c.stroke();
-    c.fillStyle = 'rgba(55,40,28,0.28)'; blob(c, 42, 56, 18, 7, seed + 2); c.fill();                                                                   // grime
-    c.strokeStyle = 'rgba(55,28,22,0.75)'; c.lineWidth = 1.8;
-    for (let i = 0; i < 20; i++) { const hx = -112 + hash(seed, i) * 92, edge = 22 + (hx + 112) / 92 * -28; c.beginPath(); c.moveTo(hx, edge + hash(seed, i + 30) * 8 + 2); c.lineTo(hx - 6, edge + hash(seed, i + 30) * 8 + 8); c.stroke(); }
+    shade(c, -194, -104, 260, 160, 0.9);
+    // creased, scuffed toe cap
+    c.beginPath(); c.moveTo(-194, 54); c.lineTo(-194, 30); c.quadraticCurveTo(-186, 8, -150, 2); c.quadraticCurveTo(-122, -1, -108, 6); c.quadraticCurveTo(-98, 28, -106, 54); c.closePath();
+    c.fillStyle = '#51392d'; c.fill(); c.setLineDash([6, 5]); c.strokeStyle = 'rgba(200,170,130,0.5)'; c.lineWidth = 1.8; c.stroke(); c.setLineDash([]);
+    c.strokeStyle = 'rgba(210,180,140,0.45)'; c.lineWidth = 1.6; c.lineCap = 'round';
+    for (let k = 0; k < 7; k++) { const sx = -186 + hash(seed, k) * 70, sy = 14 + hash(seed, k + 9) * 30; c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx + 9 + hash(seed, k + 4) * 9, sy - 3 + hash(seed, k + 5) * 6); c.stroke(); }
+    c.strokeStyle = 'rgba(255,235,205,0.28)'; c.lineWidth = 5; c.beginPath(); c.moveTo(-180, 22); c.quadraticCurveTo(-160, 8, -126, 6); c.stroke();                       // toe glint
+    c.strokeStyle = 'rgba(0,0,0,0.35)'; c.lineWidth = 2.2; for (const o of [0, 9]) { c.beginPath(); c.moveTo(-72 + o, -24 + o * 0.3); c.quadraticCurveTo(-30, -12 + o * 0.3, 6, -6 + o * 0.2); c.stroke(); }       // flex creases
+    c.beginPath(); c.moveTo(56, -86); c.quadraticCurveTo(62, -40, 60, 30); c.strokeStyle = 'rgba(255,225,190,0.16)'; c.lineWidth = 4; c.stroke();                                       // heel sheen
     c.lineCap = 'butt'; c.restore();
-    outline(); inkStroke(c, 4.4);
-    // five toes: the lesser four stacked behind, the big one in front
-    toe(c, -84, 23, 9.5, 8.5, seed + 5, false); toe(c, -98, 22, 10.5, 9.5, seed + 6, false);
-    toe(c, -113, 23, 12, 10.5, seed + 7, false); toe(c, -129, 26, 13.5, 12, seed + 8, false);
-    toe(c, -152, 47, 25, 19.5, seed + 9, true);
+    upper(); inkStroke(c, 4.4);
+    // padded collar
+    rr(c, -48, -110, 100, 14, 5); fillStroke(c, '#2c1e19', 3); c.strokeStyle = 'rgba(200,170,130,0.4)'; c.lineWidth = 1.4; c.setLineDash([5, 4]); c.beginPath(); c.moveTo(-42, -103); c.lineTo(46, -103); c.stroke(); c.setLineDash([]);
+    // tongue, eyelets and laces following the front edge of the upper
+    c.beginPath(); c.moveTo(-42, -118); c.lineTo(-22, -118); c.lineTo(-20, -70); c.lineTo(-40, -74); c.closePath(); fillStroke(c, '#6a5040', 2.4);
+    const bez = (p0, p1, p2, u) => ({ x: (1 - u) * (1 - u) * p0[0] + 2 * (1 - u) * u * p1[0] + u * u * p2[0], y: (1 - u) * (1 - u) * p0[1] + 2 * (1 - u) * u * p1[1] + u * u * p2[1] });
+    const A = [[-44, -104], [-46, -40], [-66, -20]], B = [[-66, -20], [-96, -2], [-150, 4]], eyes = [];
+    for (let k = 0; k < 3; k++) eyes.push({ ...bez(A[0], A[1], A[2], 0.12 + k * 0.4), nx: 1, ny: 0.15 });
+    for (let k = 0; k < 3; k++) eyes.push({ ...bez(B[0], B[1], B[2], 0.12 + k * 0.32), nx: 0.2, ny: 1 });
+    eyes.forEach((e, k) => {
+      const ex = e.x + e.nx * 9, ey = e.y + e.ny * 9;
+      c.strokeStyle = INK; c.lineWidth = 5.4; c.lineCap = 'round'; c.beginPath(); c.moveTo(ex, ey); c.lineTo(ex + e.nx * 22 + (k % 2 ? 6 : -6) * e.ny, ey + e.ny * 22 - (k % 2 ? 6 : -6) * e.nx); c.stroke();
+      c.strokeStyle = '#dcd2ba'; c.lineWidth = 3; c.stroke();
+      c.beginPath(); c.arc(ex, ey, 3.4, 0, TAU); fillStroke(c, '#9a9aa4', 1.6);
+    });
+    // seams, ankle creases, pull loop and a worn leather patch
+    c.strokeStyle = 'rgba(205,175,135,0.45)'; c.lineWidth = 1.6; c.setLineDash([5, 4]);
+    c.beginPath(); c.moveTo(28, -100); c.quadraticCurveTo(36, -30, 40, 36); c.stroke(); c.setLineDash([]);
+    c.strokeStyle = 'rgba(0,0,0,0.3)'; c.lineWidth = 2.2; for (let k = 0; k < 3; k++) { c.beginPath(); c.moveTo(-34, -40 + k * 12); c.quadraticCurveTo(0, -30 + k * 12, 40, -42 + k * 12); c.stroke(); }
+    rr(c, 44, -106, 12, 28, 5); fillStroke(c, '#2c1e19', 2.4);
+    rr(c, 4, -10, 34, 26, 4); fillStroke(c, '#5a4234', 2); c.strokeStyle = 'rgba(205,175,135,0.5)'; c.lineWidth = 1.2; c.setLineDash([4, 3]); c.strokeRect(7, -7, 28, 20); c.setLineDash([]);
+    c.strokeStyle = 'rgba(255,235,205,0.22)'; c.lineWidth = 4; c.lineCap = 'round'; c.beginPath(); c.moveTo(-34, -92); c.quadraticCurveTo(-36, -50, -52, -26); c.stroke(); c.lineCap = 'butt';
+    // an untied lace dangling and swinging
+    const sw = Math.sin(t * 3.2 + seed) * 7 * (1 + (f.lift > 20 ? 1.5 : 0));
+    c.strokeStyle = INK; c.lineWidth = 5.4; c.beginPath(); c.moveTo(-98, -6); c.bezierCurveTo(-120 + sw, 8, -112 + sw * 1.5, 30, -132 + sw * 2, 52); c.stroke();
+    c.strokeStyle = '#dcd2ba'; c.lineWidth = 3; c.stroke();
+    c.beginPath(); c.arc(-132 + sw * 2, 53, 3, 0, TAU); fillStroke(c, '#555', 1.4);
+    // welt, lugged outsole and heel block
+    rr(c, -198, 44, 268, 12, 5); fillStroke(c, '#d8ccb0', 3);
+    c.strokeStyle = 'rgba(90,70,50,0.55)'; c.lineWidth = 1.5; c.setLineDash([6, 5]); c.beginPath(); c.moveTo(-190, 50); c.lineTo(62, 50); c.stroke(); c.setLineDash([]);
+    rr(c, -198, 54, 268, 9, 4); fillStroke(c, '#1b1517', 3);
+    c.fillStyle = 'rgba(0,0,0,0.55)'; for (let x = -190; x < 62; x += 13) c.fillRect(x, 57, 6, 6);
+    rr(c, 10, 40, 58, 14, 3); fillStroke(c, '#2a1d19', 2.4);
+    // caked-on mud and dust
+    for (let k = 0; k < 9; k++) { blob(c, -186 + hash(seed, k + 20) * 240, 56 + hash(seed, k + 30) * 4, 4 + hash(seed, k + 40) * 6, 3 + hash(seed, k + 50) * 4, seed + k); fillStroke(c, '#3a2a1c', 1.6); }
+    c.fillStyle = 'rgba(70,50,32,0.55)'; for (let k = 0; k < 16; k++) c.fillRect(-190 + hash(seed, k + 60) * 250, 20 + hash(seed, k + 70) * 28, 2.4, 2.4);
     c.restore();
   }
 
@@ -643,12 +660,12 @@
     // where each landing will be, so the player can read it
     for (const f of g.feet) {
       const lifted = clamp(f.lift / 340, 0, 1);
-      c.fillStyle = 'rgba(0,0,0,' + 0.42 * (1 - lifted * 0.7) + ')'; c.beginPath(); c.ellipse(f.x - 50, GY - 1, 140 + lifted * 30, 17, 0, 0, TAU); c.fill();
+      c.fillStyle = 'rgba(0,0,0,' + 0.42 * (1 - lifted * 0.7) + ')'; c.beginPath(); c.ellipse(f.x - 60, GY - 1, 145 + lifted * 30, 18, 0, 0, TAU); c.fill();
     }
     if (g.mover >= 0 && g.target !== undefined) {
       const f = g.feet[g.mover], k = clamp(f.t, 0, 1), pulse = 0.5 + 0.5 * Math.sin(t * 22);
       const rx = 126 * (1 + (1 - k) * 0.22);
-      c.save(); c.translate(g.target - 47, GY - 1);
+      c.save(); c.translate(g.target - 57, GY - 1);
       c.beginPath(); c.ellipse(0, 0, rx, 22, 0, 0, TAU); c.fillStyle = 'rgba(150,10,20,' + (0.14 + 0.34 * k + 0.06 * pulse * k) + ')'; c.fill();
       c.save(); c.clip(); c.strokeStyle = 'rgba(255,120,100,' + (0.12 + 0.32 * k) + ')'; c.lineWidth = 7;
       for (let x = -rx - 30; x < rx + 30; x += 22) { c.beginPath(); c.moveTo(x + ((t * 40) % 22), 24); c.lineTo(x + 30 + ((t * 40) % 22), -24); c.stroke(); }

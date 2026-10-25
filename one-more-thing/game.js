@@ -121,7 +121,7 @@
     try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs'], [String(P.best), String(P.runs)]).catch(() => {}); } catch (e) {}
   }
   function platMsg(m, data) { try { if (hasBridge()) window.bridge.platform.sendMessage(m, data); } catch (e) {} }
-  const GAME_VERSION = '1.3.0';
+  const GAME_VERSION = '1.4.0';
   const Tele = {
     send(name, data) { try { if (hasBridge() && window.bridge.analytics) window.bridge.analytics.send(name, data); } catch (e) {} },
     frames: [], windowStart: 0, active: 0, jsErr: 0,
@@ -530,11 +530,11 @@
     Snd.stomp(0.45 + 0.55 * near);
     G.shake = Math.max(G.shake, 8 + 16 * near); G.rumble = 1; G.punch = 1;
     G.hitstop = Math.max(G.hitstop, 0.03 + 0.07 * near);
-    G.rings.push({ x: f.x - 47, t: 0 });
-    G.cracks.push({ x: f.x - 47, seed: G.cracks.length * 13 + 5 + (G.t * 100 | 0) % 7 }); if (G.cracks.length > 10) G.cracks.shift();
+    G.rings.push({ x: f.x - 57, t: 0 });
+    G.cracks.push({ x: f.x - 57, seed: G.cracks.length * 13 + 5 + (G.t * 100 | 0) % 7 }); if (G.cracks.length > 10) G.cracks.shift();
     G.lampDip = 1; G.flash = Math.max(G.flash, 0.22 * near);
-    for (let i = 0; i < 16; i++) puff(f.x - 47 + rand(-160, 160), GY - 6, rand(16, 32), rand(0.9, 1.7), rand(-130, 130), rand(-95, -20));
-    chips(f.x - 47, GY - 10, 16, 110);
+    for (let i = 0; i < 16; i++) puff(f.x - 57 + rand(-160, 160), GY - 6, rand(16, 32), rand(0.9, 1.7), rand(-130, 130), rand(-95, -20));
+    chips(f.x - 57, GY - 10, 16, 110);
     const top = cam.y - ch / (2 * cam.s), half = cw / (2 * cam.s);
     for (let i = 0; i < 40; i++) parts.push({ x: cam.x + rand(-half, half), y: top + rand(0, 80), vx: rand(-10, 10), vy: rand(20, 90), life: rand(1, 2), t: 0, col: 'rgba(205,192,170,0.55)', size: rand(1.4, 3.4), g: 30 });
     // the whole room jumps
@@ -564,7 +564,7 @@
     const px = player.position.x, py = player.position.y, top = py - 42, bot = py + PR, cy = py - 9;
     for (const f of g.feet) {
       const ay = 853 - f.lift;
-      if (px > f.x - 150 && px < f.x + 55 && top < ay + 84 && bot > ay - 30) return crushed();
+      if (px > f.x - 170 && px < f.x + 60 && top < ay + 66 && bot > ay - 104) return crushed();
       const topX = g.hip + (f.x - g.hip) * 0.55, sct = clamp((cy + 900) / (ay + 900), 0, 1), cx = topX + (f.x - topX) * sct, hw = 84 - 44 * sct;
       if (cy < ay + 30 && Math.abs(px - cx) < hw + 10) return crushed();
     }
@@ -580,7 +580,7 @@
     }
     g.hip = (g.feet[0].x + g.feet[1].x) / 2;
     const px = player.position.x; let dmin = 1e9;
-    for (const f of g.feet) dmin = Math.min(dmin, Math.max(0, Math.abs(px - (f.x - 50)) - 100));
+    for (const f of g.feet) dmin = Math.min(dmin, Math.max(0, Math.abs(px - (f.x - 57)) - 100));
     g.closeness = clamp(1 - dmin / 1300, 0, 1);
     G.hbT -= dt; if (G.hbT <= 0) { G.hbT = lerp(0.9, 0.34, g.closeness); Snd.heartbeat(); }
     G.shake = Math.max(G.shake, 2.2);
@@ -1187,7 +1187,7 @@
     if (G.state === 'awake' && G.giant) {
       const px = player.position.x; let nf = G.giant.feet[0];
       for (const f of G.giant.feet) if (Math.abs(f.x - px) < Math.abs(nf.x - px)) nf = f;
-      const sx = (nf.x - 47 - cam.x) * cam.s + cw / 2;
+      const sx = (nf.x - 57 - cam.x) * cam.s + cw / 2;
       if (sx > cw + 20 || sx < -20) {
         const right = sx > 0, ax = right ? cw - 30 * U : 30 * U, ay = ch * 0.5, pulse = 1 + 0.18 * Math.sin(t * 12), d = right ? 1 : -1;
         c.save(); c.translate(ax, ay); c.scale(pulse, pulse);
