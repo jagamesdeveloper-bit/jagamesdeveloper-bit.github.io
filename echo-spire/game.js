@@ -74,7 +74,24 @@
 
   // ---------- colour ----------
   const hex = c => { const n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
-  const SH = hex('#3a2f6b');
+  let SH = hex('#3a2f6b');
+
+  // One palette per world. `colors` replaces the level data's stock hues, in this order:
+  // wall, then six accents for the moving parts, then the three tints of the endless stair, then ladder wood.
+  const CANON = ['#f4d9c4', '#e8806c', '#5fb3ad', '#8e7fe0', '#f0b05a', '#d97bb0', '#6f9be0', '#7cc07a', '#f3dcc6', '#f0bf9e', '#e79aa0', '#c58b3b'];
+  const WORLDS = [
+    { until: 4, night: false, sky: ['#f1d9bf', '#d68b74'], sun: '#fff2d8', ink: '#3b2a2c', veil: 'rgba(48,30,34,.58)', shade: '#4a2f3f',
+      colors: ['#ece2d1', '#b8452f', '#3e5c76', '#7b4b6b', '#d9a13b', '#8c5a78', '#2f4b73', '#7a9a7e', '#e9dfcd', '#e2b28f', '#c98676', '#7a5230'] },
+    { until: 7, night: true, sky: ['#2f3470', '#c4675c'], sun: '#ffd9a0', ink: '#f6ecdc', veil: 'rgba(28,20,58,.64)', shade: '#231a4a',
+      colors: ['#e3d3bd', '#e7a93b', '#4aa8a5', '#d6577b', '#8d79d6', '#f08a5d', '#5b86d6', '#8cc47a', '#e6d6c0', '#e8b08b', '#d6798a', '#c58b3b'] },
+    { until: 10, night: false, sky: ['#e1eee0', '#76a89a'], sun: '#fffbe6', ink: '#1f302d', veil: 'rgba(20,38,36,.62)', shade: '#274150',
+      colors: ['#efe7d6', '#d9482b', '#27506e', '#8c6d9c', '#e8b93f', '#c9697f', '#3e7f8c', '#7da35f', '#ece3d0', '#e5b894', '#cf8a82', '#8a5a2b'] },
+    { until: 99, night: true, sky: ['#f2996b', '#2f2561'], sun: '#ffe6bd', ink: '#fcefdf', veil: 'rgba(36,24,70,.64)', shade: '#241a4a',
+      colors: ['#ead4bd', '#e8553d', '#4f6ee6', '#2fb39b', '#f7c948', '#c45d9a', '#6aa0f0', '#9bd16a', '#ebd5c0', '#eab18f', '#d3808f', '#b07a38'] },
+  ];
+  const worldOf = i => WORLDS.find(w => i < w.until);
+  const colorOf = c => { const k = CANON.indexOf(c.toLowerCase()); return k >= 0 ? G.pal.colors[k] : c; };
+  const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI'];
   const LV = (() => { const v = [0.32, 0.6, 0.8], n = Math.hypot(v[0], v[1], v[2]); return v.map(a => a / n); })();
   function tint(rgb, b) {
     const k = 0.52 + 0.6 * b, m = (1 - b) * 0.3;
@@ -129,8 +146,6 @@
 
   // ---------- game state ----------
   let G = null;
-  const ambient = Array.from({ length: 46 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.8, sp: 0.004 + Math.random() * 0.012, ph: Math.random() * TAU }));
-  const clouds = Array.from({ length: 6 }, (_, i) => ({ x: Math.random(), y: 0.08 + i * 0.13 + Math.random() * 0.05, w: 0.25 + Math.random() * 0.3, sp: 0.004 + Math.random() * 0.006 }));
 
   // Fewest turns for a level, found once on demand (the biggest levels take a moment to search).
   function parOf(lv) {
@@ -150,12 +165,23 @@
       sparks: [], puffs: [], ripples: [], ill: new Set(), illEdges: new Set(), hint: null, hintT: 0, time: 0, intro: 0, shake: 0, moves: 0, hit: [], handleHit: [], par: parOf(lv),
       all: null, adj: null,
     };
+    G.pal = worldOf(i);
+    SH = hex(G.pal.shade);
+    lv.flat.forEach(f => { f.rgb = hex(colorOf(f.b.color || lv.pieces[f.pi].color)); });
+    // only real tower columns get windows: a deco block with another deco block stacked on top of it
+    const decoAt = new Set();
+    lv.flat.forEach(f => { if (f.b.kind === 'd') decoAt.add(f.pi + ',' + f.b.x + ',' + f.b.y + ',' + f.b.z); });
+    lv.flat.forEach(f => { f.b.tower = f.b.kind === 'd' && decoAt.has(f.pi + ',' + f.b.x + ',' + f.b.y + ',' + (f.b.z + 1)); });
+    document.documentElement.style.setProperty('--ink', G.pal.ink);
+    document.documentElement.style.setProperty('--veil', G.pal.veil);
+    const meta = document.querySelector('meta[name=theme-color]');
+    if (meta) meta.content = G.pal.sky[0];
     refresh();
     computeCamera();
-    $('lvnum').textContent = 'LEVEL ' + (i + 1) + ' / ' + LEVELS.length;
+    $('lvnum').textContent = ROMAN[i];
     $('lvname').textContent = lv.name;
     const hint = $('hint');
-    hint.textContent = lv.hint;
+    hint.textContent = lv.hint || '';
     hint.classList.remove('dim');
   }
 
@@ -276,9 +302,34 @@
     buildLevelGrid();
   }
 
+  // Height of the surface you stand on at world (x, y) inside a tile: stairs climb in steps.
+  function surfaceZ(t, x, y) {
+    if (t.kind === 's') {
+      const d = L.DIRS[t.dir];
+      const u = Math.max(0, Math.min(1, (x - t.x - 0.5) * d[0] + (y - t.y - 0.5) * d[1] + 0.5));
+      return t.z + (Math.floor(u * STAIR_STEPS - 1e-9) + 1) / STAIR_STEPS;
+    }
+    return t.z + 1;
+  }
+
+  // Where the player is, and how deep, on the way from tile ia to tile ib (e is 0..1).
+  // Real connections are walked through 3D so the sprite follows the steps; illusion joins are walked on screen.
+  function walkPoint(ia, ib, e, tfs) {
+    const a = anchorOf(ia, tfs), b = anchorOf(ib, tfs);
+    const lo = Math.min(ia, ib), hi = Math.max(ia, ib);
+    if (G.adj.ill.has(lo + ',' + hi)) {
+      return { x: a.s[0] + (b.s[0] - a.s[0]) * e, y: a.s[1] + (b.s[1] - a.s[1]) * e, key: (e < 0.5 ? a.key : b.key) + 0.1 };
+    }
+    const ta = G.all[ia], tb = G.all[ib];
+    const wx = a.w[0] + (b.w[0] - a.w[0]) * e, wy = a.w[1] + (b.w[1] - a.w[1]) * e;
+    const wz = ta.kind === 'l' || tb.kind === 'l' ? a.w[2] + (b.w[2] - a.w[2]) * e : surfaceZ(e < 0.5 ? ta : tb, wx, wy);
+    const p = proj(wx, wy, wz);
+    return { x: p[0], y: p[1], key: wx + wy + wz + 0.1 };
+  }
+
   function anchorOf(idx, tfs) {
     const f = G.lv.flat[idx], b = f.b;
-    const top = b.kind === 's' ? b.z + 0.62 : b.kind === 'l' ? b.z + 0.5 : b.z + 1;
+    const top = b.kind === 's' ? b.z + 2 / 3 : b.kind === 'l' ? b.z + 0.5 : b.z + 1;
     const w = tfs[f.pi].f(b.x + 0.5, b.y + 0.5, top);
     return { w, s: proj(w[0], w[1], w[2]), key: w[0] + w[1] + w[2] };
   }
@@ -340,32 +391,40 @@
     ctx.closePath();
   }
 
+  // A flat sky: two-tone ground, one sun disc ringed like a diagram, and a few horizon bands.
   function drawBackground(time) {
-    const sky = G.lv.sky;
+    const p = G.pal;
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, sky[0]); g.addColorStop(1, sky[1]);
+    g.addColorStop(0, p.sky[0]); g.addColorStop(1, p.sky[1]);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    const R = Math.max(W, H) * 0.5;
-    const rg = ctx.createRadialGradient(W * 0.78, H * 0.2, 0, W * 0.78, H * 0.2, R);
-    rg.addColorStop(0, 'rgba(255,255,255,.6)'); rg.addColorStop(0.35, 'rgba(255,255,255,.14)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
-    clouds.forEach(c => {
-      const x = ((c.x + time * c.sp) % 1.4 - 0.2) * W, w = c.w * W, y = c.y * H;
-      const cg = ctx.createRadialGradient(x, y, 0, x, y, w * 0.5);
-      cg.addColorStop(0, 'rgba(255,255,255,.22)'); cg.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.save(); ctx.translate(x, y); ctx.scale(1, 0.22); ctx.translate(-x, -y);
-      ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(x, y, w * 0.5, 0, TAU); ctx.fill(); ctx.restore();
+    const sx = W * (0.22 + 0.56 * ((G.i * 0.382) % 1)), sy = H * 0.24 + Math.sin(time * 0.12) * 3, r = Math.min(W, H) * 0.085;
+    ctx.fillStyle = p.sun; ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.fill();
+    ctx.lineWidth = 1;
+    [[1.7, 0.4], [2.6, 0.22], [3.8, 0.12]].forEach(([k, a]) => {
+      ctx.strokeStyle = p.sun; ctx.globalAlpha = a;
+      ctx.beginPath(); ctx.arc(sx, sy, r * k, 0, TAU); ctx.stroke();
     });
-    ambient.forEach(p => {
-      const y = ((p.y - time * p.sp) % 1 + 1) % 1, x = p.x + Math.sin(time * 0.4 + p.ph) * 0.01;
-      ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + 0.25 * Math.sin(time * 1.3 + p.ph)) + ')';
-      ctx.beginPath(); ctx.arc(x * W, y * H, p.r, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    [[0.58, 0.035, 0.05], [0.7, 0.07, 0.06], [0.86, 0.14, 0.08]].forEach(([y, h, a]) => {
+      ctx.fillStyle = p.night ? 'rgba(10,6,30,' + a + ')' : 'rgba(255,255,255,' + (a * 1.4) + ')';
+      ctx.fillRect(0, H * y, W, H * h);
     });
+  }
+
+  // A small window on a tower face. Faces list their corners bottom-left, bottom-right, top-right, top-left.
+  function drawWindow(pts, h) {
+    const at = (u, v) => [pts[0][0] + (pts[1][0] - pts[0][0]) * u + (pts[3][0] - pts[0][0]) * v, pts[0][1] + (pts[1][1] - pts[0][1]) * u + (pts[3][1] - pts[0][1]) * v];
+    const w = [at(0.36, 0.3), at(0.64, 0.3), at(0.64, 0.72), at(0.36, 0.72)];
+    poly(w);
+    ctx.fillStyle = G.pal.night && h % 2 === 0 ? 'rgba(255,214,140,.88)' : 'rgba(18,12,36,.5)';
+    ctx.fill();
   }
 
   function drawBox(bx, tf, rgb, f) {
     const walkable = G.lv.flat[f.idx].b.kind === 'b';
-    for (const face of FACES) {
+    const deco = G.lv.flat[f.idx].b;
+    for (let fi = 0; fi < FACES.length; fi++) {
+      const face = FACES[fi];
       const nx = face.n[0] * tf.c - face.n[1] * tf.s, ny = face.n[0] * tf.s + face.n[1] * tf.c, nz = face.n[2];
       if (nx + ny + nz < 0.02) continue;
       const lit = Math.max(0, nx * LV[0] + ny * LV[1] + nz * LV[2]);
@@ -382,6 +441,10 @@
       }
       poly(pts); ctx.fill();
       ctx.lineWidth = 1; ctx.strokeStyle = top ? 'rgba(255,255,255,.28)' : 'rgba(58,47,107,.2)'; ctx.stroke();
+      if (!top && deco.tower) {
+        const hh = ((deco.x * 73856093) ^ (deco.y * 19349663) ^ (deco.z * 83492791) ^ (fi * 2654435761)) >>> 0;
+        if (hh % 7 === 0) drawWindow(pts, hh);
+      }
       if (top && walkable) {
         // lighter inlay marks the tiles you can walk on
         const cx = (pts[0][0] + pts[2][0]) / 2, cy = (pts[0][1] + pts[2][1]) / 2;
@@ -403,8 +466,8 @@
               const a = Math.PI * 0.5 + (k - (ph.targets.length - 1) / 2) * 0.7;
               const px = pcx + Math.cos(a) * cam.s * 0.2, py = pcy + Math.sin(a) * cam.s * 0.1 + cam.s * 0.02;
               ctx.beginPath(); ctx.arc(px, py, Math.max(2.5, cam.s * 0.075), 0, TAU);
-              ctx.fillStyle = G.lv.pieces[pi].color;
-              if (ph.dir < 0) { ctx.lineWidth = 2; ctx.strokeStyle = G.lv.pieces[pi].color; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fill(); ctx.stroke(); } else ctx.fill();
+              ctx.fillStyle = colorOf(G.lv.pieces[pi].color);
+              if (ph.dir < 0) { ctx.lineWidth = 2; ctx.strokeStyle = colorOf(G.lv.pieces[pi].color); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fill(); ctx.stroke(); } else ctx.fill();
             });
           }
         }
@@ -507,7 +570,7 @@
     const items = [];
 
     lv.flat.forEach((f, idx) => {
-      const tf = tfs[f.pi], rgb = hex(f.b.color || lv.pieces[f.pi].color);
+      const tf = tfs[f.pi], rgb = f.rgb;
       blockBoxes(f.b).forEach(bx => {
         const c = tf.f((bx.x0 + bx.x1) / 2, (bx.y0 + bx.y1) / 2, (bx.z0 + bx.z1) / 2);
         items.push({ key: c[0] + c[1] + c[2], draw: () => drawBox(bx, tf, rgb, { idx }) });
@@ -526,9 +589,8 @@
     // player, possibly between two tiles
     let px, py, pkey, walking = false;
     if (G.walk) {
-      const w = G.walk, a = anchorOf(w.path[w.i], tfs), b = anchorOf(w.path[w.i + 1], tfs), e = w.t;
-      px = a.s[0] + (b.s[0] - a.s[0]) * e; py = a.s[1] + (b.s[1] - a.s[1]) * e;
-      pkey = (e < 0.5 ? a.key : b.key) + 0.1; walking = true;
+      const w = G.walk, pt = walkPoint(w.path[w.i], w.path[w.i + 1], w.t, tfs);
+      px = pt.x; py = pt.y; pkey = pt.key; walking = true;
     } else {
       const a = anchorOf(G.player, tfs);
       px = a.s[0]; py = a.s[1]; pkey = a.key + 0.1;
@@ -650,21 +712,24 @@
   });
 
   // ---------- screens ----------
-  function show(id, on) { $(id).classList.toggle('show', on); }
+  function show(id, on) {
+    $(id).classList.toggle('show', on);
+    document.body.classList.toggle('overlay-open', $('menu').classList.contains('show') || $('win').classList.contains('show'));
+  }
 
   function buildLevelGrid() {
     const box = $('levels');
     box.innerHTML = '';
     LEVELS.forEach((lv, i) => {
       const b = document.createElement('button');
-      b.textContent = i + 1;
+      b.textContent = ROMAN[i];
       b.disabled = i >= prog.unlocked;
       if (prog.best[i] && prog.best[i] <= parOf(lv)) b.classList.add('star');
       b.setAttribute('aria-label', 'Level ' + (i + 1) + ': ' + lv.name);
       b.addEventListener('click', () => play(i));
       box.appendChild(b);
     });
-    $('bPlay').textContent = prog.unlocked > 1 ? 'Continue' : 'Play';
+    $('bPlay').textContent = prog.unlocked > 1 ? 'Continue' : 'Begin';
   }
 
   function play(i) {
@@ -678,12 +743,11 @@
   function showWin() {
     G.winShown = true;
     const last = G.i === LEVELS.length - 1;
-    $('winTitle').textContent = last ? 'The spire is quiet' : 'Door opened';
-    $('winText').textContent = last
-      ? 'You reached the top of the Echo Spire. Thank you for wandering.'
-      : 'Solved in ' + G.moves + (G.moves === 1 ? ' turn.' : ' turns.');
-    $('winStar').textContent = G.moves <= G.par ? '\u2605 Perfect: the fewest turns possible' : 'Fewest possible: ' + G.par;
-    $('bNext').textContent = last ? 'Back to menu' : 'Next level';
+    $('winNum').textContent = ROMAN[G.i];
+    $('winTitle').textContent = G.lv.name;
+    $('winText').textContent = last ? 'The spire is quiet.' : 'Solved in ' + G.moves + (G.moves === 1 ? ' move' : ' moves');
+    $('winStar').textContent = G.moves <= G.par ? 'Fewest possible' : 'Fewest possible: ' + G.par;
+    $('bNext').textContent = last ? 'Menu' : 'Continue';
     show('win', true);
   }
 
@@ -696,7 +760,7 @@
     if (G.i === LEVELS.length - 1) { G.active = false; show('win', false); show('menu', true); }
     else play(G.i + 1);
   });
-  function syncSound() { $('bSound').style.opacity = prog.muted ? 0.45 : 1; }
+  function syncSound() { $('bSound').classList.toggle('off', prog.muted); }
   $('bSound').addEventListener('click', () => { prog.muted = !prog.muted; saveProg(); syncSound(); audio(); });
 
   window.addEventListener('keydown', e => {

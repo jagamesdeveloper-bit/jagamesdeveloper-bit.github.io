@@ -138,8 +138,8 @@
     [2, 5, 2, 'b', 0, RING_HI], [2, 4, 2, 'b', 0, RING_HI], [2, 3, 2, 'b', 0, RING_HI], [2, 2, 2, 'b', 0, RING_HI],
   ];
   const ENDLESS = {
-    name: 'The Endless Stair',
-    hint: 'Climb the stairs. They end exactly where they began.',
+    name: 'Endless',
+    hint: 'The stairs end where they began.',
     sky: ['#fbe3d0', '#6e5fc8'],
     illusion: true,
     pieces: [
@@ -164,30 +164,30 @@
   // of the vertical beam is drawn exactly over the start of the first beam, so the three look like one closed
   // triangle. You walk the first two beams; the third side only exists on screen.
   const TRIANGLE = {
-    name: 'The Impossible Triangle',
-    hint: 'Walk two sides of the triangle. The third side is only an illusion.',
+    name: 'Three Sides',
+    hint: 'Two sides are walked. The third is only seen.',
     sky: ['#ffe6d2', '#6f5dc8'],
     illusion: true,
     pieces: [{
       color: CREAM,
       blocks: [
         ...paint(line(0, 0, 0, 1, 0, 5), CORAL),
-        ...paint(line(4, 1, 0, 0, 1, 4), TEAL),
+        ...paint(line(4, 1, 0, 0, 1, 3), TEAL), ...paint([[4, 4, 0, 'd']], TEAL),
         ...paint(col(4, 4, 1, 3), AMBER), ...paint([[4, 4, 4]], AMBER),
-        ...line(4, 5, 0, 0, 1, 2),
+        ...line(5, 3, 0, 1, 0, 2),
         ...line(3, 4, 4, -1, 0, 2), ...col(3, 4, 2, 2), ...col(2, 4, 2, 2),
         ...col(-2, -3, 0, 5), ...col(-1, -3, 0, 3), ...col(1, -4, 0, 6), ...col(7, -1, 0, 4), ...col(8, 2, 0, 3),
       ],
     }],
     handles: [],
     walkOnly: true,
-    start: [4, 6, 0], goal: [2, 4, 4],
+    start: [6, 3, 0], goal: [2, 4, 4],
   };
 
   // Plates: stepping onto the glowing tile works the mechanism, no crank needed.
   const PRESSURE = {
-    name: 'Pressure',
-    hint: 'Step on the glowing plate.',
+    name: 'Weight',
+    hint: 'Step on the plate.',
     sky: ['#d9f1ff', '#a58fe6'],
     pieces: [
       {
@@ -207,8 +207,8 @@
   // A tower with a ladder on one side. Turn it until the ladder reaches the ground, climb, and step across to a
   // platform that sits one block higher and two cells over, but looks attached from here.
   const CLOCKTOWER = {
-    name: 'The Clocktower',
-    hint: 'Turn the tower. Climb what can be climbed.',
+    name: 'Clock',
+    hint: 'Climb what can be climbed.',
     sky: ['#fbe4c8', '#5d56c0'],
     illusion: true,
     blind: true,
@@ -238,8 +238,8 @@
   const ALL = [
     // 1 ---------------------------------------------------------------
     {
-      name: 'The First Door',
-      hint: 'Tap the ground to walk. Tap the golden crank to turn the world.',
+      name: 'Door',
+      hint: 'Tap to walk. Turn the crank.',
       sky: ['#ffd9c7', '#a99be8'],
       pieces: [
         {
@@ -259,8 +259,8 @@
 
     // 2 ---------------------------------------------------------------
     {
-      name: 'Climbing Ground',
-      hint: 'Some paths only exist from the right angle.',
+      name: 'Rise',
+      hint: 'Some paths exist only from the right angle.',
       sky: ['#cdeee8', '#8fa6e8'],
       pieces: [
         {
@@ -284,8 +284,8 @@
 
     // 3 ---------------------------------------------------------------
     {
-      name: 'Two Ways to Move',
-      hint: 'Teal cranks slide. Gold cranks turn.',
+      name: 'Slide',
+      hint: 'Gold cranks turn. Teal cranks slide.',
       sky: ['#ffe7b8', '#f19db0'],
       pieces: [
         {
@@ -308,8 +308,8 @@
 
     // 4 ---------------------------------------------------------------
     {
-      name: 'Impossible Stairs',
-      hint: 'If two paths look like they touch, they do. A violet glow marks the join.',
+      name: 'Joined',
+      hint: 'Where two paths meet in your eye, they meet. Violet marks the join.',
       sky: ['#d9e4ff', '#b48fe0'],
       illusion: true,
       pieces: [
@@ -425,7 +425,7 @@
     // 8 ---------------------------------------------------------------
     {
       name: 'Passenger',
-      hint: 'Parts of the world will carry you. Stand on one, then turn.',
+      hint: 'Stand on a moving part. Then turn it.',
       sky: ['#d6f3ff', '#9a8fe8'],
       pieces: [
         {
@@ -474,8 +474,8 @@
 
     // 10 --------------------------------------------------------------
     {
-      name: 'Phantom Steps',
-      hint: 'Rise on the teal step. From here, it looks like the next one is right beside you.',
+      name: 'Phantom',
+      hint: 'Rise on the teal step.',
       sky: ['#e9dcff', '#f4a6a0'],
       illusion: true,
       pieces: [
@@ -571,23 +571,23 @@
   const LEVELS = [
     ALL[0], ALL[1], ALL[2], ALL[3], ENDLESS, TRIANGLE, PRESSURE, ALL[9], ALL[7], CLOCKTOWER,
     chain({
-      name: 'Whispering Steps', hint: 'Each landing is a plate. Stepping on one turns the bridges it is wired to.',
+      name: 'Whisper', hint: 'Each landing is a plate. The dots show what it turns.',
       sky: ['#e4f0ff', '#9a86e0'], par: 6,
       stages: [[3, 'L', 1], [4, 'R', 1], [3, 'L', 0], [2, 'R', 0]],
       landings: [[[0], -1], [[0, 1, 2], 1], [[0, 2, 3], 1], [[1], 1]],
     }),
     chain({
-      name: 'Mirage Stair', hint: BLIND, sky: ['#ffe6d2', '#d68cb4'], par: 8, blind: true,
+      name: 'Mirage', hint: '', sky: ['#ffe6d2', '#d68cb4'], par: 8, blind: true,
       stages: [[2, 'L', 0], [4, 'R', 1], [3, 'L', 1], [4, 'R', 1], [3, 'L', 0]],
       landings: [[[0, 3, 4], -1], [[1], -1], [[2, 3, 4], 1], [[1, 2], -1], [[1], -1]],
     }),
     chain({
-      name: 'Falling Upward', hint: BLIND, sky: ['#d3f5ea', '#6f86d8'], par: 10, blind: true,
+      name: 'Upward', hint: '', sky: ['#d3f5ea', '#6f86d8'], par: 10, blind: true,
       stages: [[4, 'L', 1], [3, 'R', 0], [4, 'L', 1], [4, 'L', 1], [2, 'R', 0]],
       landings: [[[0, 1, 3], -1], [[1, 2, 3], -1], [[0, 2, 4], 1], [[2, 3], 1], [[1, 2, 3], -1]],
     }),
     chain({
-      name: 'The Summit', hint: 'Everything you have learned. Use the hint if you need it.', sky: ['#ffd2a6', '#4f3fb4'], par: 11, blind: true,
+      name: 'Summit', hint: '', sky: ['#ffd2a6', '#4f3fb4'], par: 11, blind: true,
       stages: [[3, 'R', 0], [3, 'L', 0], [4, 'L', 1], [3, 'R', 1], [4, 'L', 1], [3, 'R', 0]],
       landings: [[[0, 4, 5], -1], [[1], -1], [[1, 2, 5], -1], [[3], 1], [[4, 5], 1], [[2], 1]],
     }),

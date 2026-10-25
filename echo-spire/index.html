@@ -3,49 +3,59 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#a99be8">
+<meta name="theme-color" content="#3a3f7a">
 <title>Echo Spire</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&display=swap">
 <style>
   :root {
-    --ink: #2b2150;
-    --glass: rgba(255, 255, 255, 0.55);
-    --glass-strong: rgba(255, 255, 255, 0.82);
-    --accent: #e8806c;
-    --gold: #f0b05a;
+    --ink: #3a2a2a;
+    --veil: rgba(30, 22, 52, 0.62);
+    --face: 'Jost', 'Futura', 'Century Gothic', 'Avenir Next', system-ui, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #a99be8; color: var(--ink);
-    font-family: 'Trebuchet MS', 'Avenir Next', 'Segoe UI', system-ui, sans-serif; touch-action: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #3a3f7a; color: var(--ink); font-family: var(--face); touch-action: none; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  button:focus-visible { outline: 1px solid currentColor; outline-offset: 4px; }
 
-  #hud { position: fixed; inset: 0; pointer-events: none; padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; justify-content: space-between; }
-  .bar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-  #title { background: var(--glass); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border-radius: 14px; padding: 8px 14px; line-height: 1.15; }
-  #title small { display: block; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; opacity: .65; }
-  #title b { font-size: 17px; font-weight: 700; }
-  .btns { display: flex; gap: 8px; pointer-events: auto; }
-  .btn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--glass); color: var(--ink); font-size: 20px; display: grid; place-items: center; cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: transform .12s, background .12s; }
-  .btn:hover { background: var(--glass-strong); }
-  .btn:active { transform: scale(.92); }
-  #hint { align-self: center; text-align: center; max-width: 440px; font-size: 15px; line-height: 1.35; background: var(--glass); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 9px 16px; border-radius: 14px; transition: opacity .6s; }
+  #hud { position: fixed; inset: 0; pointer-events: none; padding: max(18px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left)); display: flex; flex-direction: column; justify-content: space-between; }
+  .bar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  #title { display: flex; align-items: baseline; gap: 14px; line-height: 1; transition: color .6s; }
+  #lvnum { font-weight: 300; font-size: 34px; letter-spacing: .04em; }
+  #lvname { font-weight: 400; font-size: 12px; letter-spacing: .32em; text-transform: uppercase; opacity: .75; }
+  .btns { display: flex; gap: 2px; pointer-events: auto; margin: -8px -10px 0 0; }
+  .btn { width: 44px; height: 44px; display: grid; place-items: center; opacity: .7; transition: opacity .15s, transform .15s; }
+  .btn:hover { opacity: 1; }
+  .btn:active { transform: scale(.9); }
+  .btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  #bSound.off .wave { display: none; }
+  #bSound:not(.off) .slash { display: none; }
+  #hint { align-self: center; text-align: center; max-width: 420px; font-size: 13px; font-weight: 400; letter-spacing: .08em; line-height: 1.6; padding-top: 12px; border-top: 1px solid currentColor; transition: opacity .8s; }
+  #hint:empty { display: none; }
   #hint.dim { opacity: 0; }
 
-  .overlay { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; background: radial-gradient(ellipse at 50% 40%, rgba(255,255,255,.10), rgba(43,33,80,.55)); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
-  .overlay.show { display: flex; animation: fade .5s ease both; }
-  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  .overlay h1 { margin: 0; font-size: clamp(38px, 11vw, 72px); font-weight: 700; color: #fff; letter-spacing: .06em; text-shadow: 0 4px 30px rgba(43,33,80,.55); }
-  .overlay h2 { margin: 0 0 6px; font-size: clamp(26px, 7vw, 40px); color: #fff; text-shadow: 0 3px 20px rgba(43,33,80,.5); }
-  .overlay p { margin: 10px 0 22px; color: #fff; opacity: .92; font-size: 16px; max-width: 420px; line-height: 1.4; text-shadow: 0 2px 12px rgba(43,33,80,.6); }
-  .cta { font: inherit; font-weight: 700; font-size: 18px; padding: 13px 34px; border-radius: 999px; border: 0; background: #fff; color: var(--ink); cursor: pointer; box-shadow: 0 8px 28px rgba(43,33,80,.35); transition: transform .12s; }
-  .cta:active { transform: scale(.96); }
-  .cta.ghost { background: rgba(255,255,255,.25); color: #fff; box-shadow: none; margin-top: 12px; font-size: 15px; padding: 9px 22px; }
-  #levels { display: grid; grid-template-columns: repeat(6, 44px); gap: 8px; margin-top: 22px; }
-  #levels button { height: 44px; border-radius: 12px; border: 0; background: rgba(255,255,255,.85); color: var(--ink); font: inherit; font-weight: 700; font-size: 16px; cursor: pointer; }
-  #winStar { color: #ffe08a; font-weight: 700; margin: -8px 0 22px; text-shadow: 0 2px 12px rgba(43,33,80,.6); }
-  #levels button.star { box-shadow: inset 0 -4px 0 var(--gold); }
-  .btn { font-weight: 700; }
-  #levels button:disabled { background: rgba(255,255,255,.22); color: rgba(255,255,255,.7); cursor: default; }
-  @media (max-width: 380px) { #levels { grid-template-columns: repeat(3, 44px); } }
+  body.overlay-open #hud { opacity: 0; visibility: hidden; }
+  #hud { transition: opacity .4s; }
+  .overlay { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; background: var(--veil); color: #f6efe4; }
+  .overlay.show { display: flex; animation: rise .7s ease both; }
+  @keyframes rise { from { opacity: 0; } to { opacity: 1; } }
+  .overlay h1 { margin: 0; font-weight: 300; font-size: clamp(34px, 9vw, 64px); letter-spacing: .34em; padding-left: .34em; }
+  .overlay .rule { width: 56px; height: 1px; background: currentColor; opacity: .6; margin: 26px 0; }
+  .overlay h2 { margin: 0; font-weight: 300; font-size: clamp(54px, 14vw, 96px); line-height: 1; }
+  .overlay .sub { margin: 14px 0 0; font-size: 12px; letter-spacing: .32em; text-transform: uppercase; opacity: .8; }
+  .overlay p { margin: 22px 0 0; font-size: 14px; letter-spacing: .06em; opacity: .85; }
+  .overlay small { display: block; margin-top: 8px; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; opacity: .6; }
+  .go { margin-top: 34px; font-size: 13px; letter-spacing: .34em; text-transform: uppercase; padding: 8px 2px 8px 10px; border-bottom: 1px solid currentColor; }
+  .go:hover { letter-spacing: .4em; }
+  .go { transition: letter-spacing .25s; }
+  .quiet { margin-top: 14px; font-size: 11px; letter-spacing: .26em; text-transform: uppercase; opacity: .6; padding: 8px; }
+  .quiet:hover { opacity: 1; }
+  #levels { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; max-width: 460px; margin-top: 40px; }
+  #levels button { min-width: 44px; height: 40px; padding: 0 8px; font-size: 13px; font-weight: 400; letter-spacing: .1em; border-bottom: 1px solid transparent; opacity: .85; position: relative; }
+  #levels button:hover:not(:disabled) { border-bottom-color: currentColor; opacity: 1; }
+  #levels button:disabled { opacity: .28; cursor: default; }
+  #levels button.star::after { content: ''; position: absolute; left: 50%; bottom: 2px; width: 5px; height: 5px; margin-left: -2.5px; background: currentColor; transform: rotate(45deg); }
 </style>
 </head>
 <body>
@@ -53,12 +63,12 @@
 
 <div id="hud">
   <div class="bar">
-    <div id="title"><small id="lvnum"></small><b id="lvname"></b></div>
+    <div id="title"><span id="lvnum"></span><span id="lvname"></span></div>
     <div class="btns">
-      <button class="btn" id="bHint" title="Hint (H)" aria-label="Hint">?</button>
-      <button class="btn" id="bRestart" title="Restart level" aria-label="Restart level">&#8635;</button>
-      <button class="btn" id="bSound" title="Sound" aria-label="Toggle sound">&#9835;</button>
-      <button class="btn" id="bMenu" title="Menu" aria-label="Menu">&#9776;</button>
+      <button class="btn" id="bHint" title="Look (H)" aria-label="Hint"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <button class="btn" id="bRestart" title="Restart (R)" aria-label="Restart level"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg></button>
+      <button class="btn" id="bSound" title="Sound (M)" aria-label="Toggle sound"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16.5 9a4 4 0 0 1 0 6"/><path class="slash" d="M17 9l5 6M22 9l-5 6"/></svg></button>
+      <button class="btn" id="bMenu" title="Menu (Esc)" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
     </div>
   </div>
   <div id="hint"></div>
@@ -66,17 +76,18 @@
 
 <div class="overlay show" id="menu">
   <h1>ECHO SPIRE</h1>
-  <p>Walk the quiet towers. Turn the world until the path appears.</p>
-  <button class="cta" id="bPlay">Play</button>
+  <div class="rule"></div>
+  <button class="go" id="bPlay">Begin</button>
   <div id="levels"></div>
 </div>
 
 <div class="overlay" id="win">
-  <h2 id="winTitle">Door opened</h2>
+  <h2 id="winNum"></h2>
+  <div class="sub" id="winTitle"></div>
   <p id="winText"></p>
-  <div id="winStar"></div>
-  <button class="cta" id="bNext">Next</button>
-  <button class="cta ghost" id="bAgain">Replay</button>
+  <small id="winStar"></small>
+  <button class="go" id="bNext">Continue</button>
+  <button class="quiet" id="bAgain">Again</button>
 </div>
 
 <script src="logic.js"></script>

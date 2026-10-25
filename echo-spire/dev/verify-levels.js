@@ -26,13 +26,24 @@ defs.forEach((def, n) => {
     });
   }
 
+  // A walkable tile with a solid block right on top of it puts the player inside the block.
+  let buried = 0;
+  for (const st of seen.values()) {
+    const all = L.cells(lv, st), at = new Map(all.map(t => [t.x + ',' + t.y + ',' + t.z, t]));
+    for (const t of all) {
+      if (!t.walk || t.kind === 'l') continue;
+      const above = at.get(t.x + ',' + t.y + ',' + (t.z + 1));
+      if (above && above.kind !== 'l') { buried++; if (buried < 4) console.log(`  buried tile (${t.x},${t.y},${t.z}) kind ${t.kind} under ${above.kind} in pose ${L.stateKey(st)}`); }
+    }
+  }
+
   const t0 = Date.now();
   const sol = L.solve(lv, init, lv.start);
   const ms = Date.now() - t0;
   const parOk = lv.par === undefined || (sol && sol.taps === lv.par);
-  const ok = sol && (sol.taps > 0 || lv.walkOnly) && overlaps === 0 && parOk;
+  const ok = sol && (sol.taps > 0 || lv.walkOnly) && overlaps === 0 && parOk && buried === 0;
   if (!ok) bad++;
   const seq = sol ? sol.seq.map(s => `${s.hi}@${s.at}`).join(' ') : '';
-  console.log(`${ok ? 'OK ' : 'BAD'} ${n + 1} ${def.name}: ${sol ? sol.taps + ' taps [' + seq + ']' : 'UNSOLVABLE'}, poses=${seen.size}, overlaps=${overlaps}, ${ms}ms`);
+  console.log(`${ok ? 'OK ' : 'BAD'} ${n + 1} ${def.name}: ${sol ? sol.taps + ' taps [' + seq + ']' : 'UNSOLVABLE'}, poses=${seen.size}, overlaps=${overlaps}, buried=${buried}, ${ms}ms`);
 });
 process.exit(bad ? 1 : 0);
