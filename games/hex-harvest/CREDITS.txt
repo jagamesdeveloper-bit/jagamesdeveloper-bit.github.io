@@ -1,0 +1,3 @@
+Sound effects: Kenney (www.kenney.nl), CC0 1.0
+Music: "flowerbed-fields-loop" by Zane Little Music, https://opengameart.org/content/flowerbed-fields-loop, CC0 1.0
+Fonts: Grandstander, Nunito, SIL Open Font License 1.1 (see fonts/licenses)

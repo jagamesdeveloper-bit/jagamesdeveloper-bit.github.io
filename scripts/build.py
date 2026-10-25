@@ -21,7 +21,7 @@ INDEX = '''<!doctype html>
 <title>%(title)s</title>
 <script src="https://bridge.playgama.com/v2/stable/playgama-bridge.js"></script>
 </head><body><canvas id="c" tabindex="0"></canvas>
-<script src="pg.js"></script><script src="game.js"></script></body></html>
+<script src="assets.js"></script><script src="pg.js"></script><script src="game.js"></script></body></html>
 '''
 slugs = sys.argv[1:] or sorted(d for d in os.listdir(G) if os.path.isdir(os.path.join(G, d)))
 for s in slugs:
@@ -33,6 +33,13 @@ for s in slugs:
     open(os.path.join(p, 'index.html'), 'w').write(INDEX % meta)
     out = os.path.join(D, '%s-%s.zip' % (s, meta['version']))
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
-        for f in ['index.html', 'pg.js', 'game.js', 'playgama-bridge-config.json']:
+        files = ['index.html', 'pg.js', 'game.js', 'playgama-bridge-config.json']
+        for extra in ['assets.js', 'CREDITS.txt']:
+            if os.path.exists(os.path.join(p, extra)): files.append(extra)
+        for sub in ['audio', 'fonts', 'fonts/licenses', 'img']:
+            d = os.path.join(p, sub)
+            if os.path.isdir(d):
+                files += [sub + '/' + n for n in sorted(os.listdir(d)) if os.path.isfile(os.path.join(d, n))]
+        for f in files:
             z.write(os.path.join(p, f), f)
     print(s, meta['version'], os.path.getsize(out), 'bytes')

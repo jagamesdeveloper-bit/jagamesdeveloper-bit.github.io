@@ -1,0 +1,3 @@
+Sound effects: Kenney (www.kenney.nl), CC0 1.0
+Music: "magic-puzzle-in-game-1" by mintodog, https://opengameart.org/content/magic-puzzle-in-game-1, CC0 1.0
+Fonts: Alegreya Sans, Cinzel, Cinzel Decorative, SIL Open Font License 1.1 (see fonts/licenses)

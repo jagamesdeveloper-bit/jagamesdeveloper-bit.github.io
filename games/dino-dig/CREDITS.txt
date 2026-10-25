@@ -1,0 +1,3 @@
+Sound effects: Kenney (www.kenney.nl), CC0 1.0
+Music: "summer-park-8bit-tune-loop" by scribe, https://opengameart.org/content/summer-park-8bit-tune-loop, CC0 1.0
+Fonts: Pixelify Sans, SIL Open Font License 1.1 (see fonts/licenses)

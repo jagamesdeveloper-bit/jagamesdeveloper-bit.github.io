@@ -1,0 +1,3 @@
+Sound effects: Kenney (www.kenney.nl), CC0 1.0
+Music: "green-hills" by Igor Gundarev, https://opengameart.org/content/green-hills, CC0 1.0
+Fonts: Fredoka, SIL Open Font License 1.1 (see fonts/licenses)

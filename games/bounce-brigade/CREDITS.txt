@@ -1,0 +1,3 @@
+Sound effects: Kenney (www.kenney.nl), CC0 1.0
+Music: "cyber-runner-music" by ansimuz, https://opengameart.org/content/cyber-runner-music, CC0 1.0
+Fonts: Orbitron, Rajdhani, SIL Open Font License 1.1 (see fonts/licenses)

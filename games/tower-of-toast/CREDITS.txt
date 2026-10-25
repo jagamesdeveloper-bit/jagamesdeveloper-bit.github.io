@@ -1,0 +1,3 @@
+Sound effects: Kenney (www.kenney.nl), CC0 1.0
+Music: "goofy-attitude" by SkyleTheFrench, https://opengameart.org/content/goofy-attitude, CC0 1.0
+Fonts: Nunito, Titan One, SIL Open Font License 1.1 (see fonts/licenses)

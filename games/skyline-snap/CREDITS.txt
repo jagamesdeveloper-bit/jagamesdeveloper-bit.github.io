@@ -1,0 +1,3 @@
+Sound effects: Kenney (www.kenney.nl), CC0 1.0
+Music: "chill-lofi-inspired-loop-edit" by qubodup, https://opengameart.org/content/chill-lofi-inspired-loop-edit, CC0 1.0
+Fonts: Bebas Neue, DM Sans, SIL Open Font License 1.1 (see fonts/licenses)
