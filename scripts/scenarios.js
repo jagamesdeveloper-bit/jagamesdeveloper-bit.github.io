@@ -1,6 +1,22 @@
 // per-game screenshot scenarios for look.js
 const tap = async (page, x, y) => { await page.mouse.click(x, y); await page.waitForTimeout(120); };
 module.exports = {
+  'dino-dig': {
+    dig: async (page) => { await page.waitForTimeout(600); for (let i = 0; i < 5; i++) { await page.evaluate(() => { const D = window.__dino; D.hit(0, 2, 2, true); D.hit(1, 3, 1.4, true); }); await page.waitForTimeout(90); } },
+    deep: async (page) => { await page.evaluate(() => { const P = window.__pg_debug, D = window.__dino; P.save.u = { pick: 14, crew: 6, brush: 6, cash: 3, tnt: 2, ticket: 1 }; P.save.depth = 86; D.st.row0 = 86; D.resetRows(); D.st.cash = 48200; }); await page.waitForTimeout(1500); },
+    museum: async (page) => { await page.evaluate(() => { const P = window.__pg_debug, D = window.__dino; P.save.f = { trilo: [0, 1, 2], fern: [0, 1, 2], ammo: [0, 1, 2, 3], raptor: [0, 1, 2, 3, 4], ptera: [0, 1, 4], stego: [0, 1, 2, 3, 4, 5], trike: [0, 1], trex: [0, 2, 3] }; D.st.state = 'museum'; }); await page.waitForTimeout(700); },
+    popup: async (page) => { await page.evaluate(() => { const P = window.__pg_debug, D = window.__dino; P.save.f = { trex: [0, 1, 2, 3, 4, 5, 6] }; D.collect({ sp: 9, part: 7 }); }); await page.waitForTimeout(900); },
+    boom: async (page) => { await page.evaluate(() => { const D = window.__dino; window.__pg_debug.save.u = { pick: 30, crew: 3 }; D.st.cash = 900; D.boom(); }); await page.waitForTimeout(250); },
+  },
+  'bounce-brigade': {
+    menu: async (page) => { await page.waitForTimeout(800); },
+    play: async (page) => { await page.evaluate(() => { const B = window.__bb; window.__pg_debug.save.runs = 2; B.start(); B.st.t = 200; B.st.perks = { blade: 2, zap: 2, shock: 1, buddy: 1 }; B.st.blades = 3; B.st.buddies.push({ x: 0, y: 0, vx: 200, vy: 120, cd: {} }); B.st.lvl = 9; B.st.coinsRun = 23; B.st.need = 1e9; });
+      await page.waitForTimeout(6000); },
+    boss: async (page) => { await page.evaluate(() => { const B = window.__bb; window.__pg_debug.save.runs = 2; B.start(); B.st.t = 355; B.st.perks = { ram: 3, blade: 3, size: 2 }; B.st.blades = 4; B.st.p.hp = 9999; B.st.need = 1e9; }); await page.waitForTimeout(8000); },
+    levelup: async (page) => { await page.evaluate(() => { const B = window.__bb; B.start(); B.st.t = 30; B.gainXP(40); }); await page.waitForTimeout(800); },
+    dead: async (page) => { await page.evaluate(() => { const B = window.__bb; B.start(); B.st.t = 222; B.st.kills = 340; B.st.coinsRun = 18; B.st.p.hp = 1; B.st.p.inv = 0; }); await page.waitForTimeout(3500); },
+    shop: async (page) => { await page.evaluate(() => { window.__pg_debug.save.coins = 420; window.__bb.st.state = 'shop'; }); await page.waitForTimeout(600); },
+  },
   'cat-cannon-golf': {
     menu: async (page) => { await page.waitForTimeout(700); },
     play: async (page) => { await page.evaluate(() => { const G = window.__golf; G.load(2); G.st.aim = { sx: 0, sy: 0, dx: 30, dy: -120, d: 124, pow: 0.75 }; }); await page.waitForTimeout(600); },
