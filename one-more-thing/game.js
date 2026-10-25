@@ -143,7 +143,7 @@
     try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs', 'omt_night'], [String(P.best), String(P.runs), String(P.bestNight)]).catch(() => {}); } catch (e) {}
   }
   function platMsg(m, data) { try { if (hasBridge()) window.bridge.platform.sendMessage(m, data); } catch (e) {} }
-  const GAME_VERSION = '1.7.0';
+  const GAME_VERSION = '1.7.1';
   const Tele = {
     send(name, data) { try { if (hasBridge() && window.bridge.analytics) window.bridge.analytics.send(name, data); } catch (e) {} },
     frames: [], windowStart: 0, active: 0, jsErr: 0,
@@ -556,7 +556,7 @@
   }
 
   /* ============================================================ floor traps */
-  function initTraps() { G.traps = [500, 1400, 1940].map(x => ({ x, state: 'armed', k: 0 })); }
+  function initTraps() { G.traps = [660, 1400, 1940].map(x => ({ x, state: 'armed', k: 0 })); }
   function springTrap(tr, who) {
     tr.state = 'sprung'; Snd.snapTrap();
     const gx = tr.x + 24, gy = FLOOR - 16;
