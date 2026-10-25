@@ -3026,8 +3026,10 @@ function inspect(x,y){
   toast(bits.join(' '),2400);return true;
 }
 const pausePos=()=>[W/2,24];
+let adEndAt=-9;
 function openPause(){
   if(state!=='play'||userPaused)return;
+  if(adBusy||AD.now()-adEndAt<1.5)return; // the pause and hide events an ad fires at its edges are not the player pausing
   userPaused=true;
   const ups=UPS.filter(u=>P.up[u.id]).map(u=>`${ic(u.g)}${u.n}${P.up[u.id]>1?' x'+P.up[u.id]:''}`);
   const rel=P.relics.map(id=>RELICS.find(r=>r.id===id)).filter(Boolean).map(r=>`${ic(r.g)}${r.n}`);
@@ -3245,6 +3247,7 @@ $('boonBtn').onclick=()=>{if(boonReady)return;PG.rewarded(()=>{boonReady=true;re
 /* ---------- Playgama Bridge: every call is a safe no-op when the SDK is not present ---------- */
 function revive(){
   if(state!=='dead')return;
+  userPaused=false;$('pauseOv').classList.remove('show');adEndAt=AD.now();
   P.revived=true;state='play';P.hp=Math.max(2,Math.ceil(P.maxHp*0.6));P.inv=3;P.vis=null;
   if(tiles[P.y][P.x].k!==0)relocate(P);
   room.zones.length=0;queued=null;$('dead').classList.remove('show');
@@ -3300,7 +3303,8 @@ const PG={
     try{
       const ad=bridge.advertisement;
       const was=adBusy;adBusy=ad.interstitialState==='opened'||ad.rewardedState==='opened';
-      if(was&&!adBusy){AD.lastAt=AD.now();PG.preload();}
+      if(was&&!adBusy){AD.lastAt=AD.now();adEndAt=AD.now();PG.preload();if(userPaused&&state==='play')closePause();}
+      try{if(!adBusy&&platPaused&&bridge.platform.isPaused===false)platPaused=false;}catch(e){}
       paused=platPaused||document.hidden||adBusy;
     }catch(e){}
   },
