@@ -350,6 +350,9 @@ const BOSSES=[
   {name:'THE PALE KNIGHT',t:'N',hp:17,perFloor:5,cd:1.0,tint:[0.45,0.75,1]},
   {name:'THE OBELISK LORD',t:'T',hp:24,perFloor:6,cd:99,tint:[1,0.45,0.3]},
   {name:'THE PAWN EMPEROR',t:'P',hp:26,perFloor:6,cd:0.85,tint:[0.85,0.55,1]},
+  {name:'THE HOLLOW BISHOP',t:'B',hp:19,perFloor:5,cd:1.0,tint:[0.75,0.75,0.9]},
+  {name:'THE STORM ROOK',t:'R',hp:24,perFloor:6,cd:99,tint:[0.4,0.85,1]},
+  {name:'THE ECHO KNIGHT',t:'N',hp:20,perFloor:5,cd:1.0,tint:[0.4,1,0.85]},
 ];
 const AFFIX={
   armored:{ring:0xffd24a,name:'ARMORED'},
@@ -1525,7 +1528,8 @@ function updateZones(dt){
       if(x===P.x&&y===P.y)hit=true;
     }
     shake=Math.max(shake,6);crash(false);
-    if(hit){hurtSrc=z.owner||{label:'a blast'};hurtPlayer(z.dmg);}
+    if(z.collapse){for(const[x,y]of z.tiles)if(tiles[y][x].k===0)collapse(x,y);}
+    else if(hit){hurtSrc=z.owner||{label:'a blast'};hurtPlayer(z.dmg);}
   }
 }
 
@@ -2088,6 +2092,7 @@ function bossAI(e,dt){
     e.phase2=true;G.banner='PHASE II';G.bannerT=2;shake=14;slowT=0.4;flashW=0.15;
     spawnWave(e.x-3,e.y-4,0xff5030,5,0.8);burst(e.x,e.y,30,[255,120,60],200,0.9,4);sfx('bell',1,0.5);
   }
+  if(e.bk===9){const tr=e.trail||(e.trail=[]),l=tr[tr.length-1];if(!l||l[0]!==P.x||l[1]!==P.y){tr.push([P.x,P.y]);if(tr.length>5)tr.shift();}}
   if(e.casting){
     e.casting.t-=dt;
     if(e.casting.t<=0){
@@ -2178,6 +2183,46 @@ function bossAI(e,dt){
       e.tC=12*f;const ring=r=>areaTiles(e.x,e.y,r).filter(([x,y])=>Math.max(Math.abs(x-e.x),Math.abs(y-e.y))===r);
       addZone(ring(2).concat(e.phase2?ring(4):[]),1.1,e.dmg,e,0xe090ff);startCast(e,1.1);sfx('cast',0.9,0.9);
     }
+  }else if(bk===7){ // the Hollow Bishop: the floor itself falls away
+    if(e.tA<=0){
+      e.tA=5.5*f;const want=e.phase2?5:3,pick_=[];
+      let holes=0;for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(tiles[y][x].k===2)holes++;
+      for(let i=0;i<60&&pick_.length<want&&holes+pick_.length<10;i++){
+        const x=ri(0,COLS-1),y=ri(0,ROWS-1),t=tiles[y][x];
+        if(t.k!==0||PROT.has(x+','+y)||pick_.some(q=>q[0]===x&&q[1]===y)||(x===e.x&&y===e.y))continue;
+        t.k=2;const ok=connected();t.k=0;if(!ok)continue;
+        pick_.push([x,y]);
+      }
+      if(pick_.length){
+        pick_.forEach(([x,y])=>tiles[y][x].k=2);const ok=connected();pick_.forEach(([x,y])=>tiles[y][x].k=0);
+        while(!ok&&pick_.length>1)pick_.pop();
+        addZone(pick_,1.5,0,e,0x9aa0d0);room.zones[room.zones.length-1].collapse=true;
+        startCast(e,0.9);sfx('creak',0.9,0.8);G.banner='THE FLOOR FALLS!';G.bannerT=1.0;
+      }
+    }else if(e.tB<=0){e.tB=7*f;addZone(raysFrom(e.x,e.y,DIAG),1.1,e.dmg,e,0xb0b8ff);startCast(e,1.1);sfx('glass',0.9,0.9);}
+    else if(e.tC<=0){e.tC=14*f;spawnWaveList(e.phase2?['P','P','B']:['P','P']);}
+  }else if(bk===8){ // the Storm Rook: sweeping walls of lightning with one safe lane
+    if(e.tA<=0){
+      e.tA=6.5*f;const safe=ri(0,COLS-1),dir=Math.random()<0.5?1:-1,step=e.phase2?0.3:0.38;
+      for(let i=0;i<COLS;i++){const x=dir>0?i:COLS-1-i;if(x===safe)continue;addZone(colTiles(x),1.1+i*step,e.dmg,e,0x66d8ff);}
+      startCast(e,1.0);sfx('zap',0.9,0.9);G.banner='STORM WALL!';G.bannerT=1.0;
+    }else if(e.tB<=0){
+      e.tB=9*f;const safe=ri(1,ROWS-1),dir=Math.random()<0.5?1:-1,step=e.phase2?0.28:0.34;
+      for(let i=0;i<ROWS;i++){const y=dir>0?i:ROWS-1-i;if(y===safe)continue;addZone(rowTiles(y),1.2+i*step,e.dmg,e,0x88e8ff);}
+      startCast(e,1.0);sfx('zap',0.9,1.1);
+    }else if(e.tC<=0){e.tC=14*f;spawnWaveList(e.phase2?['R','P','P']:['P','P','N']);}
+  }else if(bk===9){ // the Echo Knight: punishes the places you have already been
+    if(e.tA<=0){
+      e.tA=5*f;const tr=(e.trail||[]).slice(0,-1),tl=[];
+      tr.forEach(([x,y])=>{if(!tl.some(q=>q[0]===x&&q[1]===y)&&tiles[y][x].k===0)tl.push([x,y]);});
+      if(e.phase2&&tr.length>0){const [lx,ly]=tr[tr.length-1];areaTiles(lx,ly,1).forEach(q=>{if(!tl.some(r=>r[0]===q[0]&&r[1]===q[1]))tl.push(q);});}
+      if(tl.length){addZone(tl,1.0,e.dmg,e,0x66ffd8);startCast(e,1.0);sfx('cast',0.9,1.2);G.banner='ECHO!';G.bannerT=0.9;}
+      else e.tA=1.5;
+    }else if(e.tB<=0){
+      e.tB=9*f;const mx=COLS-1-P.x,my=ROWS-1-P.y;
+      if(tiles[my][mx].k===0&&!occ(mx,my,e)){e.blink={x:mx,y:my};addZone(areaTiles(mx,my,1),1.2,e.dmg+1,e,0x9fffe8);startCast(e,1.2);sfx('whoosh',1,1.0);}
+      else e.tB=2;
+    }else if(e.tC<=0){e.tC=13*f;spawnWaveList(e.phase2?['N','N','B']:['N','N']);}
   }else{
     if(e.tA<=0){e.tA=7*f;addZone(raysFrom(e.x,e.y,DIR8),1.2,e.dmg,e,0xff5ac0);startCast(e,1.2);sfx('cast',0.9,1.1);}
     else if(e.tB<=0){e.tB=13*f;spawnWaveList(e.phase2?['B','R']:['P','P','N']);}
@@ -2288,7 +2333,7 @@ function updateEnemies(dt){
     if(e.boss){
       const busy=bossAI(e,dt);
       if(busy)continue;
-      if(e.bk===1||e.bk===5)continue; // the Rook and the Obelisk never walk
+      if(e.bk===1||e.bk===5||e.bk===8)continue; // the Rooks and the Obelisk never walk
     }
     if(e.role&&roleAI(e,dt))continue;
     if(e.wind){e.wind.t-=dt;if(e.wind.t<=0)resolveWind(e);continue;}
