@@ -40,6 +40,16 @@ The user is a Unity programmer and pro gamer who works from a phone. They like s
 - Check design flaws: soft-locks, unreachable tiles, unfair death sources. Write a headless bot/audit script for balance, with the caveat that random bots are rough.
 - When fixing a bug, reproduce it with a counted test (e.g. 400 generated rooms before and after), not by eye.
 
+## Fair difficulty ("hard, but never 'what did I die from'")
+- Every hit must be dodgeable by a quick player. A warning that covers the player must last at least reaction time (~0.36 s) plus a full move cooldown for each extra move needed to leave it. Compute the escape depth with a short BFS over the player's own moves. If the warning is shorter, extend it, or cap the player's remaining cooldown.
+- Never let an enemy wind-up be shorter than the player's move cooldown after all multipliers (affixes, mutators, floor scaling). Put an absolute floor on it.
+- Make warnings read on every floor theme. Use a dark tinted underlay under the coloured warning, draw one plane per tile (most urgent wins), and size the pool so it can never run out.
+- Mark it right on the player when they stand in danger (ring + "!"). Knockback lands on the safest neighbouring tile, never a random one.
+- No one-shots from half health or more. Give longer i-frames when hits come in a burst.
+- Name every damage source. Show the last hit on the HUD for a moment, and "Last hits" on the death screen.
+- Get difficulty from more attackers, longer boss fights and new patterns, not from faster or unreadable attacks.
+- Balance with a bot that models a person: ~0.45 s reaction, missed warnings that rise with on-screen load, a few mis-taps, and two-move escape planning. Also run a skilled profile (~0.32 s). Log what hit it and how long the warning had been visible.
+
 ## Workflow
 1. Read the checklist (`get_game_checklist`) and the telemetry guide (`get_game_telemetry_guide`) from the Playgama MCP before building or uploading. Say which items you could not check.
 2. Build in the game folder. Test headless (Playwright is preinstalled: `require('playwright')`, launch Chromium with `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist` for WebGL). Test with a **mock bridge** and with the **real v2 SDK** (it runs as a mock platform on file://).
