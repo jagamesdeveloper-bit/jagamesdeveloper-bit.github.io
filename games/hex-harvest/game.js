@@ -254,7 +254,7 @@
   function bob() { return Math.sin(t0 * 0.8) * geo.s * 0.06; }
   function pickCell(px, py) {
     var y = (py - geo.cy - bob()) / (geo.s * V), x = px - geo.cx;
-    var qf = (x * S3 / 3 - y / 3) / geo.s, rf = (y * 2 / 3) / geo.s;
+    var qf = x * S3 / 3 / geo.s - y / 3, rf = y * 2 / 3;
     var xf = qf, zf = rf, yf = -xf - zf, rx = Math.round(xf), ry = Math.round(yf), rz = Math.round(zf);
     var dx = Math.abs(rx - xf), dy = Math.abs(ry - yf), dz = Math.abs(rz - zf);
     if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; else rz = -rx - ry;
