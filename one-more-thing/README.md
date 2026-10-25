@@ -2,6 +2,8 @@
 
 A 2D physics burglar game. You are a tiny, stretchy thief stealing from a sleeping giant's living room, and everything you steal stays physically stuck to you.
 
+Hand-inked storybook look: wobbly outlines, cel shading, film grain, paper-card HUD. The thief is a regular little burglar (striped shirt, beanie, domino mask) with comically stretchy arms, and loot hangs from his belt on twine.
+
 HTML5 canvas + [Matter.js](https://brm.io/matter-js/) 0.19 (bundled locally). The only external script is the Playgama Bridge.
 
 ## Controls
