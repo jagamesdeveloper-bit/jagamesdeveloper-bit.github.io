@@ -183,5 +183,176 @@
       ],
       start: [-2, 0, 0], goal: [10, 1, 1],
     },
+
+    // 7 ---------------------------------------------------------------
+    {
+      name: 'Chain Reaction',
+      hint: 'Every crank turns two bridges. Work out which ones to touch.',
+      sky: ['#fff0c9', '#e3a0a0'],
+      pieces: [
+        {
+          color: CREAM,
+          blocks: [
+            ...line(-1, 0, 0, 1, 0, 2), [4, 0, 0], [4, 4, 0], [8, 4, 0], [8, 8, 0],
+            [1, 3, 0, 'd'], [6, 1, 0, 'd'], [10, 6, 0, 'd'],
+            ...col(-1, -3, 0, 3), ...col(0, -3, 0, 2), ...col(5, -2, 0, 3), ...col(6, -2, 0, 2), ...col(11, 3, 0, 3), ...col(12, 3, 0, 2),
+          ],
+        },
+        { color: CORAL, pivot: [2.5, 0.5], rot: { cycle: 4, step: 1 }, blocks: line(2, -1, 0, 0, 1, 3) },
+        { color: TEAL, pivot: [4.5, 2.5], rot: { cycle: 4, step: 1 }, blocks: line(4, 1, 0, 0, 1, 3) },
+        { color: AMBER, pivot: [6.5, 4.5], rot: { cycle: 4, step: 1 }, blocks: line(5, 4, 0, 1, 0, 3) },
+        { color: VIOLET, pivot: [8.5, 6.5], rot: { cycle: 4, step: 1 }, blocks: line(7, 6, 0, 1, 0, 3) },
+      ],
+      handles: [
+        { type: 'rot', piece: [1, 2], on: 0, at: [1, 3, 0] },
+        { type: 'rot', piece: [2, 3], on: 0, at: [6, 1, 0] },
+        { type: 'rot', piece: [3, 4], on: 0, at: [10, 6, 0] },
+      ],
+      start: [-1, 0, 0], goal: [8, 8, 0],
+    },
+
+    // 8 ---------------------------------------------------------------
+    {
+      name: 'Passenger',
+      hint: 'Parts of the world will carry you. Stand on one, then turn.',
+      sky: ['#d6f3ff', '#9a8fe8'],
+      pieces: [
+        {
+          color: CREAM,
+          blocks: [
+            ...line(4, -4, 0, 0, 1, 3), ...line(6, 0, 0, 1, 0, 3), ...line(10, 2, 0, 1, 0, 2),
+            [2, 2, 0, 'd'], [6, 4, 0, 'd'],
+            ...col(1, -6, 0, 4), ...col(2, -6, 0, 2), ...col(7, -4, 0, 4), ...col(8, -4, 0, 2), ...col(13, 0, 0, 3),
+          ],
+        },
+        { color: CORAL, pivot: [4.5, 0.5], rot: { cycle: 4, step: 1 }, blocks: line(4, -1, 0, 0, 1, 3) },
+        { color: TEAL, pivot: [8.5, 2.5], rot: { cycle: 4, step: 1 }, blocks: line(8, 1, 0, 0, 1, 3) },
+      ],
+      handles: [
+        { type: 'rot', piece: 1, on: 0, at: [2, 2, 0] },
+        { type: 'rot', piece: 2, on: 0, at: [6, 4, 0] },
+      ],
+      start: [4, -4, 0], goal: [11, 2, 0],
+    },
+
+    // 9 ---------------------------------------------------------------
+    {
+      name: 'The Lift',
+      hint: 'Teal lifts carry you up. Ride one, then step off.',
+      sky: ['#ffe2e8', '#8fb4ee'],
+      pieces: [
+        {
+          color: CREAM,
+          blocks: [
+            ...line(0, 0, 0, 1, 0, 3),
+            ...line(4, 0, 2, 1, 0, 2), ...col(4, 0, 0, 2), ...col(5, 0, 0, 2),
+            ...line(9, 0, 2, 1, 0, 2), ...col(9, 0, 0, 2), ...col(10, 0, 0, 2),
+            [1, 3, 0, 'd'], ...col(7, 3, 0, 2),
+            ...col(0, -3, 0, 4), ...col(1, -3, 0, 2), ...col(6, -4, 0, 5), ...col(12, -2, 0, 4),
+          ],
+        },
+        { color: TEAL, slide: [0, 0, 2], blocks: [[3, 0, 0], [3, 0, -1, 'd'], [3, 0, -2, 'd']] },
+        { color: CORAL, pivot: [7.5, 0.5], rot: { cycle: 4, step: 1 }, blocks: line(7, -1, 2, 0, 1, 3) },
+      ],
+      handles: [
+        { type: 'slide', piece: 1, on: 0, at: [1, 3, 0] },
+        { type: 'rot', piece: 2, on: 0, at: [7, 3, 1] },
+      ],
+      start: [0, 0, 0], goal: [10, 0, 2],
+    },
+
+    // 10 --------------------------------------------------------------
+    {
+      name: 'Phantom Steps',
+      hint: 'Rise on the teal step. From here, it looks like the next one is right beside you.',
+      sky: ['#e9dcff', '#f4a6a0'],
+      illusion: true,
+      pieces: [
+        {
+          color: CREAM,
+          blocks: [
+            ...line(-2, 0, 0, 1, 0, 3),
+            ...line(5, 2, 2, 1, 0, 2), ...col(5, 2, 0, 2), ...col(6, 2, 0, 2),
+            ...line(11, 4, 4, 1, 0, 2), ...col(11, 4, 0, 4), ...col(12, 4, 0, 4),
+            [-1, 3, 0, 'd'], ...col(7, 5, 0, 2),
+            ...col(-2, -3, 0, 4), ...col(0, -3, 0, 2), ...col(3, -3, 0, 6),
+          ],
+        },
+        { color: TEAL, slide: [2, 1, 1], blocks: [[1, 0, 0], [1, 0, -1, 'd'], [1, 0, -2, 'd']] },
+        { color: VIOLET, slide: [2, 1, 1], blocks: [[7, 2, 2], [7, 2, 1, 'd'], [7, 2, 0, 'd']] },
+      ],
+      handles: [
+        { type: 'slide', piece: 1, on: 0, at: [-1, 3, 0] },
+        { type: 'slide', piece: 2, on: 0, at: [7, 5, 1] },
+      ],
+      start: [-2, 0, 0], goal: [12, 4, 4],
+    },
+
+    // 11 --------------------------------------------------------------
+    {
+      name: 'Spire Ascent',
+      hint: 'Ramp, lift, bridge. The order is yours.',
+      sky: ['#c9f2dd', '#7f9ae0'],
+      pieces: [
+        {
+          color: CREAM,
+          blocks: [
+            ...line(0, 0, 0, 1, 0, 4),
+            ...line(6, 0, 1, 1, 0, 2), ...col(6, 0, 0, 1), ...col(7, 0, 0, 1),
+            [9, 0, 2], [10, 0, 2], [10, 1, 2], ...col(9, 0, 0, 2), ...col(10, 0, 0, 2), ...col(10, 1, 0, 2),
+            ...line(10, 5, 2, 0, 1, 2), ...col(10, 5, 0, 2), ...col(10, 6, 0, 2),
+            [2, 3, 0, 'd'], [5, 3, 0, 'd'], ...col(12, 3, 0, 2),
+            ...col(0, -3, 0, 3), ...col(1, -3, 0, 2), ...col(6, -4, 0, 5), ...col(13, 0, 0, 4),
+          ],
+        },
+        {
+          color: TEAL, pivot: [4.5, 0.5], rot: { cycle: 2, step: -1 },
+          blocks: [[4, 0, 0], [4, 1, 0, 'd'], [4, 1, 1, 's', 1]],
+        },
+        { color: AMBER, slide: [0, 0, 1], blocks: [[8, 0, 1], [8, 0, 0, 'd'], [8, 0, -1, 'd']] },
+        { color: CORAL, pivot: [10.5, 3.5], rot: { cycle: 4, step: 1 }, blocks: line(9, 3, 2, 1, 0, 3) },
+      ],
+      handles: [
+        { type: 'rot', piece: 1, on: 0, at: [2, 3, 0] },
+        { type: 'slide', piece: 2, on: 0, at: [5, 3, 0] },
+        { type: 'rot', piece: 3, on: 0, at: [12, 3, 1] },
+      ],
+      start: [0, 0, 0], goal: [10, 6, 2],
+    },
+
+    // 12 --------------------------------------------------------------
+    {
+      name: 'The Summit',
+      hint: 'Everything you have learned, once more.',
+      sky: ['#ffd0a8', '#5d4fc0'],
+      illusion: true,
+      pieces: [
+        {
+          color: CREAM,
+          blocks: [
+            ...line(-2, 0, 0, 1, 0, 3),
+            ...line(4, 1, 1, 1, 0, 2), ...under(line(4, 1, 1, 1, 0, 2)),
+            [9, 1, 1], [9, 2, 1], [9, 1, 0, 'd'], [9, 2, 0, 'd'],
+            [9, 6, 1], [9, 6, 0, 'd'],
+            ...line(7, 6, 2, -1, 0, 2), ...col(7, 6, 0, 2), ...col(6, 6, 0, 2),
+            [1, 3, 0, 'd'], [12, 3, 0, 'd'], [11, 6, 0, 'd'],
+            ...col(-2, -3, 0, 4), ...col(0, -3, 0, 2), ...col(3, -2, 0, 3), ...col(7, -3, 0, 5), ...col(8, -3, 0, 3), ...col(12, 0, 0, 4), ...col(13, 8, 0, 3), ...col(4, 7, 0, 3),
+          ],
+        },
+        {
+          color: VIOLET, pivot: [3.5, 1.5], rot: { cycle: 2, step: 1 },
+          blocks: [[3, 1, 1], [3, 2, 1], [3, 1, 0, 'd'], [3, 2, 0, 'd']],
+        },
+        { color: CORAL, pivot: [7.5, 1.5], rot: { cycle: 4, step: 1 }, blocks: line(6, 1, 1, 1, 0, 3) },
+        { color: TEAL, pivot: [9.5, 4.5], rot: { cycle: 4, step: 1 }, blocks: line(8, 4, 1, 1, 0, 3) },
+        { color: AMBER, slide: [0, 0, 1], blocks: [[8, 6, 1], [8, 6, 0, 'd'], [8, 6, -1, 'd']] },
+      ],
+      handles: [
+        { type: 'rot', piece: [1, 2], on: 0, at: [1, 3, 0] },
+        { type: 'rot', piece: [2, 3], on: 0, at: [12, 3, 0] },
+        { type: 'slide', piece: 4, on: 0, at: [11, 6, 0] },
+      ],
+      start: [-2, 0, 0], goal: [6, 6, 2],
+    },
   ];
 });

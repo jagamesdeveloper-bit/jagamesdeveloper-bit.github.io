@@ -10,11 +10,11 @@
   const TAU = Math.PI * 2;
 
   let W = 0, H = 0, DPR = 1;
-  const cam = { s: 36, ox: 0, oy: 0 };
-  const proj = (x, y, z) => [cam.ox + (x - y) * cam.s, cam.oy + ((x + y) / 2 - z) * cam.s];
+  const cam = { s: 36, ox: 0, oy: 0, bob: 0 };
+  const proj = (x, y, z) => [cam.ox + (x - y) * cam.s, cam.oy + cam.bob + ((x + y) / 2 - z) * cam.s];
 
   // ---------- saved progress (never trust storage to exist) ----------
-  const prog = { unlocked: 1, muted: false };
+  const prog = { unlocked: 1, muted: false, best: {} };
   try { Object.assign(prog, JSON.parse(localStorage.getItem('echoSpire') || '{}')); } catch (e) { /* private mode */ }
   const saveProg = () => { try { localStorage.setItem('echoSpire', JSON.stringify(prog)); } catch (e) { /* ignore */ } };
 
@@ -23,7 +23,29 @@
   function audio() {
     if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ac = null; } }
     if (ac && ac.state === 'suspended') ac.resume();
+    if (ac && !musicOn) startMusic();
     return ac;
+  }
+
+  // Soft generative pad: a slow root note plus a few random pentatonic bells per bar.
+  const SCALE = [261.63, 293.66, 329.63, 392, 440, 523.25, 587.33];
+  const ROOTS = [130.81, 98, 110, 87.31];
+  let musicOn = false, bar = 0;
+  function startMusic() {
+    musicOn = true;
+    const play = () => {
+      if (document.hidden || prog.muted) return;
+      const root = ROOTS[bar++ % ROOTS.length];
+      tone(root, 5.2, 'sine', 0.035);
+      tone(root * 1.5, 5.2, 'sine', 0.016, 0.1);
+      for (let i = 0; i < 3; i++) {
+        if (Math.random() < 0.25) continue;
+        const f = SCALE[Math.floor(Math.random() * SCALE.length)] * (Math.random() < 0.3 ? 2 : 1);
+        tone(f, 2.6, 'sine', 0.02, 0.5 + i * 1.2 + Math.random() * 0.4);
+      }
+    };
+    play();
+    setInterval(play, 4800);
   }
   function tone(f, d, type, vol, delay, f2) {
     if (prog.muted) return;
@@ -110,7 +132,7 @@
       hv: lv.handles.map(() => ({ a: 0 })),
       tween: null, walk: null, tap: null,
       player: lv.start, won: false, winT: 0, active: false,
-      sparks: [], time: 0, intro: 0, shake: 0, moves: 0, hit: [], handleHit: [],
+      sparks: [], puffs: [], hint: null, hintT: 0, time: 0, intro: 0, shake: 0, moves: 0, hit: [], handleHit: [], par: lv.par,
       all: null, adj: null,
     };
     refresh();
@@ -184,6 +206,7 @@
     items.push({ o: G.hv[hi], k: 'a', from: G.hv[hi].a, to: G.hv[hi].a + 180 });
     G.st = next;
     G.moves++;
+    G.hint = null;
     sfx.crank();
     startTween(items, 0.8, () => { refresh(); checkWin(); });
     fadeHint();
@@ -210,6 +233,7 @@
       G.sparks.push({ x: a.s[0], y: a.s[1] - cam.s * 0.5, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 80, life: 1 + Math.random() * 0.8, age: 0, hue: 30 + Math.random() * 40 });
     }
     if (prog.unlocked < G.i + 2) prog.unlocked = Math.min(LEVELS.length, G.i + 2);
+    if (!prog.best[G.i] || G.moves < prog.best[G.i]) prog.best[G.i] = G.moves;
     saveProg();
     buildLevelGrid();
   }
@@ -224,7 +248,8 @@
   // ---------- update ----------
   function update(dt) {
     G.time += dt;
-    G.intro = Math.min(1, G.intro + dt * 1.6);
+    G.intro = Math.min(1, G.intro + dt * 1.1);
+    if (G.hint && (G.hintT -= dt) < 0) G.hint = null;
     G.shake = Math.max(0, G.shake - dt);
     if (G.tap) { G.tap.t += dt; if (G.tap.t > 0.7) G.tap = null; }
 
@@ -241,6 +266,8 @@
       w.t += dt / 0.3;
       while (w.t >= 1 && w.i < w.path.length - 1) {
         w.t -= 1; w.i++; G.player = w.path[w.i]; sfx.step();
+        const a = anchorOf(G.player, G.lv.pieces.map(p => tfOf(p, G.vis[p.id])));
+        G.puffs.push({ x: a.s[0], y: a.s[1], age: 0, life: 0.5 });
       }
       if (w.i >= w.path.length - 1) { G.walk = null; checkWin(); }
     }
@@ -250,6 +277,10 @@
       if (G.winT > 1.3 && !G.winShown) showWin();
     }
 
+    for (let i = G.puffs.length - 1; i >= 0; i--) {
+      G.puffs[i].age += dt;
+      if (G.puffs[i].age > G.puffs[i].life) G.puffs.splice(i, 1);
+    }
     for (let i = G.sparks.length - 1; i >= 0; i--) {
       const p = G.sparks[i];
       p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 160 * dt;
@@ -329,6 +360,10 @@
     ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(x, y, S * 0.8, S * 0.42, 0, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,' + (0.6 + 0.3 * p) + ')'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(x, y, S * (0.42 + 0.06 * p), S * (0.22 + 0.03 * p), 0, 0, TAU); ctx.stroke();
+    if (G.hint && G.hint.type === 'goal') {
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.4 + 0.5 * p) + ')'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(x, y, S * (0.7 + 0.2 * p), S * (0.37 + 0.1 * p), 0, 0, TAU); ctx.stroke();
+    }
     for (let i = 0; i < 4; i++) {
       const t = ((time * 0.5 + i / 4) % 1);
       ctx.fillStyle = 'rgba(255,255,255,' + (1 - t) * 0.9 + ')';
@@ -344,7 +379,9 @@
     ctx.strokeStyle = col[1]; ctx.lineWidth = S * 0.11; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(x, y - S * 0.02); ctx.lineTo(x, y - S * 0.46); ctx.stroke();
     const cy = y - S * 0.62, spin = G.hv[hi].a * Math.PI / 180;
-    const idle = !G.moves && !G.tween ? 0.5 + 0.5 * Math.sin(time * 3.2) : 0;
+    const hinted = G.hint && G.hint.hi === hi && (G.hint.type === 'crank' || G.hint.type === 'stand');
+    const tutorial = G.i < 2 && !G.moves && !G.tween;
+    const idle = hinted || tutorial ? 0.5 + 0.5 * Math.sin(time * 3.2) : 0;
     if (idle) {
       ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + 0.4 * idle) + ')'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, cy, S * (0.34 + 0.1 * idle), 0, TAU); ctx.stroke();
@@ -398,7 +435,7 @@
   function render(time) {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     drawBackground(time);
-    ctx.globalAlpha = G.intro;
+    cam.bob = Math.sin(time * 0.9) * 2.5;
     const lv = G.lv;
     const tfs = lv.pieces.map(p => tfOf(p, G.vis[p.id]));
     G.hit = []; G.handleHit = [];
@@ -433,8 +470,28 @@
     const hop = G.won ? Math.abs(Math.sin(G.winT * 6)) * 0.35 * cam.s * Math.max(0, 1 - G.winT / 1.3) : 0;
     items.push({ key: pkey, draw: () => drawPlayer(px, py, time, walking, hop) });
 
+    if (G.hint && G.hint.type === 'stand') {
+      const a = anchorOf(G.hint.idx, tfs), pulse = 0.5 + 0.5 * Math.sin(time * 4);
+      items.push({ key: a.key + 0.06, draw: () => {
+        ctx.strokeStyle = 'rgba(255,214,120,' + (0.6 + 0.4 * pulse) + ')'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(a.s[0], a.s[1], cam.s * (0.4 + 0.1 * pulse), cam.s * (0.21 + 0.05 * pulse), 0, 0, TAU); ctx.stroke();
+      } });
+    }
+
     items.sort((a, b) => a.key - b.key);
-    items.forEach(it => it.draw());
+    // blocks rise into place, back to front
+    const k0 = items[0].key, kr = Math.max(1, items[items.length - 1].key - k0);
+    items.forEach(it => {
+      const e = ease(Math.max(0, Math.min(1, G.intro * 1.5 - ((it.key - k0) / kr) * 0.5)));
+      if (e < 1) { ctx.save(); ctx.globalAlpha = e; ctx.translate(0, (1 - e) * cam.s * 2.2); it.draw(); ctx.restore(); }
+      else it.draw();
+    });
+
+    G.puffs.forEach(p => {
+      const t = p.age / p.life;
+      ctx.fillStyle = 'rgba(255,255,255,' + (1 - t) * 0.5 + ')';
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, cam.s * (0.1 + t * 0.22), cam.s * (0.05 + t * 0.11), 0, 0, TAU); ctx.fill();
+    });
 
     if (G.tap) {
       const t = G.tap.t / 0.7;
@@ -445,7 +502,6 @@
       ctx.fillStyle = 'hsla(' + p.hue + ',100%,78%,' + Math.max(0, 1 - p.age / p.life) + ')';
       ctx.beginPath(); ctx.arc(p.x, p.y, 2.4, 0, TAU); ctx.fill();
     });
-    ctx.globalAlpha = 1;
   }
 
   // ---------- input ----------
@@ -459,22 +515,49 @@
   }
 
   function onTap(x, y) {
-    if (!G || !G.active || G.won || G.tween || G.walk) return;
-    for (const h of G.handleHit) {
-      if (Math.hypot(x - h.x, y - h.y) <= h.r) { activate(h.hi); return; }
+    if (!G || !G.active || G.won || G.tween || G.intro < 1) return;
+    const walking = !!G.walk;
+    if (!walking) {
+      for (const h of G.handleHit) {
+        if (Math.hypot(x - h.x, y - h.y) <= h.r) { activate(h.hi); return; }
+      }
     }
     let target = -1;
     for (let i = G.hit.length - 1; i >= 0; i--) {
       if (pointIn(G.hit[i].pts, x, y)) { target = G.hit[i].walk ? G.hit[i].idx : -1; break; }
     }
-    if (target < 0 || target === G.player) return;
-    const path = L.findPath(G.adj, G.player, target);
-    const tfs = G.lv.pieces.map(p => tfOf(p, G.vis[p.id]));
-    const a = anchorOf(target, tfs);
-    if (!path) { G.shake = 0.3; sfx.nope(); G.tap = { x: a.s[0], y: a.s[1], t: 0 }; return; }
-    sfx.tap();
+    const origin = walking ? G.walk.path[G.walk.i + 1] : G.player;
+    if (target < 0 || target === origin) return;
+    const path = L.findPath(G.adj, origin, target);
+    const a = anchorOf(target, G.lv.pieces.map(p => tfOf(p, G.vis[p.id])));
     G.tap = { x: a.s[0], y: a.s[1], t: 0 };
-    startWalk(path);
+    if (!path) { G.shake = 0.3; sfx.nope(); return; }
+    sfx.tap();
+    G.hint = null;
+    if (walking) { G.walk.path = [G.walk.path[G.walk.i]].concat(path); G.walk.i = 0; }
+    else startWalk(path);
+  }
+
+  function doHint() {
+    if (!G || !G.active || G.won || G.tween || G.walk) return;
+    const text = $('hint');
+    text.classList.remove('dim');
+    clearTimeout(fadeHint.t);
+    const sol = L.solve(G.lv, G.st, G.player);
+    if (!sol) { G.hint = null; text.textContent = 'This corner is stuck. Try restarting the level.'; return; }
+    if (sol.taps === 0) {
+      G.hint = { type: 'goal' }; text.textContent = 'The way is open. Walk to the glow.';
+    } else {
+      const s = sol.seq[0];
+      if (s.at !== G.player && L.findPath(G.adj, G.player, s.at)) {
+        G.hint = { type: 'stand', idx: s.at, hi: s.hi }; text.textContent = 'Stand on the marked tile, then use the pulsing crank.';
+      } else {
+        G.hint = { type: 'crank', hi: s.hi }; text.textContent = 'Try the pulsing crank.';
+      }
+    }
+    G.hintT = 7;
+    fadeHint.t = setTimeout(() => text.classList.add('dim'), 7000);
+    sfx.tap();
   }
 
   canvas.addEventListener('pointerdown', e => {
@@ -492,10 +575,12 @@
       const b = document.createElement('button');
       b.textContent = i + 1;
       b.disabled = i >= prog.unlocked;
+      if (prog.best[i] && prog.best[i] <= lv.par) b.classList.add('star');
       b.setAttribute('aria-label', 'Level ' + (i + 1) + ': ' + lv.name);
       b.addEventListener('click', () => play(i));
       box.appendChild(b);
     });
+    $('bPlay').textContent = prog.unlocked > 1 ? 'Continue' : 'Play';
   }
 
   function play(i) {
@@ -513,11 +598,13 @@
     $('winText').textContent = last
       ? 'You reached the top of the Echo Spire. Thank you for wandering.'
       : 'Solved in ' + G.moves + (G.moves === 1 ? ' turn.' : ' turns.');
+    $('winStar').textContent = G.moves <= G.par ? '\u2605 Perfect: the fewest turns possible' : 'Fewest possible: ' + G.par;
     $('bNext').textContent = last ? 'Back to menu' : 'Next level';
     show('win', true);
   }
 
   $('bPlay').addEventListener('click', () => play(Math.min(prog.unlocked, LEVELS.length) - 1));
+  $('bHint').addEventListener('click', doHint);
   $('bRestart').addEventListener('click', () => { if (G && G.active) play(G.i); });
   $('bMenu').addEventListener('click', () => { if (G) G.active = false; buildLevelGrid(); show('menu', true); });
   $('bAgain').addEventListener('click', () => play(G.i));
@@ -527,6 +614,13 @@
   });
   function syncSound() { $('bSound').style.opacity = prog.muted ? 0.45 : 1; }
   $('bSound').addEventListener('click', () => { prog.muted = !prog.muted; saveProg(); syncSound(); audio(); });
+
+  window.addEventListener('keydown', e => {
+    if (e.key === 'r' || e.key === 'R') { if (G && G.active) play(G.i); }
+    else if (e.key === 'h' || e.key === 'H') doHint();
+    else if (e.key === 'm' || e.key === 'M') $('bSound').click();
+    else if (e.key === 'Escape') $('bMenu').click();
+  });
 
   // ---------- main loop ----------
   let last = 0;
@@ -538,6 +632,7 @@
     render(ts / 1000);
   }
 
+  LEVELS.forEach(lv => { const r = L.solve(lv, L.initialState(lv), lv.start); lv.par = r ? r.taps : 0; });
   resize();
   syncSound();
   buildLevelGrid();
@@ -545,5 +640,5 @@
   requestAnimationFrame(frame);
 
   // test hook for the screenshot/solver harness
-  window.__echo = { play, get G() { return G; }, activate, onTap, LEVELS, L };
+  window.__echo = { play, get G() { return G; }, activate, onTap, doHint, LEVELS, L };
 })();

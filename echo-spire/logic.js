@@ -153,5 +153,56 @@
     return next;
   }
 
-  return { DIRS, mod, rotPoint, prepare, initialState, rotK, cells, buildGraph, findPath, tap };
+  const stateKey = st => st.map(p => p.r + '.' + p.s).join('|');
+
+  // Shortest list of crank taps that gets the player to the goal. Walking is free, so only taps cost.
+  // Returns { taps, seq: [{ hi, at }] } where `at` is the tile the player must stand on when tapping
+  // (that matters when a piece carries the player), or null if unsolvable.
+  function solve(level, state, startIdx, maxTaps) {
+    maxTaps = maxTaps || 12;
+    const nk = (st, idx) => stateKey(st) + '#' + idx;
+    const parent = new Map([[nk(state, startIdx), null]]);
+    const graphs = new Map();
+    let layer = [{ st: state, idx: startIdx }];
+    for (let taps = 0; layer.length && taps <= maxTaps; taps++) {
+      const reach = [];
+      let found = null;
+      for (const nd of layer) {
+        const sk = stateKey(nd.st);
+        let adj = graphs.get(sk);
+        if (!adj) { adj = buildGraph(level, cells(level, nd.st)); graphs.set(sk, adj); }
+        const seen = new Set([nd.idx]);
+        const stack = [nd.idx];
+        while (stack.length) {
+          const c = stack.pop();
+          reach.push({ st: nd.st, idx: c });
+          const k = nk(nd.st, c);
+          if (!parent.has(k)) parent.set(k, { from: nk(nd.st, nd.idx), act: null, at: null });
+          if (c === level.goal && !found) found = k;
+          for (const n of adj[c]) if (!seen.has(n)) { seen.add(n); stack.push(n); }
+        }
+      }
+      if (found) {
+        const seq = [];
+        for (let k = found, p = parent.get(k); p; k = p.from, p = parent.get(k)) {
+          if (p.act !== null) seq.unshift({ hi: p.act, at: p.at });
+        }
+        return { taps, seq };
+      }
+      const next = [];
+      for (const nd of reach) {
+        for (let hi = 0; hi < level.handles.length; hi++) {
+          const st2 = tap(level, nd.st, hi);
+          const k2 = nk(st2, nd.idx);
+          if (parent.has(k2)) continue;
+          parent.set(k2, { from: nk(nd.st, nd.idx), act: hi, at: nd.idx });
+          next.push({ st: st2, idx: nd.idx });
+        }
+      }
+      layer = next;
+    }
+    return null;
+  }
+
+  return { DIRS, mod, rotPoint, prepare, initialState, rotK, cells, buildGraph, findPath, tap, stateKey, solve };
 });

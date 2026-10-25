@@ -41,6 +41,9 @@
   .cta.ghost { background: rgba(255,255,255,.25); color: #fff; box-shadow: none; margin-top: 12px; font-size: 15px; padding: 9px 22px; }
   #levels { display: grid; grid-template-columns: repeat(6, 44px); gap: 8px; margin-top: 22px; }
   #levels button { height: 44px; border-radius: 12px; border: 0; background: rgba(255,255,255,.85); color: var(--ink); font: inherit; font-weight: 700; font-size: 16px; cursor: pointer; }
+  #winStar { color: #ffe08a; font-weight: 700; margin: -8px 0 22px; text-shadow: 0 2px 12px rgba(43,33,80,.6); }
+  #levels button.star { box-shadow: inset 0 -4px 0 var(--gold); }
+  .btn { font-weight: 700; }
   #levels button:disabled { background: rgba(255,255,255,.22); color: rgba(255,255,255,.7); cursor: default; }
   @media (max-width: 380px) { #levels { grid-template-columns: repeat(3, 44px); } }
 </style>
@@ -52,6 +55,7 @@
   <div class="bar">
     <div id="title"><small id="lvnum"></small><b id="lvname"></b></div>
     <div class="btns">
+      <button class="btn" id="bHint" title="Hint (H)" aria-label="Hint">?</button>
       <button class="btn" id="bRestart" title="Restart level" aria-label="Restart level">&#8635;</button>
       <button class="btn" id="bSound" title="Sound" aria-label="Toggle sound">&#9835;</button>
       <button class="btn" id="bMenu" title="Menu" aria-label="Menu">&#9776;</button>
@@ -70,6 +74,7 @@
 <div class="overlay" id="win">
   <h2 id="winTitle">Door opened</h2>
   <p id="winText"></p>
+  <div id="winStar"></div>
   <button class="cta" id="bNext">Next</button>
   <button class="cta ghost" id="bAgain">Replay</button>
 </div>
