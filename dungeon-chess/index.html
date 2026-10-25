@@ -90,13 +90,44 @@ p{margin:0;max-width:340px;line-height:1.45;color:#d6cfe8;font-size:16px}
 #mute{position:fixed;bottom:8px;right:8px;width:38px;height:38px;border-radius:6px;border:1px solid var(--line);background:#1f1b2ecc;color:var(--text);padding:0;display:flex;align-items:center;justify-content:center;z-index:5}
 #mute .ic{width:20px;height:20px}
 #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;background:#07060b;z-index:20}
-@media (max-height:700px){.ov{gap:8px;padding:10px}h1{font-size:34px;letter-spacing:4px}.card{padding:8px 12px}.card .gl{width:34px;height:34px}.card b{font-size:15px}.card span{font-size:13px}.cards{gap:7px}}
+/* main menu */
+#menu{background:linear-gradient(rgba(10,8,16,.55),rgba(10,8,16,.86));gap:0;justify-content:center}
+#menu .logo{display:flex;flex-direction:column;align-items:center;gap:0;margin-bottom:22px}
+.eyebrow{font:italic 400 14px Georgia,"Times New Roman",serif;letter-spacing:3px;color:#b9b0cf;text-transform:lowercase;margin-bottom:2px}
+#menu h1{font-size:50px;letter-spacing:8px;line-height:1;text-shadow:0 2px 0 #000c;padding-left:8px}
+.best{margin-top:10px;font:600 12px "Segoe UI",Roboto,Arial,sans-serif;letter-spacing:2.5px;text-transform:uppercase;color:var(--mute);display:flex;align-items:center;gap:10px;min-height:16px}
+.best:not(:empty)::before,.best:not(:empty)::after{content:"";width:26px;height:1px;background:#d8a54888}
+.gear{position:absolute;top:10px;left:10px;width:38px;height:38px;padding:0;border:1px solid var(--line);border-radius:3px;background:#1f1b2ecc;color:var(--mute);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2}
+.gear svg{width:21px;height:21px}.gear:hover{color:var(--gold2)}
+.rank{display:flex;border:1px solid #d8a54866;padding:3px;gap:0;background:#0b0912aa}
+.pc{width:76px;height:76px;display:flex;align-items:center;justify-content:center;border:0;padding:0;cursor:pointer;color:#8f87a6;position:relative;font-family:inherit;transition:color .15s}
+.pc:nth-child(odd){background:#2a2438}.pc:nth-child(even){background:#1a1626}
+.pc svg{width:46px;height:46px;display:block;transition:transform .15s}
+.pc:hover{color:#cfc6e6}
+.pc.on{color:var(--gold2)}
+.pc.on svg{transform:translateY(-2px)}
+.pc.on::after{content:"";position:absolute;inset:3px;border:1px solid var(--gold)}
+.pdesc{margin:14px 0 22px;min-height:42px;font-size:14.5px;line-height:1.4;color:#d6cfe8;max-width:300px}
+.pdesc b{display:block;font:700 18px Georgia,"Times New Roman",serif;letter-spacing:3px;text-transform:uppercase;color:var(--gold2);margin-bottom:2px}
+.play{width:min(300px,80vw);border:0;background:var(--gold);color:#1a1204;font:700 19px Georgia,"Times New Roman",serif;letter-spacing:9px;text-transform:uppercase;padding:15px 0 15px 9px;cursor:pointer;outline:1px solid var(--gold);outline-offset:4px;transition:background .15s,outline-offset .15s}
+.play:hover{background:var(--gold2);outline-offset:6px}.play:active{transform:translateY(1px)}
+#boonBtn{margin-top:16px}
+.mut{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:18px}
+.link{background:none;border:0;padding:4px 2px;color:var(--mute);font:600 12px "Segoe UI",Roboto,Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border-bottom:1px dotted #8d84a8}
+.link:hover{color:var(--gold2)}
+.mut .chips,.mut .hint{display:none}.mut.open .chips{display:flex}.mut.open .hint{display:block;max-width:300px;font-size:13px}
+.dock{display:flex;margin-top:22px;border-top:1px solid var(--line);padding-top:12px}
+.dock button{background:none;border:0;color:var(--mute);font:600 12px "Segoe UI",Roboto,Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;padding:6px 10px;cursor:pointer;position:relative}
+.dock button+button::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:1px;background:var(--line)}
+.dock button:hover{color:var(--gold2)}
+#menu .hint{margin-top:14px;font-size:12.5px;color:#9d95b3;max-width:300px}
+@media (max-height:700px){#menu h1{font-size:40px}#menu .logo{margin-bottom:14px}.pc{width:64px;height:64px}.pc svg{width:38px;height:38px}.pdesc{margin:10px 0 14px}.dock{margin-top:14px}#menu .hint{margin-top:8px}.ov{gap:8px;padding:10px}h1{font-size:34px;letter-spacing:4px}.card{padding:8px 12px}.card .gl{width:34px;height:34px}.card b{font-size:15px}.card span{font-size:13px}.cards{gap:7px}}
 @media (max-height:520px) and (orientation:landscape){
 .ov{gap:6px;padding:6px;overflow-y:auto}
 h1{font-size:26px;letter-spacing:4px}
-.grid{grid-template-columns:repeat(4,1fr);width:min(640px,94vw);gap:8px}
-#starts .card{flex-direction:column;text-align:center;gap:2px;padding:6px 8px}
-#starts .card .gl{width:30px;height:30px}#starts .card b{font-size:14px}#starts .card span{font-size:12px}
+#menu .eyebrow,#menu .hint,.best{display:none}#menu h1{font-size:30px;letter-spacing:6px}#menu .logo{margin-bottom:8px}
+.pc{width:52px;height:52px}.pc svg{width:30px;height:30px}.pdesc{margin:6px 0 8px;min-height:0}.pdesc b{font-size:15px}.pdesc span{display:none}
+.play{padding:10px 0 10px 9px;font-size:16px}.dock{margin-top:8px;padding-top:6px}.mut{margin-top:8px}
 .hint{font-size:12px}.chip{padding:3px 10px}
 .big.sm{padding:6px 12px;font-size:13px}
 }
@@ -109,13 +140,14 @@ h1{font-size:26px;letter-spacing:4px}
 <div id="err"><p>This game needs WebGL, which your browser could not start.</p></div>
 
 <div id="menu" class="ov show">
-  <div class="logo"><h1>IN PIECES</h1></div>
-  <div class="chip gold" id="best"></div>
-  <div class="grid" id="starts"></div>
-  <div class="chips" id="mods"></div>
-  <div class="hint" id="modInfo"></div>
+  <button class="gear" id="bSet" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8"/></svg></button>
+  <div class="logo"><div class="eyebrow">a chess dungeon</div><h1>IN PIECES</h1><div class="best" id="best"></div></div>
+  <div class="rank" id="starts"></div>
+  <div class="pdesc" id="pdesc"></div>
+  <button class="play" id="playBtn">Play</button>
   <button class="chip btn gold" id="boonBtn" style="display:none"></button>
-  <div class="row"><button class="big sm" id="bSkins">Skins</button><button class="big sm" id="bCol">Collection</button><button class="big sm" id="bLeg">Legacy</button><button class="big sm" id="bSet">Settings</button><button class="big sm" id="bLb">Leaderboard</button></div>
+  <div class="mut"><button class="link" id="mutBtn"></button><div class="chips" id="mods"></div><div class="hint" id="modInfo"></div></div>
+  <nav class="dock"><button id="bSkins">Skins</button><button id="bCol">Collection</button><button id="bLeg">Legacy</button><button id="bLb">Ranks</button></nav>
   <div class="hint" id="menuHint">Tap to move · red rings attack · dodge red tiles</div>
 </div>
 
@@ -1278,6 +1310,8 @@ const MODS=[
   {id:'swarm',n:'Swarm',d:'Many more enemies and 25% more XP',m:1.25},
   {id:'glass',n:'Glass cannon',d:'Half the health, +2 damage, fewer hearts',m:1.4},
   {id:'blitz',n:'Blitz',d:'Enemies and you move faster',m:1.3},
+  {id:'champs',n:'Champions',d:'Many more enemies carry affixes from floor 1',m:1.35},
+  {id:'famine',n:'Famine',d:'Enemies never drop hearts, but you start with +2 max health',m:1.3},
 ];
 let modsOn=parseJ('inpieces_mods',{});
 const finalScore=()=>Math.round(G.score*(G.mult||1));
@@ -1298,6 +1332,7 @@ function newRun(startT){
   G.mods=Object.assign({},modsOn);G.mult=MODS.reduce((m,x)=>m*(G.mods[x.id]?x.m:1),1);
   if(G.mods.glass){P.maxHp=Math.max(3,Math.ceil(P.maxHp/2));P.hp=P.maxHp;P.dmgB+=2;}
   if(G.mods.blitz)P.cdMult*=0.8;
+  if(G.mods.famine){P.maxHp+=2;P.hp=P.maxHp;}
   pickQ=[];queued=null;texts.length=0;
   for(let i=0;i<((meta.legacy||{}).start|0);i++)pickQ.push({type:'level'});
   genFloor();loadRoom();
@@ -1459,7 +1494,7 @@ function makeEnemy(t,x,y,forceAff,noAff){
   const fl=G.floor-1,d=ENEMY[t],sc=1+0.22*fl+0.04*fl*fl;
   let hp=Math.ceil(d.hp*sc),aff=forceAff||null;
   if(!aff&&t!=='K'&&!noAff){
-    const chance=Math.min(0.66,0.115*(G.floor-1))+(room&&room.elite?0.4:0);
+    const chance=Math.min(0.66,0.115*(G.floor-1))+(room&&room.elite?0.4:0)+(G.mods&&G.mods.champs?0.3:0);
     if(Math.random()<chance){const al=['armored','swift','explosive'];if(G.floor>=2&&!noAff)al.push('splitting');if(G.floor>=3)al.push('ghostly');if(G.floor>=4){al.push('vampiric');al.push('frenzied');}if(G.floor>=5)al.push('blinker');aff=pick(al);}
   }
   const dm=Math.floor((G.floor-1)/2)+(G.curseUntil>=G.floor?1:0);
@@ -1942,7 +1977,7 @@ function hitEnemy(e,d){
   if(e.boss||e.aff||e.t==='Q'||e.t==='R')slowT=Math.max(slowT,e.boss?0.8:0.25);
   const xp=ENEMY[e.t].xp+Math.floor(G.floor/3);
   addXp(xp);floatText(e.x,e.y,'+'+xp+' xp','#8fe0b8');
-  if(Math.random()<(0.06+P.luck*0.05)*(G.mods&&G.mods.glass?0.5:1)&&!items.some(it=>it.x===e.x&&it.y===e.y)&&!(e.x===3&&e.y===0))items.push({x:e.x,y:e.y,t:'heart'});
+  if(Math.random()<(0.06+P.luck*0.05)*(G.mods&&G.mods.glass?0.5:1)*(G.mods&&G.mods.famine?0:1)&&!items.some(it=>it.x===e.x&&it.y===e.y)&&!(e.x===3&&e.y===0))items.push({x:e.x,y:e.y,t:'heart'});
   if(P.tithe&&++P.capCount>=Math.max(2,5-P.tithe)){P.capCount=0;healPlayer(1);}
   if(P.vamp&&(G.kills%2===0))healPlayer(P.vamp);
   if(e.boss){
@@ -2879,6 +2914,7 @@ hud.addEventListener('pointerdown',e=>{
 addEventListener('keydown',e=>{
   if(e.repeat&&(e.key==='Escape'||e.key.toLowerCase()==='p'))return;
   const k=e.key.toLowerCase();
+  if(state==='menu'&&document.querySelectorAll('.ov.show').length===1){const o=['P','N','B','R'],i=o.indexOf(pickT);if(k==='enter'||k===' '){e.preventDefault();startRun(pickT);return;}if(k==='arrowright'||k==='d'){pickT=o[(i+1)%4];SET.piece=pickT;saveSet();renderPick();return;}if(k==='arrowleft'||k==='a'){pickT=o[(i+3)%4];SET.piece=pickT;saveSet();renderPick();return;}}
   if(state!=='play'){if(k==='escape')document.querySelectorAll('.ov.show .close,.ov.show .x').forEach(b=>b.click());return;}
   if(k==='escape'||k==='p'){if(userPaused)closePause();else openPause();return;}
   if(userPaused||paused)return;
@@ -2896,19 +2932,26 @@ addEventListener('keydown',e=>{
   }
   if(best)onTap(best.x,best.y);
 });
-const TAGS={P:'Grows fast',N:'Leaps in an L',B:'Slides diagonally',R:'Straight lines'};
+const TAGS={P:['Steps forward, strikes diagonally','Levels up fastest of the four. The patient one.'],N:['Leaps in an L','Jumps over anything, hits where it lands.'],B:['Slides diagonally','Long reach, but it never leaves its colour.'],R:['Slides in straight lines','Heavy hitter that owns the rows and files.']};
+let pickT=PIECES[SET.piece]?SET.piece:'P';
+function renderPick(){
+  $('starts').querySelectorAll('.pc').forEach(b=>b.classList.toggle('on',b.dataset.t===pickT));
+  $('pdesc').innerHTML=`<b>${PIECES[pickT].name}</b>${TAGS[pickT][0]}. <span>${TAGS[pickT][1]}</span>`;
+}
 for(const t of['P','N','B','R']){
-  const b=document.createElement('button');b.className='tile'+(t==='P'?' rec':'');
-  b.innerHTML=`<div class="g">${gl(t)}</div><b>${PIECES[t].name}</b><span>${TAGS[t]}</span>`;
-  b.onclick=()=>startRun(t);
+  const b=document.createElement('button');b.className='pc';b.dataset.t=t;b.setAttribute('aria-label',PIECES[t].name);
+  b.innerHTML=gl(t);
+  b.onclick=()=>{pickT=t;SET.piece=t;saveSet();sfx('select',0.5);renderPick();};
   $('starts').appendChild(b);
 }
+renderPick();
+$('playBtn').onclick=()=>startRun(pickT);
 function resetPlayerVis(){if(P&&P.vis){scene.remove(P.vis);disposeGroup(P.vis);P.vis=null;}}
 function startRun(t){
   resetPlayerVis();newRun(t);state='play';startMusic();AD.startRun();PG.preload();PG.ev('run_started',{piece:t,mods:Object.keys(modsOn).filter(k=>modsOn[k]).join(',')||'none'});if(boonReady){boonReady=false;pickQ.push({type:'relic'});refreshBoon();}setTimeout(()=>tip('move','Tap a glowing dot to move. Tap a red ring to attack.'),700);
   $('menu').classList.remove('show');$('dead').classList.remove('show');$('pick').classList.remove('show');
 }
-const bestText=()=>best?`Best: Floor ${Math.floor(best/5)+1}-${(best%5)+1}`:'';
+const bestText=()=>best?`Deepest ${Math.floor(best/5)+1}-${(best%5)+1}`:'';
 try{if(matchMedia('(pointer:fine)').matches)document.getElementById('menuHint').textContent='Arrow keys or WASD to move · 1 and 2 abilities · Esc pauses';}catch(e){}
 function showMenu(){
   try{refreshBoon();}catch(e){}
@@ -2974,7 +3017,9 @@ function renderMods(){
     if(modsOn[m.id]){mult*=m.m;on.push(m);}
   }
   $('modInfo').textContent=on.length?on.map(m=>m.d).join('. ')+'. Score x'+mult.toFixed(2):'Optional mutators raise your score multiplier';
+  $('mutBtn').textContent=on.length?`Mutators · ${on.length} on · x${mult.toFixed(2)}`:'Mutators · off';
 }
+$('mutBtn').onclick=()=>{$('mutBtn').parentNode.classList.toggle('open');sfx('select',0.4);};
 renderMods();
 function renderCollection(){
   syncFound();
@@ -3010,7 +3055,7 @@ function renderLegacy(){
     box.appendChild(b);
   }
 }
-const refreshLegBtn=()=>{$('bLeg').textContent='Legacy'+(meta.shards?' ('+meta.shards+')':'');};
+const refreshLegBtn=()=>{$('bLeg').textContent='Legacy'+(meta.shards?' · '+meta.shards:'');};
 refreshLegBtn();
 $('bLeg').onclick=()=>{renderLegacy();$('leg').classList.add('show');};
 $('legBack').onclick=()=>{$('leg').classList.remove('show');refreshLegBtn();};
@@ -3065,6 +3110,7 @@ function hydrate(){ // re-read saved data once Bridge Storage has answered
   best=Math.max(best,+Store.get('chesscrawl_best')||0);
   modsOn=parseJ('inpieces_mods',modsOn);
   topList=parseJ('inpieces_top',topList);
+  try{if(PIECES[SET.piece]){pickT=SET.piece;renderPick();}}catch(e){}
   try{if(state==='menu')showMenu();}catch(e){}
 }
 const PG={
