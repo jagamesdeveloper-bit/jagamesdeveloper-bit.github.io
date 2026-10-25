@@ -141,14 +141,13 @@ h1{font-size:26px;letter-spacing:4px}
 
 <div id="menu" class="ov show">
   <button class="gear" id="bSet" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8"/></svg></button>
-  <div class="logo"><div class="eyebrow">a chess dungeon</div><h1>IN PIECES</h1><div class="best" id="best"></div></div>
+  <div class="logo"><h1>IN PIECES</h1><div class="best" id="best"></div></div>
   <div class="rank" id="starts"></div>
   <div class="pdesc" id="pdesc"></div>
   <button class="play" id="playBtn">Play</button>
   <button class="chip btn gold" id="boonBtn" style="display:none"></button>
   <div class="mut"><button class="link" id="mutBtn"></button><div class="chips" id="mods"></div><div class="hint" id="modInfo"></div></div>
   <nav class="dock"><button id="bSkins">Skins</button><button id="bCol">Collection</button><button id="bLeg">Legacy</button><button id="bLb">Ranks</button></nav>
-  <div class="hint" id="menuHint">Tap to move · red rings attack · dodge red tiles</div>
 </div>
 
 <div id="pick" class="ov">
@@ -2952,7 +2951,6 @@ function startRun(t){
   $('menu').classList.remove('show');$('dead').classList.remove('show');$('pick').classList.remove('show');
 }
 const bestText=()=>best?`Deepest ${Math.floor(best/5)+1}-${(best%5)+1}`:'';
-try{if(matchMedia('(pointer:fine)').matches)document.getElementById('menuHint').textContent='Arrow keys or WASD to move · 1 and 2 abilities · Esc pauses';}catch(e){}
 function showMenu(){
   try{refreshBoon();}catch(e){}
   if(typeof refreshLegBtn==='function')refreshLegBtn();
