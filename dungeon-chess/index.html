@@ -1474,7 +1474,7 @@ function loadRoom(){
   else if(kind==='merchant'){items.push({x:3,y:4,t:'merchant'});room.cleared=true;items.push({x:3,y:0,t:'stairs'});}
   else if(kind==='boss'){
     const bi=bossIndex(),bd=BOSSES[bi],b=makeEnemy(bd.t,3,2);
-    b.role=null;b.bk=bi;b.boss=true;b.spawn=1.8;b.hp=b.maxhp=Math.ceil((bd.hp+bd.perFloor*G.floor)*(1+0.02*G.floor)*0.8);b.dmg=2+Math.floor(G.floor/4);
+    b.role=null;b.bk=bi;b.boss=true;b.spawn=1.8;b.hp=b.maxhp=Math.ceil((bd.hp+bd.perFloor*G.floor)*(1+0.02*G.floor)*1.15);b.dmg=2+Math.floor(G.floor/4);
     b.baseCd=bd.cd;b.tA=3;b.tB=7;b.tC=11;b.casting=null;b.phase2=false;b.altC=false;
     if(tiles[b.y][b.x].k!==0)relocate(b);
     enemies.push(b);room.boss=b;room.waves=[['P','P']];
@@ -1972,6 +1972,7 @@ function castActive(i){
 /* ---------- enemies ---------- */
 function hitEnemy(e,d){
   if(e.dead)return false;
+  if(e.barrier&&e.boss&&d<99&&e.gateAdds&&e.gateAdds.some(a=>!a.dead)){e.flash=0.1;floatText(e.x,e.y,'KILL ITS GUARDS','#8fe0ff');sfx('block',0.6,0.8);return false;}
   if(e.barrier&&d<99){e.barrier=false;e.barrierBy=null;e.flash=0.15;floatText(e.x,e.y,'BLOCKED','#8fe0ff');sfx('block',0.8);burst(e.x,e.y,10,[120,220,255],110,0.4,2.6);return false;}
   if(P.hunter&&(e.boss||e.aff)&&d<99)d+=P.hunter;
   if(e.aff==='ghostly'&&!e.phased&&!e.boss&&d<99){e.phased=true;e.flash=0.2;floatText(e.x,e.y,'PHASE','#e8f4ff');burst(e.x,e.y,10,[220,240,255],110,0.5,2.6);sfx('glass',0.7,1.4);return false;}
@@ -2159,7 +2160,19 @@ function fixOverlaps(){ // safety net: if two pieces ever end up on one tile, mo
   }
 }
 function startCast(e,dur){e.casting={t:dur,max:dur};}
+function bossGate(e,msg){ // a shield that eats the next hit, plus reinforcements: finish the adds, then break the shield
+  e.barrier=true;e.barrierBy=null;G.banner=msg;G.bannerT=1.8;shake=10;sfx('glass',1,0.6);
+  burst(e.x,e.y,20,[120,220,255],160,0.7,3.4);spawnWave(e.x-3,e.y-4,0x80e0ff,4,0.7);
+  const n0=enemies.length;spawnWaveList(['P','N']);e.gateAdds=enemies.slice(n0);
+}
 function bossAI(e,dt){
+  e.age=(e.age||0)+dt;
+  const pct=e.hp/e.maxhp;
+  if(!e.gate1&&pct<=0.75){e.gate1=true;bossGate(e,'THE GUARDIAN SHIELDS ITSELF');}
+  if(!e.gate2&&pct<=0.4){e.gate2=true;bossGate(e,'IT SHIELDS ITSELF AGAIN');}
+  if(!e.phase3&&pct<=0.25){e.phase3=true;e.dmg++;G.banner='FINAL STAND';G.bannerT=2.2;shake=16;slowT=0.4;flashW=0.2;sfx('bell',1,0.45);burst(e.x,e.y,34,[255,70,70],220,1,4.4);spawnWave(e.x-3,e.y-4,0xff3030,6,0.9);}
+  if(!e.rage&&e.age>70){e.rage=true;e.dmg++;G.banner='IT LOSES PATIENCE';G.bannerT=2;shake=12;sfx('bell',1,0.5);}
+  if((e.phase3||e.rage)&&state==='play'&&!e.spawn){e.bombT=(e.bombT==null?3:e.bombT)-dt;if(e.bombT<=0){e.bombT=e.rage&&e.phase3?5.5:8;bombard();}}
   if(!e.phase2&&e.hp<=e.maxhp*0.5){
     e.phase2=true;G.banner='PHASE II';G.bannerT=2;shake=14;slowT=0.4;flashW=0.15;
     spawnWave(e.x-3,e.y-4,0xff5030,5,0.8);burst(e.x,e.y,30,[255,120,60],200,0.9,4);sfx('bell',1,0.5);
@@ -2176,7 +2189,7 @@ function bossAI(e,dt){
     }
     return true;
   }
-  const f=e.phase2?0.7:1,bk=e.bk;
+  const f=(e.phase3?0.6:e.phase2?0.75:1)*(e.rage?0.85:1),bk=e.bk;
   e.tA-=dt;e.tB-=dt;e.tC-=dt;
   if(bk===0){
     if(e.tA<=0){e.tA=8*f;addZone(areaTiles(e.x,e.y,e.phase2?2:1),1.0,e.dmg+1,e,0xffb030);startCast(e,1.0);sfx('cast',0.9,0.8);}
