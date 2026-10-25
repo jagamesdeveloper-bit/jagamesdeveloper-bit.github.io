@@ -1,0 +1,10 @@
+{
+    "advertisement": {
+        "minimumDelayBetweenInterstitial": 60,
+        "interstitial": {
+            "placements": [
+                { "id": "run_finished" }
+            ]
+        }
+    }
+}
