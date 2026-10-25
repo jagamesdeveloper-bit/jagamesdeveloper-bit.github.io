@@ -121,7 +121,7 @@
     try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs'], [String(P.best), String(P.runs)]).catch(() => {}); } catch (e) {}
   }
   function platMsg(m, data) { try { if (hasBridge()) window.bridge.platform.sendMessage(m, data); } catch (e) {} }
-  const GAME_VERSION = '1.2.0';
+  const GAME_VERSION = '1.3.0';
   const Tele = {
     send(name, data) { try { if (hasBridge() && window.bridge.analytics) window.bridge.analytics.send(name, data); } catch (e) {} },
     frames: [], windowStart: 0, active: 0, jsErr: 0,
@@ -183,8 +183,9 @@
       t: 0, time: 0, state: 'play', noise: 0, noiseDisp: 0, stage: 0, banked: 0, bankedCount: 0, over: null, overT: 0,
       escapeLeft: ESCAPE_TIME, leaving: false, leaveT: 0, groundT: 0, jumpBuf: 0, landSq: 0, grin: 0, shake: 0, wasGround: false,
       sqS: 0, saS: 0, blink: 3, walk: 0, caughtT: 0, flags: {}, hint: 14, toast: null, stepT: 0, hbT: 0, flash: 0, goalHit: false,
-      lastGreed: '', carriedPeak: 0, giant: null, crushed: false, rumble: 0, punch: 0
+      lastGreed: '', carriedPeak: 0, giant: null, crushed: false, rumble: 0, punch: 0, cracks: [], rings: [], hitstop: 0, slowT: 0, lampDip: 0, bankBump: 0, bankDisp: 0, stepPh: 0
     };
+    Art.cracksList = G.cracks; Art.rumble = 0; Snd.rumble(false);
     buildWorld();
     hands = [mkHand(), mkHand()];
     toast('Steal what you can carry. Don\'t wake the giant.', 5);
@@ -278,7 +279,7 @@
   }
   function wakeGiant() {
     G.state = 'awake'; G.escapeLeft = ESCAPE_TIME; G.shake = 14; G.flash = 1; G.rumble = 1; G.hbT = 0;
-    initGiant();
+    initGiant(); Snd.rumble(true);
     Snd.wake(); G.stepT = 0.2;
     Tele.send('giant_woke', { banked: G.banked, carrying: haulValue(), items_hauled: hauled.length, time_sec: Math.round(G.time) });
     toast('HE\'S UP! Run home. Dodge the feet, and drop loot to run faster!', 6, 'alarm');
@@ -334,7 +335,7 @@
   }
   function finishBank(bk) {
     const it = bk.it; it.state = 'banked';
-    G.banked += it.value; G.bankedCount++;
+    G.banked += it.value; G.bankedCount++; G.bankBump = 1;
     Tele.send('item_banked', { item_id: it.id, value: it.value, banked_total: G.banked });
     Snd.coin(G.bankedCount % 5);
     for (let i = 0; i < 12; i++) parts.push({ x: HOLE.x + 10, y: HOLE.y - 10, vx: rand(20, 160), vy: rand(-220, -40), life: rand(0.5, 1), t: 0, col: i % 2 ? '#ffe27a' : '#fff6c4', size: rand(2, 4.5), g: 500 });
@@ -421,6 +422,7 @@
     return h.kind === 'loot' ? localToWorld(h.it.body, h.con.pointB) : h.anchor;
   }
   function endHand(h, silent, reason) {
+    if (h.con && h.kind) { const gp = handPoint(h); if (gp) h.ghost = { x: gp.x, y: gp.y, t: 0 }; }
     if (h.con) Composite.remove(engine.world, h.con);
     const it = h.it, kind = h.kind, held = h.held;
     h.con = null; h.on = false; h.kind = null; h.it = null; h.anchor = null; h.miss = false;
@@ -527,7 +529,12 @@
     const d = Math.abs(player.position.x - f.x), near = clamp(1 - d / 900, 0, 1);
     Snd.stomp(0.45 + 0.55 * near);
     G.shake = Math.max(G.shake, 8 + 16 * near); G.rumble = 1; G.punch = 1;
-    for (let i = 0; i < 26; i++) parts.push({ x: f.x - 50 + rand(-130, 130), y: GY - rand(0, 12), vx: rand(-260, 260), vy: rand(-130, -20), life: rand(0.8, 1.5), t: 0, col: 'rgba(214,198,176,0.5)', size: rand(8, 18), g: -30 });
+    G.hitstop = Math.max(G.hitstop, 0.03 + 0.07 * near);
+    G.rings.push({ x: f.x - 47, t: 0 });
+    G.cracks.push({ x: f.x - 47, seed: G.cracks.length * 13 + 5 + (G.t * 100 | 0) % 7 }); if (G.cracks.length > 10) G.cracks.shift();
+    G.lampDip = 1; G.flash = Math.max(G.flash, 0.22 * near);
+    for (let i = 0; i < 16; i++) puff(f.x - 47 + rand(-160, 160), GY - 6, rand(16, 32), rand(0.9, 1.7), rand(-130, 130), rand(-95, -20));
+    chips(f.x - 47, GY - 10, 16, 110);
     const top = cam.y - ch / (2 * cam.s), half = cw / (2 * cam.s);
     for (let i = 0; i < 40; i++) parts.push({ x: cam.x + rand(-half, half), y: top + rand(0, 80), vx: rand(-10, 10), vy: rand(20, 90), life: rand(1, 2), t: 0, col: 'rgba(205,192,170,0.55)', size: rand(1.4, 3.4), g: 30 });
     // the whole room jumps
@@ -548,7 +555,9 @@
     for (const h of hands) if (h.on) endHand(h, true, 'tear');
     for (const it of items) if (it.vac && (it.vac.on || it.vac.snd)) stopVac(it);
     Body.setVelocity(player, { x: 0, y: 0 }); Body.setStatic(player, true);
-    Snd.stomp(1); G.shake = 26; G.punch = 1.4; G.flash = 0.8;
+    Snd.stomp(1); G.shake = 26; G.punch = 1.4; G.flash = 0.8; G.slowT = 0.9; G.hitstop = 0.18; G.lampDip = 1;
+    for (let i = 0; i < 18; i++) puff(player.position.x + rand(-90, 90), GY - 8, rand(14, 30), rand(0.9, 1.6), rand(-160, 160), rand(-100, -20));
+    chips(player.position.x, GY - 10, 18, 80); Snd.rumble(false);
     popWord(player.position.x, player.position.y - 50, 'SPLAT!', 1.8, '#ffd1a0');
   }
   function giantHit(g) {
@@ -595,7 +604,9 @@
   function postStep(dt) {
     // landing squash
     const grounded = G.groundT > 0;
-    if (grounded && !G.wasGround && G.lastVy > 3.5) { G.landSq = Math.min(0.35, G.lastVy * 0.04); Snd.land(Math.min(1, G.lastVy / 9)); sparks(player.position.x, player.position.y + PR, 4, '#d9c8ff'); }
+    if (grounded && !G.wasGround && G.lastVy > 3.5) { G.landSq = Math.min(0.35, G.lastVy * 0.04); Snd.land(Math.min(1, G.lastVy / 9)); for (let i = 0; i < 3; i++) puff(player.position.x + rand(-14, 14), player.position.y + PR - 3, rand(6, 10), 0.5, rand(-50, 50), rand(-30, -8)); }
+    const stepPh = Math.floor(G.walk / Math.PI);
+    if (grounded && Math.abs(player.velocity.x) > 1.2 && stepPh !== G.stepPh) { G.stepPh = stepPh; puff(player.position.x - Math.sign(player.velocity.x) * 9, player.position.y + PR - 2, rand(5, 8), 0.45, -player.velocity.x * 6, rand(-26, -8)); }
     G.wasGround = grounded; G.lastVy = player.velocity.y;
     G.landSq *= 0.86;
 
@@ -667,6 +678,7 @@
 
   function endRun(kind) {
     if (G.over) return;
+    Snd.rumble(false);
     G.over = { kind, banked: G.banked, stars: STARS.filter(s => G.banked >= s).length, quip: (kind === 'caught' ? QUIPS_CAUGHT : QUIPS_ESCAPE)[Math.floor(Math.random() * 3)] };
     G.overT = 0;
     for (const it of items) if (it.vac && (it.vac.on || it.vac.snd)) stopVac(it);
@@ -689,6 +701,8 @@
     if (popups.length > 9 || (G.t - lastWordT < 0.12 && text.indexOf('$') < 0)) return;
     lastWordT = G.t;
     popups.push({ x, y, text, t: 0, life: 0.9 + scale * 0.35, scale: scale || 1, color: color || '#fff', rot: rand(-0.25, 0.25) }); }
+  function puff(x, y, size, life, vx, vy) { parts.push({ type: 'puff', x, y, vx: vx || 0, vy: vy || 0, life: life || 0.6, t: 0, size, g: -12 }); }
+  function chips(x, y, n, spread) { for (let i = 0; i < n; i++) parts.push({ type: 'chip', x: x + rand(-spread, spread), y, vx: rand(-220, 220), vy: rand(-440, -150), life: rand(0.7, 1.2), t: 0, g: 900, size: rand(3, 7), rot: rand(0, 6), vr: rand(-12, 12), col: i % 2 ? '#74482a' : '#a56a3a' }); }
   function sparks(x, y, n, col) { for (let i = 0; i < n; i++) { const a = rand(0, TAU), s = rand(40, 190); parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 40, life: rand(0.25, 0.55), t: 0, col, size: rand(1.6, 3.2), g: 400 }); } }
   function toast(text, secs, kind) { G.toast = { text, t: 0, life: secs, kind: kind || '' }; }
   function updateFx(dt) {
@@ -696,6 +710,9 @@
     for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.t += dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.t > p.life) parts.splice(i, 1); }
     if (G.toast) { G.toast.t += dt; if (G.toast.t > G.toast.life && G.toast.kind !== 'alarm') G.toast = null; else if (G.toast && G.toast.kind === 'alarm' && G.state !== 'awake' && G.state !== 'leaving' && G.toast.t > 1) G.toast = null; }
     G.flash = Math.max(0, G.flash - dt * 1.4);
+    for (let i = G.rings.length - 1; i >= 0; i--) { G.rings[i].t += dt * 1.5; if (G.rings[i].t > 1) G.rings.splice(i, 1); }
+    G.lampDip = Math.max(0, G.lampDip - dt * 2.2); G.bankBump = Math.max(0, G.bankBump - dt * 2.4);
+    G.bankDisp += (G.banked - G.bankDisp) * Math.min(1, dt * 7); if (Math.abs(G.banked - G.bankDisp) < 0.6) G.bankDisp = G.banked;
   }
 
   /* ============================================================ input */
@@ -826,11 +843,13 @@
 
   function drawWorld(c, t) {
     const s = cam.s;
-    const sh = G.shake > 0.3 ? { x: rand(-1, 1) * G.shake, y: rand(-1, 1) * G.shake } : { x: 0, y: 0 };
+    const sh = G.shake > 0.3 ? { x: (Math.sin(t * 61) * 0.6 + Math.sin(t * 37) * 0.4) * G.shake * 0.8, y: (Math.sin(t * 53 + 1) * 0.7 + Math.sin(t * 29) * 0.3) * G.shake } : { x: 0, y: 0 };
     c.setTransform(s * dpr, 0, 0, s * dpr, (cw / 2 - cam.x * s + sh.x) * dpr, (ch / 2 - cam.y * s + sh.y) * dpr);
     const v = { x0: cam.x - cw / (2 * s) - 30, x1: cam.x + cw / (2 * s) + 30, y0: cam.y - ch / (2 * s) - 30, y1: cam.y + ch / (2 * s) + 30 };
     const stateName = G.state === 'awake' || G.state === 'leaving' || G.state === 'caught' ? 'awake' : G.stage >= 1 ? 'stir' : 'calm';
     Art.room(c, v, t, stateName, hauled.length, G);
+
+    for (const r of G.rings) { const e = 1 - Math.pow(1 - r.t, 2), rx = 40 + e * 560; c.beginPath(); c.ellipse(r.x, 912, rx, rx * 0.075, 0, 0, TAU); c.lineWidth = 7 * (1 - r.t) + 1; c.strokeStyle = 'rgba(230,214,190,' + 0.55 * (1 - r.t) + ')'; c.stroke(); }
 
     // loose + hauled loot behind the burglar
     for (const it of items) if (it.state === 'loose') drawItem(c, it, t);
@@ -868,7 +887,13 @@
     }
 
     // particles + word pops
-    for (const p of parts) { c.globalAlpha = clamp(1 - p.t / p.life, 0, 1); c.fillStyle = p.col; c.beginPath(); c.arc(p.x, p.y, p.size, 0, TAU); c.fill(); }
+    for (const p of parts) {
+      const k = p.t / p.life;
+      if (p.type === 'puff') { const r = p.size * (1 + k * 1.9), g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); g.addColorStop(0, 'rgba(226,212,190,' + 0.55 * (1 - k) + ')'); g.addColorStop(1, 'rgba(226,212,190,0)'); c.fillStyle = g; c.fillRect(p.x - r, p.y - r, r * 2, r * 2); continue; }
+      c.globalAlpha = clamp(1 - k, 0, 1); c.fillStyle = p.col;
+      if (p.type === 'chip') { c.save(); c.translate(p.x, p.y); c.rotate(p.rot + p.vr * p.t); c.fillRect(-p.size, -p.size * 0.4, p.size * 2, p.size * 0.8); c.restore(); }
+      else { c.beginPath(); c.arc(p.x, p.y, p.size, 0, TAU); c.fill(); }
+    }
     c.globalAlpha = 1;
     for (const p of popups) {
       const k = p.t / p.life, pop = k < 0.15 ? k / 0.15 : 1, a = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
@@ -942,6 +967,7 @@
     const scared = G.stage >= 2 || G.state === 'awake' || G.state === 'leaving' || G.state === 'caught';
     let mouth = 'smirk';
     if (!grounded && vy > 2.5) mouth = 'o';
+    else if (G.giant && G.state === 'awake' && G.giant.closeness > 0.62) mouth = 'o';
     else if (G.strain > 0.5) mouth = 'strain';
     else if (scared || G.stage === 1) mouth = 'gulp';
     else if (G.grin > 0 || hauled.length >= 2) mouth = 'grin';
@@ -956,7 +982,9 @@
 
     if (G.crushed) {
       c.save(); c.translate(pp.x, pp.y + PR); c.scale(1.5, 0.15); c.translate(-pp.x, -(pp.y + PR)); Art.thief(c, pose); c.restore();
-      G.pose = pose; return;
+      G.pose = pose;
+      for (let i = 0; i < 3; i++) { const an = t * 5 + i * 2.1; star(c, pp.x + Math.cos(an) * 30, pp.y - 6 + Math.sin(an) * 6, 7, true); }
+      return;
     }
     Art.thief(c, pose);
     G.pose = pose;
@@ -979,6 +1007,11 @@
           const w = toWorld(mouse.sx, mouse.sy), dx = w.x - sh.x, dy = w.y - sh.y, d = Math.hypot(dx, dy) || 1;
           if (d < 360) { const k = Math.min(1, 28 / d); tx = lerp(tx, dx * k, 0.55); ty = lerp(ty, dy * k, 0.55); }
         }
+        if (h.ghost) {
+          h.ghost.t += 1 / 60 / 0.2;
+          if (h.ghost.t >= 1) h.ghost = null;
+          else { const u = h.ghost.t - 1, e = 1 + 2.70158 * u * u * u + 1.70158 * u * u, hx = lerp(h.ghost.x, sh.x + tx, e), hy = lerp(h.ghost.y, sh.y + ty, e); Art.arm(c, sh.x, sh.y, hx, hy, Math.hypot(hx - sh.x, hy - sh.y) * 0.95, 0.6 * (1 - h.ghost.t), t, false); continue; }
+        }
         Art.arm(c, sh.x, sh.y, sh.x + tx, sh.y + ty, 24, 0, t, false);
       }
     }
@@ -997,7 +1030,7 @@
       g.addColorStop(0, `rgba(0,0,0,${a})`); g.addColorStop(0.55, `rgba(0,0,0,${a * 0.45})`); g.addColorStop(1, 'rgba(0,0,0,0)');
       L.fillStyle = g; L.fillRect(p.x - rr, p.y - rr, rr * 2, rr * 2);
     };
-    const flick = G.stage >= 1 && !awake ? (Math.sin(t * 37) > 0.75 ? 0.6 : 1) : 1;
+    const flick = (G.stage >= 1 && !awake ? (Math.sin(t * 37) > 0.75 ? 0.6 : 1) : 1) * (1 - 0.75 * (G.lampDip || 0));
     light(1520, 660, 420 * flick, 0.95);
     light(1250, 150, 460 * flick, 0.7);
     light(670, 300, 520, 0.55);
@@ -1118,7 +1151,7 @@
     card(c, pad, pad, lw, lh);
     tape(c, pad + lw * 0.2, pad + 1, -0.08);
     inkText(c, 'BANKED', pad + 14 * U, pad + 22 * U, fs(11), RUST, 'left', Art.SANS);
-    inkText(c, '$' + G.banked, pad + 14 * U, pad + 49 * U, fs(28), INKC, 'left');
+    c.save(); c.translate(pad + 14 * U, pad + 49 * U); const bsc = 1 + 0.24 * G.bankBump; c.scale(bsc, bsc); inkText(c, '$' + Math.round(G.bankDisp), 0, 0, fs(28), G.bankBump > 0.08 ? '#2d7a3a' : INKC, 'left'); c.restore();
     inkText(c, 'GOAL $' + GOAL, pad + lw - 14 * U, pad + 22 * U, fs(11), G.banked >= GOAL ? '#2d7a3a' : RUST, 'right', Art.SANS);
     gauge(c, pad + 14 * U, pad + 55 * U, lw - 28 * U, 8 * U, clamp(G.banked / GOAL, 0, 1), G.banked >= GOAL ? '#7bbf6a' : '#e2b13a', [0.25, 0.5, 0.75]);
     const hv = haulValue();
@@ -1148,6 +1181,19 @@
       card(c, ex, ey, ew, 46 * U, '#ea8f7e');
       inkText(c, k > 0.7 ? 'HE\'S RIGHT BEHIND YOU!' : 'THE GIANT IS COMING. RUN HOME!', cw / 2, ey + 22 * U, fs(17), INKC, 'center');
       gauge(c, ex + 14 * U, ey + 30 * U, ew - 28 * U, 8 * U, Math.max(0.04, k), k > 0.6 ? '#d0382e' : '#e8b33a', []);
+    }
+
+    // where is he? an arrow at the screen edge when the giant is out of view
+    if (G.state === 'awake' && G.giant) {
+      const px = player.position.x; let nf = G.giant.feet[0];
+      for (const f of G.giant.feet) if (Math.abs(f.x - px) < Math.abs(nf.x - px)) nf = f;
+      const sx = (nf.x - 47 - cam.x) * cam.s + cw / 2;
+      if (sx > cw + 20 || sx < -20) {
+        const right = sx > 0, ax = right ? cw - 30 * U : 30 * U, ay = ch * 0.5, pulse = 1 + 0.18 * Math.sin(t * 12), d = right ? 1 : -1;
+        c.save(); c.translate(ax, ay); c.scale(pulse, pulse);
+        c.beginPath(); c.moveTo(d * 16 * U, 0); c.lineTo(-d * 12 * U, -18 * U); c.lineTo(-d * 12 * U, 18 * U); c.closePath(); Art.fillStroke(c, '#d0382e', 3);
+        c.restore(); inkText(c, 'GIANT', ax, ay + 34 * U, fs(11), '#fff3d6', 'center', Art.SANS);
+      }
     }
 
     // toast
@@ -1221,11 +1267,13 @@
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - last) / 1000 || 0.016); last = now;
     if (!P.paused && !P.hidden) {
-      acc += dt;
+      const frozen = G.hitstop > 0;
+      if (frozen) G.hitstop -= dt; else acc += dt * (G.slowT > 0 ? 0.28 : 1);
+      G.slowT = Math.max(0, G.slowT - dt);
       let n = 0;
       while (acc >= STEP && n < 4) { stepSim(); acc -= STEP; n++; }
       if (n === 4) acc = 0;
-      updateFx(dt);
+      updateFx(frozen ? 0 : dt * (G.slowT > 0 ? 0.5 : 1));
       if (!G.over && perfPrev) Tele.frame(now - perfPrev, now);
       perfPrev = now;
     } else perfPrev = 0;
@@ -1248,7 +1296,7 @@
   window.__omt = {
     get G() { return G; }, get player() { return player; }, get items() { return items; }, get hauled() { return hauled; }, get hands() { return hands; }, get cam() { return cam; },
     stepN(n) { for (let i = 0; i < n; i++) stepSim(); }, input, mouse, toWorld, startGrab, endHand, attach, dropItem, dropNearest, endRun, addNoise, restart, P,
-    setTouch(v) { touchMode = v; }, findTarget, bankItem, jump() { G.jumpBuf = 0.15; }
+    get parts() { return parts; }, setTouch(v) { touchMode = v; }, findTarget, bankItem, jump() { G.jumpBuf = 0.15; }
   };
   platformInit().then(() => {
     syncAudio();

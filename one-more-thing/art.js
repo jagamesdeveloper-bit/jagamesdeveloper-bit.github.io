@@ -247,6 +247,16 @@
       c.strokeStyle = 'rgba(0,0,0,0.3)'; c.lineWidth = 2;
     }
     c.fillStyle = 'rgba(255,220,170,0.06)'; c.fillRect(-20, FLOOR, W + 40, 4);
+    for (const cr of (Art.cracksList || [])) {
+      c.strokeStyle = 'rgba(15,5,5,0.72)'; c.lineWidth = 2.4; c.lineCap = 'round'; c.lineJoin = 'round';
+      for (let k = 0; k < 7; k++) {
+        const dir = k % 2 ? 1 : -1, len = 60 + hash(cr.seed, k) * 130; let x = cr.x, y = 912 + hash(cr.seed, k + 9) * 18;
+        c.beginPath(); c.moveTo(x, y);
+        for (let s = 1; s <= 5; s++) { x += dir * len / 5; y += (hash(cr.seed, k * 7 + s) - 0.45) * 14; c.lineTo(x, y); }
+        c.stroke();
+      }
+      c.fillStyle = 'rgba(15,5,5,0.35)'; c.beginPath(); c.ellipse(cr.x, 920, 46, 9, 0, 0, TAU); c.fill(); c.lineCap = 'butt';
+    }
     // rug with fringe
     if (vis(v, 400, 900, 1600, 1000)) {
       for (let x = 470; x < 1540; x += 9) { const e = Math.abs(x - 1000) / 540; if (e > 0.98) continue; const y = 944 + Math.sqrt(1 - e * e) * 38; c.strokeStyle = '#d9c9a0'; c.lineWidth = 2; c.beginPath(); c.moveTo(x, y - 2); c.lineTo(x + hash(x, 3) * 3 - 1.5, y + 7); c.stroke(); }
@@ -548,7 +558,7 @@
     c.strokeStyle = 'rgba(10,10,40,0.28)'; c.lineWidth = 6;
     for (let i = 0; i < 4; i++) { const y = hem - 40 - i * 90 - hash(seed, i) * 30; c.beginPath(); c.moveTo(x0, y); c.quadraticCurveTo((x0 + x1) / 2, y + 26, x1, y + 8); c.stroke(); }
     c.restore();
-    inkStroke(c, 4);
+    legPath(c, f, hipX, top, hem, ay, true); inkStroke(c, 4);
     // bare, hairy shin
     legPath(c, f, hipX, hem + 2, ay, ay, false);
     const sx0 = legEdge(f, hipX, hem, -1, ay) - 4, sx1 = legEdge(f, hipX, ay, 1, ay) + 14;
@@ -562,28 +572,69 @@
     }
     c.strokeStyle = 'rgba(70,90,160,0.35)'; c.lineWidth = 3;
     for (let i = 0; i < 3; i++) { const y = hem + 60 + i * 70; c.beginPath(); c.moveTo(f.x - 20 + i * 8, y); c.bezierCurveTo(f.x - 5, y + 20, f.x - 30, y + 40, f.x - 10 + i * 6, y + 70); c.stroke(); }
-    c.fillStyle = 'rgba(255,230,200,0.18)'; c.beginPath(); c.ellipse(f.x - 4, ay - 26, 9, 14, 0, 0, TAU); c.fill();
+    const bandTop = hem, bandH = ay - hem;
+    c.fillStyle = 'rgba(30,8,20,0.26)'; c.beginPath(); c.moveTo(legEdge(f, hipX, bandTop, -1, ay), bandTop);
+    for (let y = bandTop; y <= ay; y += 22) c.lineTo(legEdge(f, hipX, y, -1, ay) + 36 * (1 - 0.4 * (y - bandTop) / bandH), y);
+    for (let y = ay; y >= bandTop; y -= 22) c.lineTo(legEdge(f, hipX, y, -1, ay), y); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(255,225,190,0.3)'; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath();
+    for (let y = bandTop + 10; y <= ay - 30; y += 22) c.lineTo(legEdge(f, hipX, y, 1, ay) - 14, y); c.stroke();
+    c.strokeStyle = 'rgba(70,36,30,0.28)'; c.lineWidth = 2.4; c.beginPath(); c.moveTo(f.x + 8, hem + 40); c.bezierCurveTo(f.x + 22, hem + 110, f.x - 12, hem + 170, f.x + 4, ay - 60); c.stroke();
     c.restore(); c.lineCap = 'butt';
-    inkStroke(c, 4);
+    legPath(c, f, hipX, hem + 2, ay, ay, false); inkStroke(c, 4);
     // he looms out of the dark: fade the upper leg into shadow
     legPath(c, f, hipX, top, ay, ay, false);
     const gd = c.createLinearGradient(0, top, 0, ay); gd.addColorStop(0, 'rgba(8,2,16,0.92)'); gd.addColorStop(0.55, 'rgba(8,2,16,0.55)'); gd.addColorStop(1, 'rgba(8,2,16,0.12)');
     c.fillStyle = gd; c.fill();
-    // the foot (facing left)
+    drawFoot(c, f, ay, seed);
+  }
+
+  function toe(c, x, y, rx, ry, seed, big) {
+    blob(c, x, y, rx, ry, seed);
+    const g = c.createLinearGradient(0, y - ry, 0, y + ry); g.addColorStop(0, '#d9a47e'); g.addColorStop(1, '#a56c4e');
+    c.fillStyle = g; c.fill(); c.save(); c.clip();
+    c.fillStyle = 'rgba(255,230,196,0.35)'; c.beginPath(); c.ellipse(x + rx * 0.1, y - ry * 0.55, rx * 0.7, ry * 0.28, 0, 0, TAU); c.fill();
+    c.fillStyle = 'rgba(50,16,20,0.28)'; c.beginPath(); c.ellipse(x + rx * 0.1, y + ry * 0.95, rx * 1.1, ry * 0.4, 0, 0, TAU); c.fill();
+    c.restore(); blob(c, x, y, rx, ry, seed); inkStroke(c, big ? 3.6 : 3);
+    // nail on the leading top edge
+    c.save(); c.translate(x - rx * (big ? 0.62 : 0.4), y - ry * (big ? 0.28 : 0.5)); c.rotate(big ? 0.25 : -0.45);
+    c.beginPath(); c.ellipse(0, 0, rx * (big ? 0.42 : 0.5), ry * (big ? 0.7 : 0.45), 0, 0, TAU); fillStroke(c, '#dccb8c', 1.8);
+    c.fillStyle = 'rgba(255,255,240,0.55)'; c.beginPath(); c.ellipse(-rx * 0.08, -ry * 0.12, rx * 0.12, ry * 0.2, 0, 0, TAU); c.fill();
+    c.restore();
+    if (big) { c.strokeStyle = 'rgba(70,32,26,0.45)'; c.lineWidth = 1.8; c.lineCap = 'round'; for (const k of [0.15, 0.4]) { c.beginPath(); c.arc(x + rx * k, y - ry * 0.1, ry * 0.7, -2.2, -0.7); c.stroke(); } c.lineCap = 'butt'; }
+  }
+
+  function drawFoot(c, f, ay, seed) {
     c.save(); c.translate(f.x, ay); c.rotate(f.tilt || 0);
-    c.beginPath(); c.moveTo(32, -60); c.lineTo(38, -8); c.quadraticCurveTo(58, 22, 52, 50); c.quadraticCurveTo(48, 66, 28, 66); c.quadraticCurveTo(-30, 50, -90, 66); c.lineTo(-118, 66);
-    c.quadraticCurveTo(-166, 66, -170, 44); c.quadraticCurveTo(-170, 26, -140, 22); c.quadraticCurveTo(-90, 18, -50, 2); c.quadraticCurveTo(-34, -10, -34, -60); c.closePath();
-    const gf = c.createLinearGradient(-170, 0, 55, 0); gf.addColorStop(0, '#a56c4e'); gf.addColorStop(0.5, '#c58b68'); gf.addColorStop(1, '#e3a679');
-    c.fillStyle = gf; c.fill();
-    c.save(); c.clip(); const gb = c.createLinearGradient(0, 20, 0, 68); gb.addColorStop(0, 'rgba(0,0,0,0)'); gb.addColorStop(1, 'rgba(60,20,20,0.5)'); c.fillStyle = gb; c.fillRect(-175, 20, 235, 50); c.restore();
-    inkStroke(c, 4);
-    for (const [tx, ty, rx, ry, na] of [[-98, 24, 14, 11, 4], [-120, 28, 15, 12, 5], [-142, 34, 16, 13, 6]]) {
-      blob(c, tx, ty, rx, ry, na + seed); fillStroke(c, '#b9805e', 3);
-      c.beginPath(); c.ellipse(tx - 6, ty - 1, 5, 7, 0.2, 0, TAU); fillStroke(c, '#d9c98a', 1.8);
-    }
-    blob(c, -156, 51, 25, 20, 9 + seed); fillStroke(c, '#c58b68', 3.4);
-    c.beginPath(); c.ellipse(-173, 46, 8.5, 12, 0.15, 0, TAU); fillStroke(c, '#dccb8c', 2);
-    c.strokeStyle = 'rgba(60,30,22,0.5)'; c.lineWidth = 1.4; for (let i = 0; i < 8; i++) { c.beginPath(); c.moveTo(-30 - i * 9, 10 + hash(seed, i) * 4); c.lineTo(-34 - i * 9, 16 + hash(seed, i + 8) * 5); c.stroke(); }
+    // heel, arch, ball, instep (left open at the top so no seam shows where it meets the shin)
+    const outline = () => {
+      c.beginPath();
+      c.moveTo(31, -62); c.quadraticCurveTo(34, -30, 30, -8);
+      c.quadraticCurveTo(60, 16, 55, 46); c.quadraticCurveTo(52, 67, 32, 66);
+      c.quadraticCurveTo(-4, 55, -40, 58); c.quadraticCurveTo(-62, 67, -92, 66); c.lineTo(-130, 66);
+      c.quadraticCurveTo(-150, 64, -150, 48); c.lineTo(-140, 28);
+      c.quadraticCurveTo(-96, 20, -62, 2); c.quadraticCurveTo(-38, -10, -34, -62);
+    };
+    outline();
+    const g = c.createLinearGradient(0, -62, 0, 68); g.addColorStop(0, '#9c6448'); g.addColorStop(0.28, '#b27856'); g.addColorStop(0.55, '#c58b66'); g.addColorStop(0.8, '#a8704f'); g.addColorStop(1, '#8c5640');
+    c.fillStyle = g; c.fill();
+    c.save(); c.clip();
+    c.fillStyle = 'rgba(40,12,20,0.36)'; c.beginPath(); c.moveTo(-150, 66); c.quadraticCurveTo(-60, 46, 62, 62); c.lineTo(62, 72); c.lineTo(-150, 72); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(255,226,190,0.42)'; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(-58, 4); c.quadraticCurveTo(-92, 17, -134, 28); c.stroke();
+    c.strokeStyle = 'rgba(70,36,30,0.34)'; c.lineWidth = 2;
+    for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(-36, -6 + i * 3); c.quadraticCurveTo(-70, 10 + i * 2, -112 + i * 10, 22 + i * 4); c.stroke(); }
+    c.strokeStyle = 'rgba(86,100,176,0.4)'; c.lineWidth = 2.6; c.beginPath(); c.moveTo(-30, -16); c.bezierCurveTo(-52, 6, -70, -2, -98, 16); c.stroke();
+    c.beginPath(); c.moveTo(34, -50); c.quadraticCurveTo(38, -28, 33, -6); c.strokeStyle = 'rgba(60,28,24,0.4)'; c.lineWidth = 3; c.stroke();        // achilles groove
+    c.fillStyle = 'rgba(255,232,200,0.3)'; c.beginPath(); c.ellipse(6, -34, 10, 9, 0, 0, TAU); c.fill();                                              // ankle bone
+    c.strokeStyle = 'rgba(70,36,30,0.55)'; c.lineWidth = 2; c.beginPath(); c.arc(6, -34, 10, 0.5, 2.4); c.stroke();
+    c.fillStyle = 'rgba(55,40,28,0.28)'; blob(c, 42, 56, 18, 7, seed + 2); c.fill();                                                                   // grime
+    c.strokeStyle = 'rgba(55,28,22,0.75)'; c.lineWidth = 1.8;
+    for (let i = 0; i < 20; i++) { const hx = -112 + hash(seed, i) * 92, edge = 22 + (hx + 112) / 92 * -28; c.beginPath(); c.moveTo(hx, edge + hash(seed, i + 30) * 8 + 2); c.lineTo(hx - 6, edge + hash(seed, i + 30) * 8 + 8); c.stroke(); }
+    c.lineCap = 'butt'; c.restore();
+    outline(); inkStroke(c, 4.4);
+    // five toes: the lesser four stacked behind, the big one in front
+    toe(c, -84, 23, 9.5, 8.5, seed + 5, false); toe(c, -98, 22, 10.5, 9.5, seed + 6, false);
+    toe(c, -113, 23, 12, 10.5, seed + 7, false); toe(c, -129, 26, 13.5, 12, seed + 8, false);
+    toe(c, -152, 47, 25, 19.5, seed + 9, true);
     c.restore();
   }
 
@@ -596,9 +647,13 @@
     }
     if (g.mover >= 0 && g.target !== undefined) {
       const f = g.feet[g.mover], k = clamp(f.t, 0, 1), pulse = 0.5 + 0.5 * Math.sin(t * 22);
+      const rx = 126 * (1 + (1 - k) * 0.22);
       c.save(); c.translate(g.target - 47, GY - 1);
-      c.beginPath(); c.ellipse(0, 0, 126, 22, 0, 0, TAU); c.fillStyle = 'rgba(150,10,20,' + (0.14 + 0.34 * k + 0.06 * pulse * k) + ')'; c.fill();
-      c.setLineDash([10, 8]); c.lineWidth = 3; c.strokeStyle = 'rgba(255,90,80,' + (0.35 + 0.5 * k) + ')'; c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.ellipse(0, 0, rx, 22, 0, 0, TAU); c.fillStyle = 'rgba(150,10,20,' + (0.14 + 0.34 * k + 0.06 * pulse * k) + ')'; c.fill();
+      c.save(); c.clip(); c.strokeStyle = 'rgba(255,120,100,' + (0.12 + 0.32 * k) + ')'; c.lineWidth = 7;
+      for (let x = -rx - 30; x < rx + 30; x += 22) { c.beginPath(); c.moveTo(x + ((t * 40) % 22), 24); c.lineTo(x + 30 + ((t * 40) % 22), -24); c.stroke(); }
+      c.restore();
+      c.setLineDash([10, 8]); c.lineWidth = 3; c.strokeStyle = 'rgba(255,90,80,' + (0.4 + 0.5 * k) + ')'; c.stroke(); c.setLineDash([]);
       c.restore();
     }
     const order = g.feet.slice().sort((p, q) => q.x - p.x);

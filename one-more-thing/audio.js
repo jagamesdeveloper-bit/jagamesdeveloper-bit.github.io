@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   let ac = null, master = null, noiseBuf = null, muted = false, suspended = false;
-  let snoreAt = 0;
+  let snoreAt = 0, rumbleNode = null;
 
   function init() {
     if (ac) return;
@@ -122,7 +122,23 @@
       tone(110, 1.1, 'sawtooth', 0.22, 80); tone(165, 1.1, 'sawtooth', 0.14, 120);
       noise(0.5, 0.2, 'lowpass', 400, 120);
     },
-    stomp(v) { v = v === undefined ? 1 : v; tone(58, 0.5, 'sine', 0.62 * v, 24); tone(96, 0.18, 'sine', 0.3 * v, 40); noise(0.4, 0.38 * v, 'lowpass', 420, 70); },
+    stomp(v) {
+      v = v === undefined ? 1 : v;
+      tone(42, 0.95, 'sine', 0.7 * v, 22); tone(84, 0.35, 'sine', 0.34 * v, 38);
+      noise(0.55, 0.42 * v, 'lowpass', 520, 60); noise(0.1, 0.3 * v, 'highpass', 2600, null, 0.02);
+      for (let i = 0; i < 5; i++) noise(0.05 + Math.random() * 0.05, 0.1 * v, 'bandpass', 1400 + Math.random() * 2400, null, 0.08 + i * 0.07, 2);
+    },
+    rumble(on) {
+      if (!ac) return;
+      if (rumbleNode) { try { const t = ac.currentTime; rumbleNode.g.gain.cancelScheduledValues(t); rumbleNode.g.gain.setValueAtTime(rumbleNode.g.gain.value, t); rumbleNode.g.gain.linearRampToValueAtTime(0.0001, t + 0.4); rumbleNode.s.stop(t + 0.5); rumbleNode.l.stop(t + 0.5); } catch (e) {} rumbleNode = null; }
+      if (!on || muted) return;
+      const t = ac.currentTime, s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+      const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 110;
+      const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.2, t + 0.8);
+      const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 7; lg.gain.value = 0.07; l.connect(lg); lg.connect(g.gain);
+      s.connect(f); f.connect(g); g.connect(master); s.start(t); l.start(t);
+      rumbleNode = { s, g, l };
+    },
     whoosh() { noise(0.7, 0.16, 'bandpass', 200, 700, 0, 1.2); tone(46, 0.7, 'sawtooth', 0.05, 38); },
     win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'square', 0.07, null, i * 0.11)); },
     lose() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.28, 'sawtooth', 0.07, null, i * 0.16)); },
