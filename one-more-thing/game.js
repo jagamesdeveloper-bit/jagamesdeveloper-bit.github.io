@@ -9,7 +9,7 @@
   const STEP = 1 / 60, DT = 1000 / 60, DT2 = DT * DT;
   const PAD = { x: 70, y: 790, w: 270, h: 110 };
   const HOLE = { x: 30, y: 862 };
-  const GOAL = 700, STARS = [700, 1100, 1450];
+  const goalFor = (n) => Math.min(1800, 700 + 250 * (n - 1));
   const REACH = 205, MAX_ARM = 345, PR = 22, ESCAPE_TIME = 11;
   const REEL = 135;
   const OUT = Art.INK;
@@ -30,6 +30,8 @@
     ceramic: { mul: 1.6,  snd: 'ceramic', words: ['clink', 'SMASH!', 'CRASH!'] },
     plastic: { mul: 1.1,  snd: 'thud',    words: ['thunk', 'THUD', 'KA-BOOM'] },
     rubber:  { mul: 0.7,  snd: 'boing',   words: ['boing', 'bonk', 'BOING!'] },
+    glass:   { mul: 1.8,  snd: 'ceramic', words: ['clink', 'SMASH!', 'CRASH!'] },
+    soft:    { mul: 0.6,  snd: 'thud',    words: ['flop', 'bomp', 'BOMP'] },
     me:      { mul: 0.3,  snd: 'thud',    words: ['oof', 'oof!', 'OOF!'] }
   };
 
@@ -62,7 +64,19 @@
         return Body.create({ parts: [cup, base], restitution: 0.1, friction: 0.4, frictionAir: 0.004 });
       } },
     { id: 'ring', name: 'Diamond ring', value: 250, x: 2170, y: 188, mat: 'gold', nm: 0.8, hitR: 22, rest: 50, stiff: 0.08, damp: 0.02, attach: { x: 0, y: -6 },
-      build: (x, y) => Bodies.circle(x, y, 11, { density: 0.0014, restitution: 0.3, friction: 0.3, frictionAir: 0.004 }) }
+      build: (x, y) => Bodies.circle(x, y, 11, { density: 0.0014, restitution: 0.3, friction: 0.3, frictionAir: 0.004 }) },
+    { id: 'duck', name: 'Rubber duck', value: 50, x: 800, y: 756, mat: 'rubber', nm: 0.6, hitR: 20, rest: 50, stiff: 0.1, damp: 0.01, attach: { x: 0, y: -8 }, tip: 'Squeaks on every bump.',
+      build: (x, y) => Bodies.circle(x, y, 13, { density: 0.0008, restitution: 0.5, friction: 0.3, frictionAir: 0.004 }) },
+    { id: 'cheese', name: 'Cheese wheel', value: 90, x: 640, y: 873, mat: 'soft', hitR: 34, rest: 66, stiff: 0.14, damp: 0.03, attach: { x: 0, y: -22 }, tip: 'Heavy, but it rolls.',
+      build: (x, y) => Bodies.circle(x, y, 26, { density: 0.0011, restitution: 0.15, friction: 0.35, frictionAir: 0.002 }) },
+    { id: 'snowglobe', name: 'Snow globe', value: 140, x: 1745, y: 677, mat: 'glass', hitR: 30, rest: 56, stiff: 0.12, damp: 0.03, attach: { x: 0, y: -22 }, tip: 'Fragile! A hard knock smashes it.',
+      build: (x, y) => Bodies.circle(x, y, 22, { density: 0.0014, restitution: 0.1, friction: 0.4, frictionAir: 0.004 }) },
+    { id: 'alarm', name: 'Alarm clock', value: 120, x: 2290, y: 589, mat: 'metal', nm: 0.9, hitR: 28, rest: 58, stiff: 0.12, damp: 0.03, attach: { x: 0, y: -24 }, tip: 'Rings a few seconds after you grab it!',
+      build: (x, y) => Bodies.circle(x, y, 20, { density: 0.0018, restitution: 0.15, friction: 0.4, frictionAir: 0.004 }) },
+    { id: 'musicbox', name: 'Music box', value: 160, x: 2150, y: 292, mat: 'gold', nm: 0.9, hitR: 30, rest: 56, stiff: 0.13, damp: 0.03, attach: { x: 0, y: -16 }, tip: 'Plays a tune while you carry it.',
+      build: (x, y) => Bodies.rectangle(x, y, 50, 34, { chamfer: { radius: 5 }, density: 0.0016, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) },
+    { id: 'toaster', name: 'Toaster', value: 110, x: 2110, y: 740, mat: 'metal', nm: 1.0, hitR: 36, rest: 60, stiff: 0.14, damp: 0.03, attach: { x: 0, y: -20 }, tip: 'Pops toast at the worst moments.',
+      build: (x, y) => Bodies.rectangle(x, y, 60, 38, { chamfer: { radius: 8 }, density: 0.0016, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) }
   ];
   const TOTAL_VALUE = DEFS.reduce((s, d) => s + d.value, 0);
 
@@ -90,7 +104,7 @@
   resize();
 
   /* ============================================================ platform (Bridge) */
-  const P = { bridge: false, audioOn: true, paused: false, hidden: false, best: 0, runs: 0, userMute: false, ready: false };
+  const P = { bridge: false, audioOn: true, paused: false, hidden: false, best: 0, runs: 0, bestNight: 1, userMute: false, ready: false };
   function hasBridge() { return typeof window.bridge !== 'undefined' && window.bridge && P.bridge; }
   function syncAudio() {
     Snd.setMuted(P.userMute || !P.audioOn || P.hidden);
@@ -110,18 +124,18 @@
             window.bridge.platform.on(window.bridge.EVENT_NAME.PAUSE_STATE_CHANGED, p => { P.paused = !!p; Snd.suspend(P.paused); });
           } catch (e) {}
           try { window.bridge.advertisement.setMinimumDelayBetweenInterstitial(60); } catch (e) {}
-          return window.bridge.storage.get(['omt_best', 'omt_runs']).then(d => {
-            P.best = parseInt(d && d[0], 10) || 0; P.runs = parseInt(d && d[1], 10) || 0;
+          return window.bridge.storage.get(['omt_best', 'omt_runs', 'omt_night']).then(d => {
+            P.best = parseInt(d && d[0], 10) || 0; P.runs = parseInt(d && d[1], 10) || 0; P.bestNight = parseInt(d && d[2], 10) || 1;
           }).catch(() => {});
         }).catch(() => {}).then(fin);
       } catch (e) { fin(); }
     });
   }
   function saveProgress() {
-    try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs'], [String(P.best), String(P.runs)]).catch(() => {}); } catch (e) {}
+    try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs', 'omt_night'], [String(P.best), String(P.runs), String(P.bestNight)]).catch(() => {}); } catch (e) {}
   }
   function platMsg(m, data) { try { if (hasBridge()) window.bridge.platform.sendMessage(m, data); } catch (e) {} }
-  const GAME_VERSION = '1.4.0';
+  const GAME_VERSION = '1.5.0';
   const Tele = {
     send(name, data) { try { if (hasBridge() && window.bridge.analytics) window.bridge.analytics.send(name, data); } catch (e) {} },
     frames: [], windowStart: 0, active: 0, jsErr: 0,
@@ -173,6 +187,7 @@
   const input = { left: false, right: false };
   const mouse = { sx: 400, sy: 200, has: false };
   let touchMode = false;
+  let NIGHT = 1;
 
   function newRun() {
     if (items) for (const it of items) if (it.vac && it.vac.snd) Snd.whirrStop(it.vac.snd);
@@ -183,12 +198,13 @@
       t: 0, time: 0, state: 'play', noise: 0, noiseDisp: 0, stage: 0, banked: 0, bankedCount: 0, over: null, overT: 0,
       escapeLeft: ESCAPE_TIME, leaving: false, leaveT: 0, groundT: 0, jumpBuf: 0, landSq: 0, grin: 0, shake: 0, wasGround: false,
       sqS: 0, saS: 0, blink: 3, walk: 0, caughtT: 0, flags: {}, hint: 14, toast: null, stepT: 0, hbT: 0, flash: 0, goalHit: false,
-      lastGreed: '', carriedPeak: 0, giant: null, crushed: false, rumble: 0, punch: 0, cracks: [], rings: [], hitstop: 0, slowT: 0, lampDip: 0, bankBump: 0, bankDisp: 0, stepPh: 0
+      lastGreed: '', carriedPeak: 0, giant: null, crushed: false, rumble: 0, punch: 0, cracks: [], rings: [], hitstop: 0, slowT: 0, lampDip: 0, bankBump: 0, bankDisp: 0, stepPh: 0, night: NIGHT, defer: [], brokenCount: 0, lostValue: 0
     };
+    G.goal = goalFor(NIGHT); G.stars = [G.goal, Math.round((G.goal + TOTAL_VALUE) / 2 / 50) * 50, TOTAL_VALUE];
     Art.cracksList = G.cracks; Art.rumble = 0; Snd.rumble(false);
     buildWorld();
     hands = [mkHand(), mkHand()];
-    toast('Steal what you can carry. Don\'t wake the giant.', 5);
+    toast(NIGHT > 1 ? 'Night ' + NIGHT + '. Bank $' + G.goal + ' before he wakes.' : 'Steal what you can carry. Don\'t wake the giant.', 5);
     platMsg('level_started');
   }
   function mkHand() { return { on: false, pid: null, sx: 0, sy: 0, con: null, kind: null, it: null, anchor: null, held: 0, miss: false, side: 1, flash: 0 }; }
@@ -209,6 +225,7 @@
       b.owCat = 1 << (3 + i); owBodies.push(b); grabbables.push(b);
     });
 
+    grabbables.push(Bodies.rectangle(1670, 156, 560, 14, { isStatic: true }));
     player = Bodies.circle(250, FLOOR - PR - 1, PR, {
       density: 0.002, friction: 0, frictionStatic: 0, frictionAir: 0.012, restitution: 0.05, label: 'player',
       collisionFilter: { category: CAT_PLAYER, mask: 0xFFFFFFFF }
@@ -224,7 +241,7 @@
       const it = {
         def: d, id: d.id, name: d.name, value: d.value, body, art, seed: i * 7.31,
         attach: { x: art.x + d.attach.x, y: art.y + d.attach.y }, hitR: d.hitR, rest: d.rest, stiff: d.stiff, damp: d.damp,
-        state: 'loose', con: null, padT: 0, spawn: { x: d.x, y: d.y }, hauledAt: 0, vac: d.id === 'vacuum' ? { timer: 2, on: false, warn: 0, left: 0, dir: 1, snd: null } : null
+        state: 'loose', con: null, padT: 0, spawn: { x: d.x, y: d.y }, hauledAt: 0, sq: 0, popT: 0, alarm: d.id === 'alarm' ? { ring: 0, beep: 0 } : null, vac: d.id === 'vacuum' ? { timer: 2, on: false, warn: 0, left: 0, dir: 1, snd: null } : null
       };
       body.item = it;
       items.push(it); add(body);
@@ -259,10 +276,14 @@
     if (!mat) mat = { m: MATS.me.mul, name: 'me' };
     const sup = pair.collision.supports[0];
     const pos = sup ? { x: sup.x, y: sup.y } : { x: (a.position.x + b.position.x) / 2, y: (a.position.y + b.position.y) / 2 };
+    const duck = ia && ia.id === 'duck' ? ia : ib && ib.id === 'duck' ? ib : null;
+    if (duck && rv > 90) { duck.sq = 0.3; Snd.squeak(); if (G.state === 'play' && G.time > 1.2) addNoise(inPad(pos) ? 0.4 : 1.6); popWord(pos.x, pos.y - 18, 'squeak!', 0.8, '#ffe27a'); }
+    const globe = ia && ia.id === 'snowglobe' ? ia : ib && ib.id === 'snowglobe' ? ib : null;
+    if (globe && rv > 430 && globe.state !== 'broken') { G.defer.push(() => breakItem(globe, pos)); return; }
     const raw = Math.max(0, rv - 120) * Math.sqrt(m) * mat.m * 0.01;
     // a quiet tick for tiny bumps so the world still feels tactile
     if (raw <= 0) { if (rv > 150) Snd.impact(MATS[mat.name].snd, 0.12); return; }
-    let n = Math.min(24, raw);
+    let n = Math.min(24, raw * (1 + 0.1 * ((G.night || 1) - 1)));
     if (inPad(pos)) n *= 0.25; // the doormat muffles things
     const mt = MATS[mat.name];
     Snd.impact(mt.snd, n / 9);
@@ -281,7 +302,7 @@
     G.state = 'awake'; G.escapeLeft = ESCAPE_TIME; G.shake = 14; G.flash = 1; G.rumble = 1; G.hbT = 0;
     initGiant(); Snd.rumble(true);
     Snd.wake(); G.stepT = 0.2;
-    Tele.send('giant_woke', { banked: G.banked, carrying: haulValue(), items_hauled: hauled.length, time_sec: Math.round(G.time) });
+    Tele.send('giant_woke', { night: G.night, banked: G.banked, carrying: haulValue(), items_hauled: hauled.length, time_sec: Math.round(G.time) });
     toast('HE\'S UP! Run home. Dodge the feet, and drop loot to run faster!', 6, 'alarm');
     for (const it of items) if (it.vac && it.vac.on) stopVac(it);
   }
@@ -340,8 +361,8 @@
     Snd.coin(G.bankedCount % 5);
     for (let i = 0; i < 12; i++) parts.push({ x: HOLE.x + 10, y: HOLE.y - 10, vx: rand(20, 160), vy: rand(-220, -40), life: rand(0.5, 1), t: 0, col: i % 2 ? '#ffe27a' : '#fff6c4', size: rand(2, 4.5), g: 500 });
     popWord(HOLE.x + 70, HOLE.y - 50, '+$' + it.value, 1.25, '#ffe27a');
-    if (!G.goalHit && G.banked >= GOAL) { G.goalHit = true; toast('Rent paid! Leave now... or grab ONE MORE THING?', 5, 'good'); }
-    if (G.bankedCount >= items.length) endRun('clean');
+    if (!G.goalHit && G.banked >= G.goal) { G.goalHit = true; toast('Goal reached! Leave now... or grab ONE MORE THING?', 5, 'good'); }
+    if (G.bankedCount + G.brokenCount >= items.length) endRun('clean');
   }
 
   /* ============================================================ vacuum personality */
@@ -508,6 +529,58 @@
     if (grounded && Math.abs(player.velocity.x) > 0.5) G.walk += Math.abs(player.velocity.x) * 0.13;
   }
 
+  function breakItem(it, pos) {
+    if (it.state !== 'loose' && it.state !== 'hauled') return;
+    if (it.state === 'hauled') { if (it.con) Composite.remove(engine.world, it.con); it.con = null; hauled.splice(hauled.indexOf(it), 1); }
+    for (const h of hands) if (h.on && h.it === it) endHand(h, true, 'tear');
+    it.state = 'broken'; Composite.remove(engine.world, it.body);
+    G.brokenCount++; G.lostValue += it.value;
+    Snd.impact('ceramic', 1); Snd.impact('tink', 1);
+    popWord(pos.x, pos.y - 20, 'SMASH!', 1.6, '#cfeaff');
+    for (let i = 0; i < 22; i++) { const a = rand(0, TAU), sp = rand(60, 280); parts.push({ x: pos.x, y: pos.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, life: rand(0.5, 1), t: 0, col: i % 2 ? '#cfeaff' : '#ffffff', size: rand(1.6, 3.6), g: 700 }); }
+    G.shake = Math.max(G.shake, 8);
+    if (G.state === 'play') addNoise(14);
+    toast('You smashed the snow globe! -$' + it.value, 3, 'warn');
+  }
+
+  function quirkUpdate(dt) {
+    for (const it of items) {
+      if (it.sq > 0) it.sq = Math.max(0, it.sq - dt * 5);
+      if (it.popT > 0) it.popT = Math.max(0, it.popT - dt);
+      if (it.state !== 'loose' && it.state !== 'hauled') continue;
+      const active = it.state === 'hauled' || isHeld(it), bp = it.body.position;
+      if (it.alarm) {
+        const al = it.alarm;
+        if (al.ring > 0) {
+          al.ring -= dt; al.beep -= dt;
+          if (al.beep <= 0) { al.beep = 0.13; Snd.beep(); }
+          if (G.state === 'play') addNoise(9 * dt);
+          Body.applyForce(it.body, bp, { x: (Math.random() - 0.5) * it.body.mass * 0.0006, y: -it.body.mass * 0.0004 * Math.random() });
+          if (al.ring <= 0) al.t = rand(8, 12);
+        } else if (active) {
+          if (al.t === undefined) al.t = rand(4.5, 7);
+          al.t -= dt;
+          if (al.t <= 0) { al.ring = 2.8; al.beep = 0; popWord(bp.x, bp.y - 42, 'RRRING!', 1.2, '#ffe27a'); }
+        }
+      }
+      if (it.id === 'musicbox' && it.state === 'hauled') {
+        it.mb = (it.mb || 0) - dt;
+        if (G.state === 'play') addNoise(3.2 * dt);
+        if (it.mb <= 0) { it.mb = 0.42; Snd.note(); parts.push({ type: 'note', x: bp.x + rand(-10, 10), y: bp.y - 24, vx: rand(-14, 14), vy: -40, life: 1.1, t: 0, g: -6, hue: rand(0, 360) }); }
+      }
+      if (it.id === 'toaster' && active) {
+        it.tp = it.tp === undefined ? rand(4, 7) : it.tp - dt;
+        if (it.tp <= 0) {
+          it.tp = rand(5, 8); it.popT = 0.25;
+          Body.setVelocity(it.body, { x: it.body.velocity.x + rand(-1, 1), y: it.body.velocity.y - 5 });
+          for (let k = 0; k < 2; k++) parts.push({ type: 'toast', x: bp.x + (k ? 14 : -14), y: bp.y - 22, vx: rand(-40, 40), vy: rand(-420, -300), life: 1.5, t: 0, g: 900, rot: rand(0, 6), vr: rand(-8, 8) });
+          Snd.pop(); popWord(bp.x, bp.y - 46, 'POP!', 1, '#ffe9a0');
+          if (G.state === 'play') addNoise(3.5);
+        }
+      }
+    }
+  }
+
   /* ============================================================ the giant */
   const GY = 915, STRIDE_MAX = 640, STRIDE_MIN = 220;
   function initGiant() {
@@ -522,7 +595,7 @@
     let to = f.x + dir * clamp(Math.abs(aim - f.x), STRIDE_MIN, STRIDE_MAX);
     if (Math.abs(to - other.x) < 150) to = other.x + dir * 150;
     f.from = f.x; f.to = to; f.t = 0; g.mover = mi; g.target = to;
-    g.dur = Math.max(0.68, 0.9 - g.steps * 0.02);
+    g.dur = Math.max(0.56, (0.9 - g.steps * 0.02) / (1 + 0.07 * (G.night - 1)));
     Snd.whoosh();
   }
   function giantLand(g, f) {
@@ -594,7 +667,7 @@
     G.groundT = Math.max(0, G.groundT - dt);
     if (!G.over) {
       G.time += dt;
-      if (G.state !== 'caught') { movement(dt); handsUpdate(dt); vacuumUpdate(dt); }
+      if (G.state !== 'caught') { movement(dt); handsUpdate(dt); vacuumUpdate(dt); quirkUpdate(dt); }
     }
     refreshMasks();
     Engine.update(engine, DT);
@@ -602,6 +675,7 @@
   }
 
   function postStep(dt) {
+    while (G.defer.length) G.defer.shift()();
     // landing squash
     const grounded = G.groundT > 0;
     if (grounded && !G.wasGround && G.lastVy > 3.5) { G.landSq = Math.min(0.35, G.lastVy * 0.04); Snd.land(Math.min(1, G.lastVy / 9)); for (let i = 0; i < 3; i++) puff(player.position.x + rand(-14, 14), player.position.y + PR - 3, rand(6, 10), 0.5, rand(-50, 50), rand(-30, -8)); }
@@ -679,19 +753,20 @@
   function endRun(kind) {
     if (G.over) return;
     Snd.rumble(false);
-    G.over = { kind, banked: G.banked, stars: STARS.filter(s => G.banked >= s).length, quip: (kind === 'caught' ? QUIPS_CAUGHT : QUIPS_ESCAPE)[Math.floor(Math.random() * 3)] };
+    G.over = { kind, banked: G.banked, stars: G.stars.filter(s => G.banked >= s).length, success: kind !== 'caught' && G.banked >= G.goal, night: G.night, quip: (kind === 'caught' ? QUIPS_CAUGHT : QUIPS_ESCAPE)[Math.floor(Math.random() * 3)] };
     G.overT = 0;
     for (const it of items) if (it.vac && (it.vac.on || it.vac.snd)) stopVac(it);
     for (const h of hands) if (h.on) endHand(h, true, 'tear');
     const newBest = G.banked > P.best;
     if (newBest) P.best = G.banked;
     G.over.newBest = newBest && G.banked > 0;
+    if (G.over.success) P.bestNight = Math.max(P.bestNight, Math.min(9, G.night + 1));
     P.runs++; saveProgress();
-    Tele.send('run_result', { outcome: kind, banked: G.banked, stars: G.over.stars, items_banked: G.bankedCount, peak_haul: G.carriedPeak, duration_sec: Math.round(G.time), goal_reached: G.goalHit });
+    Tele.send('run_result', { night: G.night, broken: G.brokenCount, outcome: kind, banked: G.banked, stars: G.over.stars, items_banked: G.bankedCount, peak_haul: G.carriedPeak, duration_sec: Math.round(G.time), goal_reached: G.goalHit });
     if (kind === 'caught') { Snd.lose(); platMsg('level_failed'); } else { Snd.win(); platMsg('level_completed'); }
   }
   function restart(fromOver) {
-    if (fromOver) showInterstitial();
+    if (fromOver) { if (G.over && G.over.success) NIGHT = Math.min(9, NIGHT + 1); showInterstitial(); }
     newRun();
   }
 
@@ -808,6 +883,7 @@
     ty = H + bottomPad > hh * 2 ? clamp(ty, hh, H - hh + bottomPad) : H / 2 + bottomPad / 2;
     const k = 1 - Math.pow(0.001, dt);
     cam.x = lerp(cam.x, tx, k); cam.y = lerp(cam.y, ty, k);
+    if (window.__omtCam) { cam.x = window.__omtCam.x; cam.y = window.__omtCam.y; if (window.__omtCam.s) cam.s = window.__omtCam.s; }
   }
 
   function txt(c, str, x, y, size, color, align, weight) {
@@ -890,6 +966,8 @@
     for (const p of parts) {
       const k = p.t / p.life;
       if (p.type === 'puff') { const r = p.size * (1 + k * 1.9), g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); g.addColorStop(0, 'rgba(226,212,190,' + 0.55 * (1 - k) + ')'); g.addColorStop(1, 'rgba(226,212,190,0)'); c.fillStyle = g; c.fillRect(p.x - r, p.y - r, r * 2, r * 2); continue; }
+      if (p.type === 'note') { c.globalAlpha = clamp(1 - k, 0, 1); c.fillStyle = 'hsl(' + p.hue + ',70%,62%)'; c.strokeStyle = INKC; c.lineWidth = 1.4; c.beginPath(); c.ellipse(p.x, p.y, 4.2, 3.2, -0.4, 0, TAU); c.fill(); c.stroke(); c.beginPath(); c.moveTo(p.x + 3.6, p.y - 1); c.lineTo(p.x + 3.6, p.y - 13); c.lineTo(p.x + 8, p.y - 10); c.stroke(); c.globalAlpha = 1; continue; }
+      if (p.type === 'toast') { c.save(); c.globalAlpha = clamp(1.6 - k * 1.5, 0, 1); c.translate(p.x, p.y); c.rotate(p.rot + p.vr * p.t); c.fillStyle = '#d9a35a'; c.strokeStyle = INKC; c.lineWidth = 2; c.beginPath(); c.moveTo(-9, 9); c.lineTo(-9, -4); c.quadraticCurveTo(-11, -12, -2, -11); c.quadraticCurveTo(0, -13, 2, -11); c.quadraticCurveTo(11, -12, 9, -4); c.lineTo(9, 9); c.closePath(); c.fill(); c.stroke(); c.fillStyle = '#f0cf8c'; c.fillRect(-6, -6, 12, 12); c.restore(); continue; }
       c.globalAlpha = clamp(1 - k, 0, 1); c.fillStyle = p.col;
       if (p.type === 'chip') { c.save(); c.translate(p.x, p.y); c.rotate(p.rot + p.vr * p.t); c.fillRect(-p.size, -p.size * 0.4, p.size * 2, p.size * 0.8); c.restore(); }
       else { c.beginPath(); c.arc(p.x, p.y, p.size, 0, TAU); c.fill(); }
@@ -1141,6 +1219,7 @@
 
   function drawHUD(c, t) {
     uiButtons.length = 0;
+    if (window.__omtNoHud) return;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     const U = clamp(Math.min(cw / 780, ch / 520), 0.78, 2.2);
     const pad = 10 * U, fs = (n) => Math.max(11, n * U);
@@ -1150,10 +1229,10 @@
     const lw = Math.min(238 * U, cw * (narrow ? 0.58 : 0.34)), lh = 84 * U;
     card(c, pad, pad, lw, lh);
     tape(c, pad + lw * 0.2, pad + 1, -0.08);
-    inkText(c, 'BANKED', pad + 14 * U, pad + 22 * U, fs(11), RUST, 'left', Art.SANS);
+    inkText(c, 'NIGHT ' + G.night + '  ·  BANKED', pad + 14 * U, pad + 22 * U, fs(11), RUST, 'left', Art.SANS);
     c.save(); c.translate(pad + 14 * U, pad + 49 * U); const bsc = 1 + 0.24 * G.bankBump; c.scale(bsc, bsc); inkText(c, '$' + Math.round(G.bankDisp), 0, 0, fs(28), G.bankBump > 0.08 ? '#2d7a3a' : INKC, 'left'); c.restore();
-    inkText(c, 'GOAL $' + GOAL, pad + lw - 14 * U, pad + 22 * U, fs(11), G.banked >= GOAL ? '#2d7a3a' : RUST, 'right', Art.SANS);
-    gauge(c, pad + 14 * U, pad + 55 * U, lw - 28 * U, 8 * U, clamp(G.banked / GOAL, 0, 1), G.banked >= GOAL ? '#7bbf6a' : '#e2b13a', [0.25, 0.5, 0.75]);
+    inkText(c, 'GOAL $' + G.goal, pad + lw - 14 * U, pad + 22 * U, fs(11), G.banked >= G.goal ? '#2d7a3a' : RUST, 'right', Art.SANS);
+    gauge(c, pad + 14 * U, pad + 55 * U, lw - 28 * U, 8 * U, clamp(G.banked / G.goal, 0, 1), G.banked >= G.goal ? '#7bbf6a' : '#e2b13a', [0.25, 0.5, 0.75]);
     const hv = haulValue();
     inkText(c, hv > 0 ? 'carrying $' + hv + '  (' + hauled.length + ' item' + (hauled.length > 1 ? 's' : '') + ')' : 'carrying nothing…', pad + 14 * U, pad + 76 * U, fs(11.5), hv > 0 ? '#b3541e' : 'rgba(42,26,46,0.5)', 'left', Art.SANS);
 
@@ -1216,7 +1295,7 @@
       const lbw = Math.min(300 * U, cw - 24), lbh = 44 * U, lx = (cw - lbw) / 2, ly = ch - (touchMode ? 190 : 110) * U;
       btn('leave', lx, ly, lbw, lbh);
       card(c, lx, ly, lbw, lbh, '#b4d9a0', 10);
-      inkText(c, G.banked >= GOAL ? 'Call it a night  (Enter)' : 'Sneak out now  (Enter)', cw / 2, ly + 28 * U, fs(16), INKC, 'center');
+      inkText(c, G.banked >= G.goal ? 'Call it a night  (Enter)' : 'Sneak out now  (Enter)', cw / 2, ly + 28 * U, fs(16), INKC, 'center');
     }
 
     // touch controls
@@ -1249,12 +1328,12 @@
       c.restore();
       inkText(c, 'Banked  $' + o.banked + (caught && hauledLost() > 0 ? '    (dropped $' + hauledLost() + ')' : ''), cw / 2, py + 112 * U, fs(22), INKC, 'center');
       for (let i = 0; i < 3; i++) star(c, cw / 2 + (i - 1) * 56 * U, py + 158 * U, 21 * U, i < o.stars);
-      inkText(c, o.quip, cw / 2, py + 206 * U, fs(14), '#5a3a52', 'center');
-      inkText(c, (o.newBest ? 'NEW BEST  $' : 'Best  $') + P.best + '   ·   goal $' + GOAL + '   ·   all loot $' + TOTAL_VALUE, cw / 2, py + 230 * U, fs(13), o.newBest ? '#2d7a3a' : RUST, 'center', Art.SANS);
+      inkText(c, o.success ? 'Night ' + o.night + ' cleared! The giant will be angrier tomorrow.' : (G.brokenCount > 0 && o.kind !== 'caught' ? 'Smashed loot: $' + G.lostValue + '. Careful with the glass.' : o.quip), cw / 2, py + 206 * U, fs(14), '#5a3a52', 'center');
+      inkText(c, (o.newBest ? 'NEW BEST  $' : 'Best  $') + P.best + '   ·   goal $' + G.goal + '   ·   all loot $' + TOTAL_VALUE, cw / 2, py + 230 * U, fs(13), o.newBest ? '#2d7a3a' : RUST, 'center', Art.SANS);
       const bw = Math.min(270 * U, pw - 40), bh = 50 * U, bx = (cw - bw) / 2, by = py + ph - bh - 22 * U;
       btn('again', bx, by, bw, bh);
       card(c, bx, by, bw, bh, '#e5a24e', 12);
-      inkText(c, 'One more try  (R)', cw / 2, by + 33 * U, fs(20), INKC, 'center');
+      inkText(c, o.success ? 'Night ' + Math.min(9, o.night + 1) + '  (R)' : 'One more try  (R)', cw / 2, by + 33 * U, fs(20), INKC, 'center');
       c.globalAlpha = 1;
     }
     if (P.paused) { c.fillStyle = 'rgba(0,0,0,0.45)'; c.fillRect(0, 0, cw, ch); txt(c, 'PAUSED', cw / 2, ch / 2, fs(34), '#fff3d6', 'center', 900); }
@@ -1296,7 +1375,7 @@
   window.__omt = {
     get G() { return G; }, get player() { return player; }, get items() { return items; }, get hauled() { return hauled; }, get hands() { return hands; }, get cam() { return cam; },
     stepN(n) { for (let i = 0; i < n; i++) stepSim(); }, input, mouse, toWorld, startGrab, endHand, attach, dropItem, dropNearest, endRun, addNoise, restart, P,
-    get parts() { return parts; }, setTouch(v) { touchMode = v; }, findTarget, bankItem, jump() { G.jumpBuf = 0.15; }
+    get parts() { return parts; }, get popups() { return popups; }, setTouch(v) { touchMode = v; }, findTarget, bankItem, jump() { G.jumpBuf = 0.15; }
   };
   platformInit().then(() => {
     syncAudio();

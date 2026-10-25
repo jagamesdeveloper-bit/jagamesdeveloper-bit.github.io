@@ -116,6 +116,10 @@
       noise(1.1, 0.12 * vol, 'lowpass', 220, 520);
       noise(1.3, 0.1 * vol, 'lowpass', 520, 160, 1.2);
     },
+    squeak() { tone(1050, 0.07, 'square', 0.07, 1750); tone(1500, 0.09, 'sine', 0.06, 2100, 0.05); },
+    beep() { tone(1900, 0.07, 'square', 0.055); },
+    note() { const f = [523, 587, 659, 784, 880, 1047][Math.floor(Math.random() * 6)]; tone(f, 0.34, 'triangle', 0.05); tone(f * 2, 0.2, 'sine', 0.02); },
+    pop() { tone(170, 0.12, 'sine', 0.22, 520); tone(1300, 0.12, 'triangle', 0.08, null, 0.1); noise(0.06, 0.1, 'highpass', 2200); },
     tick() { tone(1200, 0.03, 'square', 0.025); },
     heartbeat() { tone(70, 0.12, 'sine', 0.3, 40); tone(65, 0.12, 'sine', 0.22, 38, 0.18); },
     wake() {
