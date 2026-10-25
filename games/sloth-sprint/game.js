@@ -391,7 +391,7 @@
 
   PG.onDown = function (x, y) { if (x > PG.w - 130 * PG.scale() && y < 70 * PG.scale()) return; tapAction(); };
   PG.setup(document.getElementById('c'), update, render);
-  window.__sloth = { st: st, predict: predict, release: release, start: startRun, grabR: grabR, cam: cam };
+  window.__sloth = { update: update, st: st, predict: predict, release: release, start: startRun, grabR: grabR, cam: cam };
   PG.init({ id: 'sloth_sprint', version: '1.0.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
     PG.music({ scale: [0, 3, 5, 7, 10], root: 196, bpm: 72, wave: 'sine', vol: 0.08, bass: 0.1 });
     // first frame already has a hanging sloth

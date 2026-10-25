@@ -368,6 +368,7 @@
     if (st.state === 'menu') menu(c, w, h, t); else { drawUI(c, w, h, t); if (st.over) gameOver(c, w, h, t); }
   }
   PG.setup(document.getElementById('c'), update, render);
+  window.__hex = { cells: cells, st: st, newGame: newGame, place: place };
   PG.init({ id: 'hex_harvest', version: '1.0.0', defaults: { best: 0, games: 0, found: 0, board: null, muted: false } }).then(function () {
     PG.music({ scale: [0, 2, 4, 7, 9], root: 220, bpm: 84, wave: 'triangle', vol: 0.06, bass: 0.08 });
     PG.hudHidePause = false; PG._applyAudio();
