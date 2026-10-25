@@ -29,6 +29,8 @@ Reeling yourself up to a ledge hauls you over it. Loot inside the doormat zone b
 
 necklace (swings), pocket watch, bouncy ball (destabilises the haul), teapot, candlestick, frying pan (loud), television (heavy), vacuum cleaner (occasionally switches on and drags you), trophy, diamond ring, rubber duck (squeaks on every bump), cheese wheel (heavy, rolls), snow globe (smashes on a hard knock), alarm clock (rings a few seconds after you grab it), music box (leaks noise while carried), toaster (pops toast and jolts your haul).
 
+From night 2, Mr. Whiskers the cat naps on the sofa. Noise (or sneaking too close) wakes him, and each night he is a lighter sleeper. He hunts on the floor, leaps onto low furniture, crouches for a moment, then lunges. A hit swats your whole haul loose and stuns you. Jump his lunge or get up high. He bolts when the giant wakes.
+
 A brass curtain rail runs across the gap above the TV cabinet: grab it to swing.
 
 ## Layout

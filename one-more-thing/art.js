@@ -942,6 +942,81 @@
     }
   };
 
+  /* ---------------------------------------------------------------- Mr. Whiskers */
+  const CAT_O = '#e0853a', CAT_D = '#b9602a', CAT_L = '#f6e6cc';
+  function catLeg(c, hx, hy, px, py, w) {
+    c.lineCap = 'round'; c.strokeStyle = INK; c.lineWidth = w + 3.4; c.beginPath(); c.moveTo(hx, hy); c.lineTo(px, py); c.stroke();
+    c.strokeStyle = CAT_O; c.lineWidth = w; c.stroke(); c.lineCap = 'butt';
+    blob(c, px + 3, py, 8.5, 5.4, Math.round(px * 3 + py)); fillStroke(c, CAT_L, 2);
+  }
+  function catHead(c, x, y, k, t, mode) {
+    c.save(); c.translate(x, y);
+    for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * 5, -14); c.lineTo(s * 17 + 2, -34 - (mode === 'wind' ? -3 : 0)); c.lineTo(s * 19 + 2, -10); c.closePath(); fillStroke(c, CAT_O, 2.6); c.beginPath(); c.moveTo(s * 9 + 1, -16); c.lineTo(s * 15 + 2, -28); c.lineTo(s * 16 + 2, -14); c.closePath(); c.fillStyle = '#f2a0a8'; c.fill(); }
+    blob(c, 0, 0, 22, 19, 5); shaded(c, CAT_O, -22, -19, 44, 38, 2.8, 0.9);
+    c.strokeStyle = CAT_D; c.lineWidth = 3.2; c.lineCap = 'round';
+    for (const o of [-8, 0, 8]) { c.beginPath(); c.moveTo(o, -18); c.lineTo(o * 0.7, -9); c.stroke(); }
+    c.lineCap = 'butt';
+    blob(c, 4, 7, 12, 9, 9); fillStroke(c, CAT_L, 2);
+    if (mode === 'sleep') { c.strokeStyle = INK; c.lineWidth = 2.4; c.lineCap = 'round'; for (const s of [-1, 1]) { c.beginPath(); c.arc(s * 9 + 2, -2, 5, 0.25, Math.PI - 0.25); c.stroke(); } c.lineCap = 'butt'; }
+    else {
+      const wide = mode === 'wind' || mode === 'lunge' ? 1.25 : 1;
+      for (const s of [-1, 1]) {
+        c.beginPath(); c.ellipse(s * 9 + 2, -3, 6.2 * wide, 7 * wide, 0, 0, TAU); fillStroke(c, '#c8e86a', 2);
+        c.fillStyle = INK; c.beginPath(); c.ellipse(s * 9 + 3.5, -3, mode === 'wind' ? 1.6 : 2.4, 6 * wide, 0, 0, TAU); c.fill();
+        c.strokeStyle = INK; c.lineWidth = 2.6; c.beginPath(); c.moveTo(s * 9 - 6, -12 + (mode === 'wind' ? 3 : 0)); c.lineTo(s * 9 + 10, -9 + (mode === 'wind' ? -1 : 2)); c.stroke();
+      }
+    }
+    c.beginPath(); c.moveTo(1, 3); c.lineTo(9, 3); c.lineTo(5, 8); c.closePath(); fillStroke(c, '#f08a9a', 1.6);
+    c.strokeStyle = INK; c.lineWidth = 1.8; c.lineCap = 'round';
+    if (mode === 'wake' || mode === 'lunge') { c.beginPath(); c.ellipse(5, 14, 6, 5 + (mode === 'wake' ? Math.sin(t * 6) * 1.2 : 2), 0, 0, TAU); c.fillStyle = '#6a1a2a'; c.fill(); c.stroke(); c.fillStyle = '#fff'; c.fillRect(1, 10, 3, 3); c.fillRect(8, 10, 3, 3); }
+    else { c.beginPath(); c.moveTo(5, 8); c.lineTo(5, 12); c.moveTo(-2, 13); c.quadraticCurveTo(5, 16, 12, 13); c.stroke(); }
+    c.strokeStyle = 'rgba(40,20,30,0.7)'; c.lineWidth = 1.4; for (const s of [-1, 1]) for (let w = 0; w < 3; w++) { c.beginPath(); c.moveTo(s * 10 + 4, 8 + w * 3); c.lineTo(s * 30 + 4, 4 + w * 5 + (mode === 'wind' ? -3 : 0)); c.stroke(); }
+    c.lineCap = 'butt'; c.restore();
+  }
+  // Mr. Whiskers, drawn facing right with his feet at the origin
+  function cat(c, k, t) {
+    c.save(); c.translate(k.x, k.y); c.scale(k.dir >= 0 ? 1 : -1, 1);
+    if (k.state === 'sleep') {
+      const br = Math.sin(t * 1.8) * 1.4;
+      c.lineCap = 'round'; c.strokeStyle = INK; c.lineWidth = 13; c.beginPath(); c.moveTo(-52, -18); c.quadraticCurveTo(-10, 6, 40, -4); c.stroke();
+      c.strokeStyle = CAT_O; c.lineWidth = 9.6; c.stroke(); c.strokeStyle = CAT_D; c.lineWidth = 9.6; c.setLineDash([6, 9]); c.stroke(); c.setLineDash([]); c.lineCap = 'butt';
+      blob(c, -4, -26 - br * 0.6, 62, 27 + br, 1); shaded(c, CAT_O, -66, -54, 124, 56, 3, 0.9);
+      c.save(); blob(c, -4, -26 - br * 0.6, 62, 27 + br, 1); c.clip(); c.strokeStyle = CAT_D; c.lineWidth = 6; c.lineCap = 'round'; for (let x = -52; x < 44; x += 20) { c.beginPath(); c.moveTo(x, -56); c.quadraticCurveTo(x + 6, -40, x - 2, -26); c.stroke(); } c.restore();
+      blob(c, -4, -26 - br * 0.6, 62, 27 + br, 1); inkStroke(c, 3.2);
+      catLeg(c, 24, -10, 44, -3, 9);
+      catHead(c, 42, -26, k, t, 'sleep');
+      for (let i = 0; i < 3; i++) { const ph = (t * 0.55 + i * 0.33) % 1; c.globalAlpha = 1 - ph; text(c, 'z', 62 + ph * 18 + i * 6, -52 - ph * 44, 15 + i * 4, '#d8e8ff', 'left', SERIF, INK); c.globalAlpha = 1; }
+      c.restore(); return;
+    }
+    const st = k.state, moving = (st === 'chase' || st === 'flee') && Math.abs(k.vx) > 20, ph = k.anim * (st === 'flee' ? 15 : 11);
+    let bodyY = -44 + (moving ? Math.abs(Math.sin(ph)) * -2.5 : 0), lean = 0, wig = 0, mode = 'idle';
+    if (st === 'windup') { bodyY = -30; wig = Math.sin(k.anim * 55) * 2.2; mode = 'wind'; }
+    else if (st === 'lunge') { bodyY = -52; lean = -0.16; mode = 'lunge'; }
+    else if (st === 'wake') { bodyY = -38; lean = 0.12; mode = 'wake'; }
+    else if (!k.ground) { bodyY = -50; lean = -0.1; }
+    const tw = st === 'windup' ? Math.sin(k.anim * 22) * 22 : Math.sin(k.anim * 4) * 8;
+    c.lineCap = 'round'; c.strokeStyle = INK; c.lineWidth = 14; c.beginPath(); c.moveTo(-58 + wig, bodyY + 4); c.bezierCurveTo(-92, bodyY - 6 + tw * 0.3, -96 + tw * 0.4, bodyY - 48, -76 + tw, bodyY - 66); c.stroke();
+    c.strokeStyle = CAT_O; c.lineWidth = 10.4; c.stroke(); c.strokeStyle = CAT_D; c.setLineDash([5, 9]); c.stroke(); c.setLineDash([]); c.lineCap = 'butt';
+    const legs = (near) => {
+      for (const [lx, o] of near ? [[-44, 0], [30, Math.PI]] : [[-52, Math.PI], [18, 0]]) {
+        let px = lx + (st === 'lunge' ? (lx > 0 ? 34 : -34) : moving ? Math.sin(ph + o) * 20 : 0), py = moving ? -Math.max(0, Math.cos(ph + o)) * 14 : 0;
+        if (st === 'windup') { py = 0; px = lx + (lx > 0 ? 8 : -2); }
+        if (!k.ground && st !== 'lunge') { px = lx + (lx > 0 ? 16 : -16); py = -12; }
+        catLeg(c, lx + wig * (lx < 0 ? 1 : 0.3), bodyY + 6, px, py, 11);
+      }
+    };
+    legs(false);
+    c.save(); c.translate(0, bodyY); c.rotate(lean);
+    blob(c, -8, 0, 62, 26, 2); shaded(c, CAT_O, -70, -26, 124, 52, 3, 0.9);
+    c.save(); blob(c, -8, 0, 62, 26, 2); c.clip(); c.strokeStyle = CAT_D; c.lineWidth = 6; c.lineCap = 'round'; for (let x = -56; x < 44; x += 20) { c.beginPath(); c.moveTo(x, -28); c.quadraticCurveTo(x + 6, -12, x - 2, 4); c.stroke(); }
+    c.fillStyle = CAT_L; c.beginPath(); c.ellipse(-4, 20, 44, 11, 0, 0, TAU); c.fill(); c.restore();
+    blob(c, -8, 0, 62, 26, 2); inkStroke(c, 3.2);
+    c.restore();
+    legs(true);
+    catHead(c, 52, bodyY - 12 + (st === 'windup' ? 14 : 0) + (st === 'wake' ? 18 : 0), k, t, mode);
+    c.restore();
+  }
+
   /* ---------------------------------------------------------------- the burglar */
   // The collider is a circle (radius r) centred on the hips; the figure stands on the bottom of it (drawn a little larger than the collider).
   const FIG = 1.2;
@@ -1083,5 +1158,5 @@
     c.beginPath(); c.arc(sx, sy, 2.6, 0, TAU); fillStroke(c, '#8a8c9c', 1.6);
   }
 
-  window.Art = { rumble: 0, giant, rr, blob, fillStroke, inkStroke, shade, lin, vis, text, room, postfx, LOOT, thief, arm, rope, shoulder, hip, INK, SERIF, SANS, hash };
+  window.Art = { rumble: 0, giant, cat, rr, blob, fillStroke, inkStroke, shade, lin, vis, text, room, postfx, LOOT, thief, arm, rope, shoulder, hip, INK, SERIF, SANS, hash };
 })();

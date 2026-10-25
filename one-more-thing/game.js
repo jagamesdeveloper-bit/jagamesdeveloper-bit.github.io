@@ -135,7 +135,7 @@
     try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs', 'omt_night'], [String(P.best), String(P.runs), String(P.bestNight)]).catch(() => {}); } catch (e) {}
   }
   function platMsg(m, data) { try { if (hasBridge()) window.bridge.platform.sendMessage(m, data); } catch (e) {} }
-  const GAME_VERSION = '1.5.0';
+  const GAME_VERSION = '1.6.0';
   const Tele = {
     send(name, data) { try { if (hasBridge() && window.bridge.analytics) window.bridge.analytics.send(name, data); } catch (e) {} },
     frames: [], windowStart: 0, active: 0, jsErr: 0,
@@ -198,13 +198,14 @@
       t: 0, time: 0, state: 'play', noise: 0, noiseDisp: 0, stage: 0, banked: 0, bankedCount: 0, over: null, overT: 0,
       escapeLeft: ESCAPE_TIME, leaving: false, leaveT: 0, groundT: 0, jumpBuf: 0, landSq: 0, grin: 0, shake: 0, wasGround: false,
       sqS: 0, saS: 0, blink: 3, walk: 0, caughtT: 0, flags: {}, hint: 14, toast: null, stepT: 0, hbT: 0, flash: 0, goalHit: false,
-      lastGreed: '', carriedPeak: 0, giant: null, crushed: false, rumble: 0, punch: 0, cracks: [], rings: [], hitstop: 0, slowT: 0, lampDip: 0, bankBump: 0, bankDisp: 0, stepPh: 0, night: NIGHT, defer: [], brokenCount: 0, lostValue: 0
+      lastGreed: '', carriedPeak: 0, giant: null, crushed: false, rumble: 0, punch: 0, cracks: [], rings: [], hitstop: 0, slowT: 0, lampDip: 0, bankBump: 0, bankDisp: 0, stepPh: 0, night: NIGHT, defer: [], brokenCount: 0, lostValue: 0, stunT: 0, cat: null
     };
     G.goal = goalFor(NIGHT); G.stars = [G.goal, Math.round((G.goal + TOTAL_VALUE) / 2 / 50) * 50, TOTAL_VALUE];
     Art.cracksList = G.cracks; Art.rumble = 0; Snd.rumble(false);
     buildWorld();
+    initCat();
     hands = [mkHand(), mkHand()];
-    toast(NIGHT > 1 ? 'Night ' + NIGHT + '. Bank $' + G.goal + ' before he wakes.' : 'Steal what you can carry. Don\'t wake the giant.', 5);
+    toast(NIGHT > 1 ? 'Night ' + NIGHT + '. Bank $' + G.goal + '. Mr. Whiskers is napping on the sofa.' : 'Steal what you can carry. Don\'t wake the giant.', 5);
     platMsg('level_started');
   }
   function mkHand() { return { on: false, pid: null, sx: 0, sy: 0, con: null, kind: null, it: null, anchor: null, held: 0, miss: false, side: 1, flash: 0 }; }
@@ -581,6 +582,78 @@
     }
   }
 
+  /* ============================================================ Mr. Whiskers */
+  function groundForCat(x, y) {
+    let gy = FLOOR;
+    for (const b of owBodies) { const bb = b.bounds; if (x > bb.min.x && x < bb.max.x && bb.min.y >= y - 8 && bb.min.y < gy) gy = bb.min.y; }
+    return gy;
+  }
+  function initCat() {
+    G.cat = null;
+    if (G.night < 2) return;
+    G.cat = { x: 1050, y: 800, vx: 0, vy: 0, dir: 1, state: 'sleep', t: 0, ground: true, jumpCd: 0, atkCd: 0.4, hit: false, anim: 0, near: 0,
+      sp: 185 + 14 * (G.night - 2), wakeAt: Math.max(22, 50 - 10 * (G.night - 2)) };
+  }
+  function wakeCat(c) {
+    c.state = 'wake'; c.t = 0.9; Snd.meow();
+    toast('Mr. Whiskers woke up! Jump his pounce, or get up high.', 3.5, 'warn');
+    Tele.send('cat_woke', { night: G.night, noise: Math.round(G.noise) });
+  }
+  function catHit(c) {
+    c.hit = true; const lost = hauled.length;
+    for (const it of hauled.slice()) { dropItem(it); Body.setVelocity(it.body, { x: c.dir * rand(2, 6), y: rand(-8, -3) }); }
+    for (const h of hands) if (h.on) endHand(h, true, 'tear');
+    Body.setVelocity(player, { x: c.dir * 6, y: -6.5 });
+    G.stunT = 0.9; G.shake = Math.max(G.shake, 14); G.hitstop = Math.max(G.hitstop, 0.07);
+    popWord(player.position.x, player.position.y - 46, 'SWAT!', 1.5, '#ffd1a0'); Snd.swat();
+    for (let i = 0; i < 8; i++) puff(player.position.x + rand(-20, 20), player.position.y + rand(-10, 20), rand(8, 14), 0.5, rand(-80, 80), rand(-60, 0));
+    if (G.state === 'play') addNoise(12);
+    if (lost > 0) toast('Mr. Whiskers swatted your haul loose!', 3, 'warn');
+    Tele.send('cat_hit', { night: G.night, items_lost: lost });
+    c.state = 'recover'; c.t = 1.8; c.vx = 0;
+  }
+  function updateCat(dt) {
+    const c = G.cat; if (!c || c.state === 'gone') return;
+    c.anim += dt;
+    const th = player.position, thFeet = th.y + PR;
+    if (G.state !== 'play' && c.state !== 'flee') { c.state = 'flee'; c.dir = 1; }
+    if (c.state === 'sleep') {
+      const near = Math.abs(th.x - c.x) < 170 && Math.abs(thFeet - c.y) < 160;
+      c.near = near ? c.near + dt : 0;
+      const ringing = items.some(it => it.alarm && it.alarm.ring > 0 && Math.abs(it.body.position.x - c.x) < 700);
+      if (G.noise >= c.wakeAt || c.near > 1.2 || ringing) wakeCat(c);
+      return;
+    }
+    c.vy += 1500 * dt; c.x += c.vx * dt; c.y += c.vy * dt;
+    const gy = groundForCat(c.x, c.y - 6);
+    if (c.vy >= 0 && c.y >= gy) { c.y = gy; c.vy = 0; c.ground = true; } else if (c.y < gy - 2) c.ground = false;
+    if (c.state !== 'flee') c.x = clamp(c.x, 40, W - 40);
+    switch (c.state) {
+      case 'wake': c.vx = 0; c.t -= dt; if (c.t <= 0) c.state = 'chase'; break;
+      case 'chase': {
+        const dx = th.x - c.x; c.dir = dx >= 0 ? 1 : -1;
+        if (c.ground) c.vx = (Math.abs(dx) > 36 && !(inPad(th) && c.x < PAD.x + PAD.w + 120)) ? c.dir * c.sp : 0;
+        c.jumpCd -= dt; c.atkCd -= dt;
+        if (c.ground && c.jumpCd <= 0 && thFeet < c.y - 70) {
+          let best = null; const px = c.x + c.dir * 70;
+          for (const b of owBodies) { const bb = b.bounds, h = c.y - bb.min.y; if (h > 30 && h <= 190 && px > bb.min.x - 50 && px < bb.max.x + 50 && (!best || bb.min.y < best.min.y)) best = bb; }
+          if (best) { c.vy = -Math.sqrt(2 * 1500 * (c.y - best.min.y + 30)); c.vx = c.dir * 170; c.ground = false; c.jumpCd = 1.2; }
+        }
+        if (c.ground && c.atkCd <= 0 && !inPad(th) && Math.abs(dx) < 320 && Math.abs(thFeet - c.y) < 140) { c.state = 'windup'; c.t = 0.7; c.vx = 0; Snd.hiss(); }
+        break;
+      }
+      case 'windup': c.vx = 0; c.t -= dt; c.dir = th.x >= c.x ? 1 : -1; if (c.t <= 0) { c.state = 'lunge'; c.t = 0.42; c.vx = c.dir * 640; c.vy = -330; c.ground = false; c.hit = false; Snd.whoosh(); } break;
+      case 'lunge': {
+        c.t -= dt;
+        if (!c.hit && !inPad(th)) { const fx = c.x + c.dir * 38; if (Math.abs(th.x - fx) < 78 && thFeet > c.y - 84 && th.y - 40 < c.y) { catHit(c); break; } }
+        if (c.t <= 0) { c.state = 'recover'; c.t = 1.1; c.vx = 0; }
+        break;
+      }
+      case 'recover': c.t -= dt; c.vx *= 0.9; if (c.t <= 0) { c.state = 'chase'; c.atkCd = 0.8; } break;
+      case 'flee': c.vx = 380; c.dir = 1; if (c.x > W + 220) c.state = 'gone'; break;
+    }
+  }
+
   /* ============================================================ the giant */
   const GY = 915, STRIDE_MAX = 640, STRIDE_MIN = 220;
   function initGiant() {
@@ -667,7 +740,11 @@
     G.groundT = Math.max(0, G.groundT - dt);
     if (!G.over) {
       G.time += dt;
-      if (G.state !== 'caught') { movement(dt); handsUpdate(dt); vacuumUpdate(dt); quirkUpdate(dt); }
+      if (G.state !== 'caught') {
+        G.stunT = Math.max(0, G.stunT - dt);
+        if (G.stunT <= 0) { movement(dt); handsUpdate(dt); }
+        vacuumUpdate(dt); quirkUpdate(dt); updateCat(dt);
+      }
     }
     refreshMasks();
     Engine.update(engine, DT);
@@ -927,6 +1004,8 @@
 
     for (const r of G.rings) { const e = 1 - Math.pow(1 - r.t, 2), rx = 40 + e * 560; c.beginPath(); c.ellipse(r.x, 912, rx, rx * 0.075, 0, 0, TAU); c.lineWidth = 7 * (1 - r.t) + 1; c.strokeStyle = 'rgba(230,214,190,' + 0.55 * (1 - r.t) + ')'; c.stroke(); }
 
+    if (G.cat && G.cat.state !== 'gone') Art.cat(c, G.cat, t);
+
     // loose + hauled loot behind the burglar
     for (const it of items) if (it.state === 'loose') drawItem(c, it, t);
     for (const it of hauled) { drawTether(c, it); }
@@ -1066,6 +1145,7 @@
     }
     Art.thief(c, pose);
     G.pose = pose;
+    if (G.stunT > 0) for (let i = 0; i < 3; i++) { const an = t * 7 + i * 2.1; star(c, pp.x + Math.cos(an) * 20, pp.y - 52 + Math.sin(an) * 5, 5.5, true); }
 
     // stretchy arms, drawn in front of the body
     for (let i = 0; i < 2; i++) {
