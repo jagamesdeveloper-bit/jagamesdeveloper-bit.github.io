@@ -82,7 +82,7 @@ SFX = {
         'tap': (['card-place-1', 'card-place-2', 'card-place-3'], 0.7), 'shoot': (['knifeSlice', 'knifeSlice2', 'drawKnife1', 'drawKnife2'], 0.55),
         'hit': (r('impactWood_medium'), 0.85), 'err': (r('impactMetal_light'), 0.9), 'coin': (['chips-stack-1', 'chips-stack-2', 'chips-stack-3'], 0.8),
         'win': ([jingle('sax', '15')], 0.75), 'boss': ([jingle('sax', '02')], 0.8), 'lose': ([jingle('sax', '01')], 0.75), 'boom': (r('impactPlank_medium'), 0.9),
-        'upgrade': (['chips-handle-1', 'chips-handle-2'], 0.8),
+        'upgrade': (['chips-handle-1', 'chips-handle-2'], 0.8), 'pop': (r('impactPunch_heavy'), 0.8),
     },
     'potion-pour': {
         'tap': (['click_004'], 0.45), 'pick': (r('impactGlass_light'), 0.7), 'pour': (['slime_000', 'slime_001'], 0.6), 'bell': (['glass_003', 'glass_006'], 0.55),

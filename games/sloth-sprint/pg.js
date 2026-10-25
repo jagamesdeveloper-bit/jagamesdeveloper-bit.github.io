@@ -252,7 +252,7 @@
 
   /* ---------------- UI toolkit ---------------- */
   var U = (PG.ui = {});
-  PG.scale = function () { return Math.max(0.55, Math.min(PG.w / 420, PG.h / 700, 2.2)); }; // generic UI unit
+  PG.scale = function () { return Math.max(0.55, Math.min(PG.w / 420, PG.h / 620, 2.2)); }; // generic UI unit
   U.rr = function (c, x, y, w, h, r) { r = Math.max(0, Math.min(r, w / 2, h / 2)); c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
   U.fontStr = function (size, o) {
     o = o || {}; var body = o.font === 'body';

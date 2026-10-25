@@ -79,6 +79,16 @@ window.PG_ASSETS = {
     "audio/upgrade_1.mp3"
    ],
    "vol": 0.8
+  },
+  "pop": {
+   "files": [
+    "audio/pop_0.mp3",
+    "audio/pop_1.mp3",
+    "audio/pop_2.mp3",
+    "audio/pop_3.mp3",
+    "audio/pop_4.mp3"
+   ],
+   "vol": 0.8
   }
  },
  "music": "audio/music.mp3",

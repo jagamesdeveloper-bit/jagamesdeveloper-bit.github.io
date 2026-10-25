@@ -1,6 +1,23 @@
 // per-game screenshot scenarios for look.js
 const tap = async (page, x, y) => { await page.mouse.click(x, y); await page.waitForTimeout(120); };
 module.exports = {
+  'potion-pour': {
+    menu: async (page) => { await page.evaluate(() => { window.__pg_debug.save.level = 5; }); await page.waitForTimeout(700); },
+    play: async (page) => { await page.evaluate(() => { const P = window.__potion; P.start(3); }); await page.waitForTimeout(900); await page.evaluate(() => { const P = window.__potion; P.tap(0); }); await page.waitForTimeout(400); },
+    pour: async (page) => { await page.evaluate(() => { const P = window.__potion; P.start(4); }); await page.waitForTimeout(800); await page.evaluate(() => { const P = window.__potion, T = P.st.tubes; for (let i = 0; i < T.length; i++) for (let j = 0; j < T.length; j++) if (i !== j && P.canPour(T[i], T[j]) && T[j].length) { P.tap(i); P.tap(j); return; } P.tap(0); P.tap(T.length - 1); }); await page.waitForTimeout(550); },
+    hidden: async (page) => { await page.evaluate(() => { window.__potion.start(9); }); await page.waitForTimeout(900); },
+    many: async (page) => { await page.evaluate(() => { const P = window.__potion; P.start(19); P.st.tubes[3] = [0, 0, 0, 0].map(() => ({ c: 2, hid: false })); P.st.sealAt = {}; }); await page.waitForTimeout(900); },
+    win: async (page) => { await page.evaluate(() => { const P = window.__potion; P.start(2); P.st.tubes = [[0,0,0,0],[1,1,1,1],[2,2,2],[],[2]].map(t => t.map(c => ({ c, hid: false }))); }); await page.waitForTimeout(400); await page.evaluate(() => { const P = window.__potion; P.tap(4); P.tap(2); }); await page.waitForTimeout(2600); },
+  },
+  'pin-the-tail': {
+    menu: async (page) => { await page.waitForTimeout(700); },
+    play: async (page) => { await page.evaluate(() => { const P = window.__pin; P.start(); P.st.apples = [{ a: 300, c: '#2a9d8f' }]; }); await page.waitForTimeout(800); await page.evaluate(() => window.__pin.throwPin()); await page.waitForTimeout(200); await page.evaluate(() => window.__pin.throwPin()); await page.waitForTimeout(60); },
+    stage4: async (page) => { await page.evaluate(() => { const P = window.__pin; P.start(); P.st.stage = 4; P.st.left = 0; P.st.state = 'play'; window.__pg_debug.save.runs = 3; }); await page.evaluate(() => { const P = window.__pin; P.st.stage = 3; P.st.state = 'clear'; P.st.clearT = 2; }); await page.waitForTimeout(900); },
+    boss: async (page) => { await page.evaluate(() => { const P = window.__pin; P.start(); P.st.stage = 4; P.st.state = 'clear'; P.st.clearT = 2; }); await page.waitForTimeout(700); },
+    clear: async (page) => { await page.evaluate(() => { const P = window.__pin; P.start(); P.st.left = 1; }); await page.waitForTimeout(800); await page.evaluate(() => { const P = window.__pin; P.st.pins = []; P.throwPin(); }); await page.waitForTimeout(350); },
+    dead: async (page) => { await page.evaluate(() => { const P = window.__pin; P.start(); P.st.stage = 7; P.st.coinsRun = 12; P.st.lives = 0; }); await page.waitForTimeout(800); await page.evaluate(() => { const P = window.__pin; const a = ((90 - P.st.rot) % 360 + 360) % 360; P.st.pins.push({ a: a, w: 0, c: '#d64933' }); P.stick({ c: '#2a9d8f' }); }); await page.waitForTimeout(1500); },
+    upgrades: async (page) => { await page.evaluate(() => { window.__pg_debug.save.coins = 180; window.__pin.st.state = 'upgrades'; }); await page.waitForTimeout(600); },
+  },
   'sloth-sprint': {
     menu: async (page) => { await page.waitForTimeout(600); },
     play: async (page) => { await page.evaluate(() => window.__sloth.start()); await page.waitForTimeout(900); },
