@@ -1854,11 +1854,13 @@ function toast(text,ms){
   clearTimeout(tip.t);tip.t=setTimeout(()=>el.classList.remove('on'),ms||2600);
 }
 function adStat(kind,pl){const st=(meta.adstats=meta.adstats||{inter:0,rew:{}});if(kind==='inter')st.inter++;else st.rew[pl]=(st.rew[pl]||0)+1;saveMeta();}
-function tip(id,text){
-  if(state!=='play'||meta.tips.includes(id))return;
-  meta.tips.push(id);saveMeta();
-  toast(text,4600);
+const tipQ=[];
+function tip(id,text){ // teaching toasts wait for a calm moment instead of covering the fight
+  if(state!=='play'||meta.tips.includes(id)||tipQ.some(q=>q[0]===id))return;
+  if(room&&!room.cleared&&enemies.some(e=>!e.dead&&e.spawn<=0)&&id!=='move'){tipQ.push([id,text]);return;}
+  meta.tips.push(id);saveMeta();toast(text,3600);
 }
+function flushTip(){const q=tipQ.shift();if(q&&!meta.tips.includes(q[0])){meta.tips.push(q[0]);saveMeta();toast(q[1],3600);}tipQ.length=Math.min(tipQ.length,3);}
 function syncFound(){
   const add=id=>{if(!meta.found.includes(id))meta.found.push(id);};
   if(typeof P!=='undefined'&&P){P.relics.forEach(add);Object.keys(P.up).forEach(add);P.act.forEach(a=>add(a.id));}
@@ -2639,7 +2641,7 @@ function update(dt){
       if(room.waves.length){room.waveT-=dt;if(room.waveT<=0){spawnWaveList(room.waves.shift());room.waveT=0.7;}}
       else{
         room.cleared=true;room.zones.length=0;items.push({x:3,y:0,t:'stairs'});
-        sfx('door',0.8);floatText(3,1,'ROOM CLEARED','#ffd86b');if(P.roomHeal)healPlayer(P.roomHeal);if(P.hp<P.maxHp*0.5)healPlayer(1);
+        sfx('door',0.8);floatText(3,1,'ROOM CLEARED','#ffd86b');flushTip();if(P.roomHeal)healPlayer(P.roomHeal);if(P.hp<P.maxHp*0.5)healPlayer(1);
         if(room.kind==='elite')healPlayer(Math.ceil(P.maxHp*0.2));
       }
     }
@@ -3021,7 +3023,7 @@ function inspect(x,y){
   if(e.aff)bits.push(AFF_DESC[e.aff]);
   if(!e.role&&!e.boss)bits.push(BASE_DESC[e.t]);
   if(e.barrier)bits.push('Shielded: the next hit is blocked.');
-  toast(bits.join(' '),3600);return true;
+  toast(bits.join(' '),2400);return true;
 }
 const pausePos=()=>[W/2,24];
 function openPause(){
@@ -3040,6 +3042,8 @@ $('resume').onclick=closePause;
 $('quit').onclick=()=>{closePause();showMenu();};
 document.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)openPause();});
+let inspT=0;
+['pointerup','pointercancel','pointerleave'].forEach(n=>hud.addEventListener(n,()=>clearTimeout(inspT)));
 hud.addEventListener('pointerdown',e=>{
   startMusic();
   if(state!=='play')return;
@@ -3047,7 +3051,8 @@ hud.addEventListener('pointerdown',e=>{
   for(let i=0;i<2;i++){const[bx,by]=btnPos(i);if(Math.hypot(e.clientX-stageX()-bx,e.clientY-by)<36){if(P.act[i])castActive(i);return;}}
   const t=tileFromScreen(e.clientX-stageX(),e.clientY);
   if(t){
-    if(!legalMoves().some(m=>m.x===t[0]&&m.y===t[1]))inspect(t[0],t[1]);
+    clearTimeout(inspT);
+    if(!legalMoves().some(m=>m.x===t[0]&&m.y===t[1])&&enemies.some(o=>!o.dead&&o.x===t[0]&&o.y===t[1]))inspT=setTimeout(()=>{if(state==='play'&&!userPaused)inspect(t[0],t[1]);},500); // the piece card only opens on a press-and-hold
     onTap(t[0],t[1]);
   }
 });
@@ -3088,7 +3093,7 @@ renderPick();
 $('playBtn').onclick=()=>startRun(pickT);
 function resetPlayerVis(){if(P&&P.vis){scene.remove(P.vis);disposeGroup(P.vis);P.vis=null;}}
 function startRun(t){
-  resetPlayerVis();newRun(t);state='play';startMusic();AD.startRun();PG.preload();PG.ev('run_started',{piece:t,mods:Object.keys(modsOn).filter(k=>modsOn[k]).join(',')||'none'});if(boonReady){boonReady=false;pickQ.push({type:'relic'});refreshBoon();}setTimeout(()=>tip('move','Tap a glowing dot to move. Tap a red ring to attack.'),700);
+  tipQ.length=0;resetPlayerVis();newRun(t);state='play';startMusic();AD.startRun();PG.preload();PG.ev('run_started',{piece:t,mods:Object.keys(modsOn).filter(k=>modsOn[k]).join(',')||'none'});if(boonReady){boonReady=false;pickQ.push({type:'relic'});refreshBoon();}setTimeout(()=>tip('move','Tap a glowing dot to move. Tap a red ring to attack.'),700);
   $('menu').classList.remove('show');$('dead').classList.remove('show');$('pick').classList.remove('show');
 }
 const bestText=()=>best?`Deepest ${Math.floor(best/5)+1}-${(best%5)+1}`:'';
