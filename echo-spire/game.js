@@ -1,0 +1,549 @@
+/* Echo Spire - rendering, input and flow. Puzzle rules live in logic.js. */
+(() => {
+  'use strict';
+
+  const L = window.EchoLogic;
+  const LEVELS = window.EchoLevels.map(L.prepare);
+  const $ = id => document.getElementById(id);
+  const canvas = $('c');
+  const ctx = canvas.getContext('2d');
+  const TAU = Math.PI * 2;
+
+  let W = 0, H = 0, DPR = 1;
+  const cam = { s: 36, ox: 0, oy: 0 };
+  const proj = (x, y, z) => [cam.ox + (x - y) * cam.s, cam.oy + ((x + y) / 2 - z) * cam.s];
+
+  // ---------- saved progress (never trust storage to exist) ----------
+  const prog = { unlocked: 1, muted: false };
+  try { Object.assign(prog, JSON.parse(localStorage.getItem('echoSpire') || '{}')); } catch (e) { /* private mode */ }
+  const saveProg = () => { try { localStorage.setItem('echoSpire', JSON.stringify(prog)); } catch (e) { /* ignore */ } };
+
+  // ---------- audio ----------
+  let ac = null;
+  function audio() {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ac = null; } }
+    if (ac && ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+  function tone(f, d, type, vol, delay, f2) {
+    if (prog.muted) return;
+    const c = audio();
+    if (!c) return;
+    const t = c.currentTime + (delay || 0);
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(f, t);
+    if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.06, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + d + 0.03);
+  }
+  const sfx = {
+    step: () => tone(380 + Math.random() * 90, 0.09, 'triangle', 0.045),
+    crank: () => { tone(170, 0.6, 'sawtooth', 0.025, 0, 330); tone(660, 0.1, 'square', 0.02); },
+    nope: () => tone(160, 0.2, 'square', 0.03, 0, 110),
+    tap: () => tone(700, 0.07, 'sine', 0.03),
+    win: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.55, 'sine', 0.06, i * 0.11)),
+  };
+
+  // ---------- colour ----------
+  const hex = c => { const n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const SH = hex('#3a2f6b');
+  const LV = (() => { const v = [0.32, 0.6, 0.8], n = Math.hypot(v[0], v[1], v[2]); return v.map(a => a / n); })();
+  function tint(rgb, b) {
+    const k = 0.52 + 0.6 * b, m = (1 - b) * 0.3;
+    const f = i => Math.min(255, (rgb[i] * k * (1 - m) + SH[i] * m) | 0);
+    return 'rgb(' + f(0) + ',' + f(1) + ',' + f(2) + ')';
+  }
+
+  // ---------- geometry ----------
+  const FACES = [
+    { n: [0, 0, 1], pts: b => [[b.x0, b.y0, b.z1], [b.x1, b.y0, b.z1], [b.x1, b.y1, b.z1], [b.x0, b.y1, b.z1]] },
+    { n: [1, 0, 0], pts: b => [[b.x1, b.y0, b.z0], [b.x1, b.y1, b.z0], [b.x1, b.y1, b.z1], [b.x1, b.y0, b.z1]] },
+    { n: [0, 1, 0], pts: b => [[b.x1, b.y1, b.z0], [b.x0, b.y1, b.z0], [b.x0, b.y1, b.z1], [b.x1, b.y1, b.z1]] },
+    { n: [-1, 0, 0], pts: b => [[b.x0, b.y1, b.z0], [b.x0, b.y0, b.z0], [b.x0, b.y0, b.z1], [b.x0, b.y1, b.z1]] },
+    { n: [0, -1, 0], pts: b => [[b.x0, b.y0, b.z0], [b.x1, b.y0, b.z0], [b.x1, b.y0, b.z1], [b.x0, b.y0, b.z1]] },
+  ];
+
+  const STAIR_STEPS = 3;
+  function blockBoxes(b) {
+    if (b._boxes) return b._boxes;
+    if (b.kind === 's') {
+      b._boxes = [];
+      for (let i = 0; i < STAIR_STEPS; i++) {
+        const a = L.rotPoint(0.5, 0.5, i / STAIR_STEPS, 0, b.dir);
+        const c = L.rotPoint(0.5, 0.5, (i + 1) / STAIR_STEPS, 1, b.dir);
+        b._boxes.push({
+          x0: b.x + Math.min(a[0], c[0]), x1: b.x + Math.max(a[0], c[0]),
+          y0: b.y + Math.min(a[1], c[1]), y1: b.y + Math.max(a[1], c[1]),
+          z0: b.z, z1: b.z + (i + 1) / STAIR_STEPS,
+        });
+      }
+    } else {
+      b._boxes = [{ x0: b.x, x1: b.x + 1, y0: b.y, y1: b.y + 1, z0: b.z, z1: b.z + 1 }];
+    }
+    return b._boxes;
+  }
+
+  // Current pose of a piece (continuous, so it can be mid-animation).
+  function tfOf(piece, v) {
+    const a = v.ang * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    const px = piece.pivot[0], py = piece.pivot[1];
+    const sl = piece.slide ? piece.slide : [0, 0, 0];
+    const ox = sl[0] * v.sl, oy = sl[1] * v.sl, oz = sl[2] * v.sl;
+    return { c, s, f: (x, y, z) => { const dx = x - px, dy = y - py; return [px + dx * c - dy * s + ox, py + dx * s + dy * c + oy, z + oz]; } };
+  }
+
+  // ---------- game state ----------
+  let G = null;
+  const ambient = Array.from({ length: 46 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.8, sp: 0.004 + Math.random() * 0.012, ph: Math.random() * TAU }));
+  const clouds = Array.from({ length: 6 }, (_, i) => ({ x: Math.random(), y: 0.08 + i * 0.13 + Math.random() * 0.05, w: 0.25 + Math.random() * 0.3, sp: 0.004 + Math.random() * 0.006 }));
+
+  function loadLevel(i) {
+    const lv = LEVELS[i];
+    G = {
+      i, lv,
+      st: L.initialState(lv),
+      vis: lv.pieces.map(() => ({ ang: 0, sl: 0 })),
+      hv: lv.handles.map(() => ({ a: 0 })),
+      tween: null, walk: null, tap: null,
+      player: lv.start, won: false, winT: 0, active: false,
+      sparks: [], time: 0, intro: 0, shake: 0, moves: 0, hit: [], handleHit: [],
+      all: null, adj: null,
+    };
+    refresh();
+    computeCamera();
+    $('lvnum').textContent = 'LEVEL ' + (i + 1) + ' / ' + LEVELS.length;
+    $('lvname').textContent = lv.name;
+    const hint = $('hint');
+    hint.textContent = lv.hint;
+    hint.classList.remove('dim');
+  }
+
+  function refresh() {
+    G.all = L.cells(G.lv, G.st);
+    G.adj = L.buildGraph(G.lv, G.all);
+  }
+
+  function computeCamera() {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    const add = (x, y, z) => {
+      const sx = x - y, sy = (x + y) / 2 - z;
+      if (sx < x0) x0 = sx; if (sx > x1) x1 = sx; if (sy < y0) y0 = sy; if (sy > y1) y1 = sy;
+    };
+    G.lv.pieces.forEach(p => {
+      const angles = p.rot ? Array.from({ length: 24 }, (_, i) => i * 15) : [0];
+      const slides = p.slide ? [0, 1] : [0];
+      angles.forEach(a => slides.forEach(s => {
+        const tf = tfOf(p, { ang: a, sl: s });
+        p.blocks.forEach(b => blockBoxes(b).forEach(bx => {
+          for (const x of [bx.x0, bx.x1]) for (const y of [bx.y0, bx.y1]) for (const z of [bx.z0, bx.z1]) {
+            const w = tf.f(x, y, z); add(w[0], w[1], w[2]);
+          }
+        }));
+      }));
+    });
+    y0 -= 1.9; y1 += 0.35; x0 -= 0.6; x1 += 0.6;
+    const topUI = 78, botUI = 74, padX = 14;
+    const aw = Math.max(80, W - padX * 2), ah = Math.max(80, H - topUI - botUI);
+    cam.s = Math.max(12, Math.min(aw / (x1 - x0), ah / (y1 - y0), 64));
+    cam.ox = W / 2 - ((x0 + x1) / 2) * cam.s;
+    cam.oy = topUI + ah / 2 - ((y0 + y1) / 2) * cam.s;
+  }
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+    if (G) computeCamera();
+  }
+  window.addEventListener('resize', resize);
+
+  // ---------- animation helpers ----------
+  const ease = u => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+
+  function startTween(items, dur, done) {
+    G.tween = { t: 0, dur, items, done };
+  }
+
+  function activate(hi) {
+    const h = G.lv.handles[hi];
+    const next = L.tap(G.lv, G.st, hi);
+    const items = [];
+    h.targets.forEach(pi => {
+      const p = G.lv.pieces[pi], v = G.vis[pi];
+      if (h.type === 'rot') {
+        const to = p.rot.cycle === 4 ? v.ang + p.rot.step * 90 : next[pi].r * p.rot.step * 90;
+        items.push({ o: v, k: 'ang', from: v.ang, to });
+      } else {
+        items.push({ o: v, k: 'sl', from: v.sl, to: next[pi].s });
+      }
+    });
+    items.push({ o: G.hv[hi], k: 'a', from: G.hv[hi].a, to: G.hv[hi].a + 180 });
+    G.st = next;
+    G.moves++;
+    sfx.crank();
+    startTween(items, 0.8, () => { refresh(); checkWin(); });
+    fadeHint();
+  }
+
+  function fadeHint() {
+    clearTimeout(fadeHint.t);
+    fadeHint.t = setTimeout(() => $('hint').classList.add('dim'), 3500);
+  }
+
+  function startWalk(path) {
+    G.walk = { path, i: 0, t: 0 };
+    fadeHint();
+  }
+
+  function checkWin() {
+    if (G.won || G.player !== G.lv.goal) return;
+    G.won = true; G.winT = 0;
+    sfx.win();
+    const tfs = G.lv.pieces.map(p => tfOf(p, G.vis[p.id]));
+    const a = anchorOf(G.lv.goal, tfs);
+    for (let i = 0; i < 70; i++) {
+      const ang = Math.random() * TAU, sp = 40 + Math.random() * 160;
+      G.sparks.push({ x: a.s[0], y: a.s[1] - cam.s * 0.5, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 80, life: 1 + Math.random() * 0.8, age: 0, hue: 30 + Math.random() * 40 });
+    }
+    if (prog.unlocked < G.i + 2) prog.unlocked = Math.min(LEVELS.length, G.i + 2);
+    saveProg();
+    buildLevelGrid();
+  }
+
+  function anchorOf(idx, tfs) {
+    const f = G.lv.flat[idx], b = f.b;
+    const top = b.kind === 's' ? b.z + 0.62 : b.z + 1;
+    const w = tfs[f.pi].f(b.x + 0.5, b.y + 0.5, top);
+    return { w, s: proj(w[0], w[1], w[2]), key: w[0] + w[1] + w[2] };
+  }
+
+  // ---------- update ----------
+  function update(dt) {
+    G.time += dt;
+    G.intro = Math.min(1, G.intro + dt * 1.6);
+    G.shake = Math.max(0, G.shake - dt);
+    if (G.tap) { G.tap.t += dt; if (G.tap.t > 0.7) G.tap = null; }
+
+    if (G.tween) {
+      const tw = G.tween;
+      tw.t += dt;
+      const u = Math.min(1, tw.t / tw.dur), e = ease(u);
+      tw.items.forEach(it => { it.o[it.k] = it.from + (it.to - it.from) * e; });
+      if (u >= 1) { G.tween = null; tw.done && tw.done(); }
+    }
+
+    if (G.walk) {
+      const w = G.walk;
+      w.t += dt / 0.3;
+      while (w.t >= 1 && w.i < w.path.length - 1) {
+        w.t -= 1; w.i++; G.player = w.path[w.i]; sfx.step();
+      }
+      if (w.i >= w.path.length - 1) { G.walk = null; checkWin(); }
+    }
+
+    if (G.won) {
+      G.winT += dt;
+      if (G.winT > 1.3 && !G.winShown) showWin();
+    }
+
+    for (let i = G.sparks.length - 1; i >= 0; i--) {
+      const p = G.sparks[i];
+      p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 160 * dt;
+      if (p.age > p.life) G.sparks.splice(i, 1);
+    }
+  }
+
+  // ---------- rendering ----------
+  function poly(pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+  }
+
+  function drawBackground(time) {
+    const sky = G.lv.sky;
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, sky[0]); g.addColorStop(1, sky[1]);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const R = Math.max(W, H) * 0.5;
+    const rg = ctx.createRadialGradient(W * 0.78, H * 0.2, 0, W * 0.78, H * 0.2, R);
+    rg.addColorStop(0, 'rgba(255,255,255,.6)'); rg.addColorStop(0.35, 'rgba(255,255,255,.14)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+    clouds.forEach(c => {
+      const x = ((c.x + time * c.sp) % 1.4 - 0.2) * W, w = c.w * W, y = c.y * H;
+      const cg = ctx.createRadialGradient(x, y, 0, x, y, w * 0.5);
+      cg.addColorStop(0, 'rgba(255,255,255,.22)'); cg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.save(); ctx.translate(x, y); ctx.scale(1, 0.22); ctx.translate(-x, -y);
+      ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(x, y, w * 0.5, 0, TAU); ctx.fill(); ctx.restore();
+    });
+    ambient.forEach(p => {
+      const y = ((p.y - time * p.sp) % 1 + 1) % 1, x = p.x + Math.sin(time * 0.4 + p.ph) * 0.01;
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + 0.25 * Math.sin(time * 1.3 + p.ph)) + ')';
+      ctx.beginPath(); ctx.arc(x * W, y * H, p.r, 0, TAU); ctx.fill();
+    });
+  }
+
+  function drawBox(bx, tf, rgb, f) {
+    const walkable = G.lv.flat[f.idx].b.kind === 'b';
+    for (const face of FACES) {
+      const nx = face.n[0] * tf.c - face.n[1] * tf.s, ny = face.n[0] * tf.s + face.n[1] * tf.c, nz = face.n[2];
+      if (nx + ny + nz < 0.02) continue;
+      const lit = Math.max(0, nx * LV[0] + ny * LV[1] + nz * LV[2]);
+      const pts = face.pts(bx).map(p => { const w = tf.f(p[0], p[1], p[2]); return proj(w[0], w[1], w[2]); });
+      const top = nz > 0.9;
+      if (top) {
+        ctx.fillStyle = tint(rgb, lit);
+      } else {
+        let y0 = Infinity, y1 = -Infinity;
+        pts.forEach(p => { if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; });
+        const g = ctx.createLinearGradient(0, y0, 0, y1);
+        g.addColorStop(0, tint(rgb, lit)); g.addColorStop(1, tint(rgb, lit * 0.62));
+        ctx.fillStyle = g;
+      }
+      poly(pts); ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = top ? 'rgba(255,255,255,.28)' : 'rgba(58,47,107,.2)'; ctx.stroke();
+      if (top && walkable) {
+        // lighter inlay marks the tiles you can walk on
+        const cx = (pts[0][0] + pts[2][0]) / 2, cy = (pts[0][1] + pts[2][1]) / 2;
+        const inset = pts.map(p => [cx + (p[0] - cx) * 0.62, cy + (p[1] - cy) * 0.62]);
+        poly(inset); ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fill();
+      }
+      G.hit.push({ pts, idx: f.idx, walk: G.lv.flat[f.idx].b.kind !== 'd' });
+    }
+  }
+
+  function drawGoal(a, time) {
+    const S = cam.s, p = 0.5 + 0.5 * Math.sin(time * 2.2);
+    const x = a.s[0], y = a.s[1];
+    const beam = ctx.createLinearGradient(0, y - S * 2.6, 0, y);
+    beam.addColorStop(0, 'rgba(255,240,200,0)'); beam.addColorStop(1, 'rgba(255,240,200,' + (0.34 + 0.16 * p) + ')');
+    ctx.fillStyle = beam;
+    ctx.beginPath(); ctx.moveTo(x - S * 0.34, y); ctx.lineTo(x - S * 0.12, y - S * 2.6); ctx.lineTo(x + S * 0.12, y - S * 2.6); ctx.lineTo(x + S * 0.34, y); ctx.closePath(); ctx.fill();
+    const rg = ctx.createRadialGradient(x, y, 0, x, y, S * 0.8);
+    rg.addColorStop(0, 'rgba(255,255,255,' + (0.8 + 0.2 * p) + ')'); rg.addColorStop(0.45, 'rgba(255,214,150,.45)'); rg.addColorStop(1, 'rgba(255,200,150,0)');
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(x, y, S * 0.8, S * 0.42, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.6 + 0.3 * p) + ')'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x, y, S * (0.42 + 0.06 * p), S * (0.22 + 0.03 * p), 0, 0, TAU); ctx.stroke();
+    for (let i = 0; i < 4; i++) {
+      const t = ((time * 0.5 + i / 4) % 1);
+      ctx.fillStyle = 'rgba(255,255,255,' + (1 - t) * 0.9 + ')';
+      ctx.beginPath(); ctx.arc(x + Math.sin(i * 2.1 + time) * S * 0.25, y - t * S * 1.8, 1.6, 0, TAU); ctx.fill();
+    }
+  }
+
+  function drawHandle(h, hi, a, time) {
+    const S = cam.s, x = a[0], y = a[1];
+    const col = h.type === 'rot' ? ['#f8d27c', '#d99a2b'] : ['#8fe3dc', '#2f9d95'];
+    ctx.fillStyle = 'rgba(58,47,107,.28)';
+    ctx.beginPath(); ctx.ellipse(x, y, S * 0.3, S * 0.15, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = col[1]; ctx.lineWidth = S * 0.11; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y - S * 0.02); ctx.lineTo(x, y - S * 0.46); ctx.stroke();
+    const cy = y - S * 0.62, spin = G.hv[hi].a * Math.PI / 180;
+    const idle = !G.moves && !G.tween ? 0.5 + 0.5 * Math.sin(time * 3.2) : 0;
+    if (idle) {
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + 0.4 * idle) + ')'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, cy, S * (0.34 + 0.1 * idle), 0, TAU); ctx.stroke();
+    }
+    ctx.strokeStyle = col[0]; ctx.lineWidth = S * 0.08;
+    if (h.type === 'rot') {
+      ctx.beginPath(); ctx.arc(x, cy, S * 0.2, 0, TAU); ctx.stroke();
+      ctx.lineWidth = S * 0.06;
+      for (let i = 0; i < 3; i++) {
+        const t = spin + i * TAU / 3;
+        ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x + Math.cos(t) * S * 0.2, cy + Math.sin(t) * S * 0.2); ctx.stroke();
+      }
+    } else {
+      const q = S * 0.19;
+      ctx.beginPath(); ctx.rect(x - q, cy - q, q * 2, q * 2); ctx.stroke();
+      ctx.fillStyle = col[0];
+      const o = Math.sin(spin * 2) * S * 0.07;
+      ctx.beginPath(); ctx.moveTo(x - q * 0.5 + o, cy); ctx.lineTo(x + o, cy - q * 0.5); ctx.lineTo(x + o, cy + q * 0.5); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x + q * 0.5 + o, cy); ctx.lineTo(x + o, cy - q * 0.5); ctx.lineTo(x + o, cy + q * 0.5); ctx.closePath(); ctx.fill();
+    }
+    G.handleHit.push({ hi, x, y: cy, r: Math.max(26, S * 0.62) });
+  }
+
+  function drawPlayer(x, y, time, walking, hop) {
+    const S = cam.s;
+    const bob = walking ? Math.abs(Math.sin(time * 14)) * 0.1 * S : Math.sin(time * 2.4) * 0.012 * S;
+    const lift = bob + hop;
+    const sx = G.shake > 0 ? Math.sin(G.shake * 60) * 3 : 0;
+    ctx.save(); ctx.translate(x + sx, y);
+    ctx.fillStyle = 'rgba(40,25,70,.3)';
+    ctx.beginPath(); ctx.ellipse(0, 0, S * 0.25, S * 0.12, 0, 0, TAU); ctx.fill();
+    ctx.translate(0, -lift);
+    const g = ctx.createLinearGradient(0, -S * 0.7, 0, 0);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#cfc4f5');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(-S * 0.27, -S * 0.03);
+    ctx.quadraticCurveTo(-S * 0.2, -S * 0.5, -S * 0.07, -S * 0.66);
+    ctx.lineTo(S * 0.07, -S * 0.66);
+    ctx.quadraticCurveTo(S * 0.2, -S * 0.5, S * 0.27, -S * 0.03);
+    ctx.quadraticCurveTo(0, S * 0.05, -S * 0.27, -S * 0.03);
+    ctx.fill();
+    ctx.fillStyle = '#ffe3d1';
+    ctx.beginPath(); ctx.arc(0, -S * 0.76, S * 0.12, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ff7f9f';
+    ctx.beginPath(); ctx.moveTo(-S * 0.17, -S * 0.8); ctx.lineTo(S * 0.17, -S * 0.8); ctx.lineTo(S * 0.05, -S * 1.2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, -S * 0.8, S * 0.22, S * 0.05, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  function render(time) {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawBackground(time);
+    ctx.globalAlpha = G.intro;
+    const lv = G.lv;
+    const tfs = lv.pieces.map(p => tfOf(p, G.vis[p.id]));
+    G.hit = []; G.handleHit = [];
+    const items = [];
+
+    lv.flat.forEach((f, idx) => {
+      const tf = tfs[f.pi], rgb = hex(f.b.color || lv.pieces[f.pi].color);
+      blockBoxes(f.b).forEach(bx => {
+        const c = tf.f((bx.x0 + bx.x1) / 2, (bx.y0 + bx.y1) / 2, (bx.z0 + bx.z1) / 2);
+        items.push({ key: c[0] + c[1] + c[2], draw: () => drawBox(bx, tf, rgb, { idx }) });
+      });
+    });
+
+    const ga = anchorOf(lv.goal, tfs);
+    items.push({ key: ga.key + 0.05, draw: () => drawGoal(ga, time) });
+
+    lv.handles.forEach((h, hi) => {
+      const w = tfs[h.host].f(h.at[0] + 0.5, h.at[1] + 0.5, h.at[2] + 1);
+      items.push({ key: w[0] + w[1] + w[2] + 0.3, draw: () => drawHandle(h, hi, proj(w[0], w[1], w[2]), time) });
+    });
+
+    // player, possibly between two tiles
+    let px, py, pkey, walking = false;
+    if (G.walk) {
+      const w = G.walk, a = anchorOf(w.path[w.i], tfs), b = anchorOf(w.path[w.i + 1], tfs), e = w.t;
+      px = a.s[0] + (b.s[0] - a.s[0]) * e; py = a.s[1] + (b.s[1] - a.s[1]) * e;
+      pkey = (e < 0.5 ? a.key : b.key) + 0.1; walking = true;
+    } else {
+      const a = anchorOf(G.player, tfs);
+      px = a.s[0]; py = a.s[1]; pkey = a.key + 0.1;
+    }
+    const hop = G.won ? Math.abs(Math.sin(G.winT * 6)) * 0.35 * cam.s * Math.max(0, 1 - G.winT / 1.3) : 0;
+    items.push({ key: pkey, draw: () => drawPlayer(px, py, time, walking, hop) });
+
+    items.sort((a, b) => a.key - b.key);
+    items.forEach(it => it.draw());
+
+    if (G.tap) {
+      const t = G.tap.t / 0.7;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (1 - t) * 0.9 + ')'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(G.tap.x, G.tap.y, cam.s * (0.15 + t * 0.5), cam.s * (0.08 + t * 0.25), 0, 0, TAU); ctx.stroke();
+    }
+    G.sparks.forEach(p => {
+      ctx.fillStyle = 'hsla(' + p.hue + ',100%,78%,' + Math.max(0, 1 - p.age / p.life) + ')';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.4, 0, TAU); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- input ----------
+  function pointIn(pts, x, y) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
+  function onTap(x, y) {
+    if (!G || !G.active || G.won || G.tween || G.walk) return;
+    for (const h of G.handleHit) {
+      if (Math.hypot(x - h.x, y - h.y) <= h.r) { activate(h.hi); return; }
+    }
+    let target = -1;
+    for (let i = G.hit.length - 1; i >= 0; i--) {
+      if (pointIn(G.hit[i].pts, x, y)) { target = G.hit[i].walk ? G.hit[i].idx : -1; break; }
+    }
+    if (target < 0 || target === G.player) return;
+    const path = L.findPath(G.adj, G.player, target);
+    const tfs = G.lv.pieces.map(p => tfOf(p, G.vis[p.id]));
+    const a = anchorOf(target, tfs);
+    if (!path) { G.shake = 0.3; sfx.nope(); G.tap = { x: a.s[0], y: a.s[1], t: 0 }; return; }
+    sfx.tap();
+    G.tap = { x: a.s[0], y: a.s[1], t: 0 };
+    startWalk(path);
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    audio();
+    onTap(e.clientX, e.clientY);
+  });
+
+  // ---------- screens ----------
+  function show(id, on) { $(id).classList.toggle('show', on); }
+
+  function buildLevelGrid() {
+    const box = $('levels');
+    box.innerHTML = '';
+    LEVELS.forEach((lv, i) => {
+      const b = document.createElement('button');
+      b.textContent = i + 1;
+      b.disabled = i >= prog.unlocked;
+      b.setAttribute('aria-label', 'Level ' + (i + 1) + ': ' + lv.name);
+      b.addEventListener('click', () => play(i));
+      box.appendChild(b);
+    });
+  }
+
+  function play(i) {
+    audio();
+    loadLevel(i);
+    G.active = true;
+    show('menu', false); show('win', false);
+    fadeHint();
+  }
+
+  function showWin() {
+    G.winShown = true;
+    const last = G.i === LEVELS.length - 1;
+    $('winTitle').textContent = last ? 'The spire is quiet' : 'Door opened';
+    $('winText').textContent = last
+      ? 'You reached the top of the Echo Spire. Thank you for wandering.'
+      : 'Solved in ' + G.moves + (G.moves === 1 ? ' turn.' : ' turns.');
+    $('bNext').textContent = last ? 'Back to menu' : 'Next level';
+    show('win', true);
+  }
+
+  $('bPlay').addEventListener('click', () => play(Math.min(prog.unlocked, LEVELS.length) - 1));
+  $('bRestart').addEventListener('click', () => { if (G && G.active) play(G.i); });
+  $('bMenu').addEventListener('click', () => { if (G) G.active = false; buildLevelGrid(); show('menu', true); });
+  $('bAgain').addEventListener('click', () => play(G.i));
+  $('bNext').addEventListener('click', () => {
+    if (G.i === LEVELS.length - 1) { G.active = false; show('win', false); show('menu', true); }
+    else play(G.i + 1);
+  });
+  function syncSound() { $('bSound').style.opacity = prog.muted ? 0.45 : 1; }
+  $('bSound').addEventListener('click', () => { prog.muted = !prog.muted; saveProg(); syncSound(); audio(); });
+
+  // ---------- main loop ----------
+  let last = 0;
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, (ts - last) / 1000 || 0);
+    last = ts;
+    update(dt);
+    render(ts / 1000);
+  }
+
+  resize();
+  syncSound();
+  buildLevelGrid();
+  loadLevel(Math.min(prog.unlocked, LEVELS.length) - 1);
+  requestAnimationFrame(frame);
+
+  // test hook for the screenshot/solver harness
+  window.__echo = { play, get G() { return G; }, activate, onTap, LEVELS, L };
+})();

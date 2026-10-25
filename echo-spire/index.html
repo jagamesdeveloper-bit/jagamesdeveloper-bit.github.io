@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#a99be8">
+<title>Echo Spire</title>
+<style>
+  :root {
+    --ink: #2b2150;
+    --glass: rgba(255, 255, 255, 0.55);
+    --glass-strong: rgba(255, 255, 255, 0.82);
+    --accent: #e8806c;
+    --gold: #f0b05a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #a99be8; color: var(--ink);
+    font-family: 'Trebuchet MS', 'Avenir Next', 'Segoe UI', system-ui, sans-serif; touch-action: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; justify-content: space-between; }
+  .bar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  #title { background: var(--glass); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border-radius: 14px; padding: 8px 14px; line-height: 1.15; }
+  #title small { display: block; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; opacity: .65; }
+  #title b { font-size: 17px; font-weight: 700; }
+  .btns { display: flex; gap: 8px; pointer-events: auto; }
+  .btn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--glass); color: var(--ink); font-size: 20px; display: grid; place-items: center; cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: transform .12s, background .12s; }
+  .btn:hover { background: var(--glass-strong); }
+  .btn:active { transform: scale(.92); }
+  #hint { align-self: center; text-align: center; max-width: 440px; font-size: 15px; line-height: 1.35; background: var(--glass); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 9px 16px; border-radius: 14px; transition: opacity .6s; }
+  #hint.dim { opacity: 0; }
+
+  .overlay { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; background: radial-gradient(ellipse at 50% 40%, rgba(255,255,255,.10), rgba(43,33,80,.55)); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  .overlay.show { display: flex; animation: fade .5s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .overlay h1 { margin: 0; font-size: clamp(38px, 11vw, 72px); font-weight: 700; color: #fff; letter-spacing: .06em; text-shadow: 0 4px 30px rgba(43,33,80,.55); }
+  .overlay h2 { margin: 0 0 6px; font-size: clamp(26px, 7vw, 40px); color: #fff; text-shadow: 0 3px 20px rgba(43,33,80,.5); }
+  .overlay p { margin: 10px 0 22px; color: #fff; opacity: .92; font-size: 16px; max-width: 420px; line-height: 1.4; text-shadow: 0 2px 12px rgba(43,33,80,.6); }
+  .cta { font: inherit; font-weight: 700; font-size: 18px; padding: 13px 34px; border-radius: 999px; border: 0; background: #fff; color: var(--ink); cursor: pointer; box-shadow: 0 8px 28px rgba(43,33,80,.35); transition: transform .12s; }
+  .cta:active { transform: scale(.96); }
+  .cta.ghost { background: rgba(255,255,255,.25); color: #fff; box-shadow: none; margin-top: 12px; font-size: 15px; padding: 9px 22px; }
+  #levels { display: grid; grid-template-columns: repeat(6, 44px); gap: 8px; margin-top: 22px; }
+  #levels button { height: 44px; border-radius: 12px; border: 0; background: rgba(255,255,255,.85); color: var(--ink); font: inherit; font-weight: 700; font-size: 16px; cursor: pointer; }
+  #levels button:disabled { background: rgba(255,255,255,.22); color: rgba(255,255,255,.7); cursor: default; }
+  @media (max-width: 380px) { #levels { grid-template-columns: repeat(3, 44px); } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="bar">
+    <div id="title"><small id="lvnum"></small><b id="lvname"></b></div>
+    <div class="btns">
+      <button class="btn" id="bRestart" title="Restart level" aria-label="Restart level">&#8635;</button>
+      <button class="btn" id="bSound" title="Sound" aria-label="Toggle sound">&#9835;</button>
+      <button class="btn" id="bMenu" title="Menu" aria-label="Menu">&#9776;</button>
+    </div>
+  </div>
+  <div id="hint"></div>
+</div>
+
+<div class="overlay show" id="menu">
+  <h1>ECHO SPIRE</h1>
+  <p>Walk the quiet towers. Turn the world until the path appears.</p>
+  <button class="cta" id="bPlay">Play</button>
+  <div id="levels"></div>
+</div>
+
+<div class="overlay" id="win">
+  <h2 id="winTitle">Door opened</h2>
+  <p id="winText"></p>
+  <button class="cta" id="bNext">Next</button>
+  <button class="cta ghost" id="bAgain">Replay</button>
+</div>
+
+<script src="logic.js"></script>
+<script src="levels.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
