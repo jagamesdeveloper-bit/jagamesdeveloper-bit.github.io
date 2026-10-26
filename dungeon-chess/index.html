@@ -127,7 +127,7 @@ body.wide #tip{left:12px;top:112px;transform:none;max-width:calc(var(--side,300p
 .pc.on svg{animation:pcpop .3s ease-out}
 .big:active,.dock button:active,.link:active{transform:scale(.95)}
 #boonBtn{margin-top:16px}
-.modes{display:flex;gap:26px;margin:-6px 0 18px}
+.modes{display:flex;gap:22px;margin:-6px 0 18px}
 .modes button{background:none;border:0;padding:4px 0 6px;color:#8d84a8;font:600 13px "Segoe UI",Roboto,Arial,sans-serif;letter-spacing:3px;text-transform:uppercase;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
 .modes button:hover{color:#cfc6e6}
 .modes button.on{color:var(--gold2);border-bottom-color:var(--gold)}
@@ -170,7 +170,7 @@ h1{font-size:26px;letter-spacing:4px}
   <div class="logo"><h1>IN PIECES</h1><div class="best" id="best"></div></div>
   <div class="rank" id="starts"></div>
   <div class="pdesc" id="pdesc"></div>
-  <div class="modes" id="modes"><button data-m="dungeon">Dungeon</button><button data-m="explore">Explore</button></div>
+  <div class="modes" id="modes"><button data-m="dungeon">Dungeon</button><button data-m="explore">Explore</button><button data-m="chess">Chess</button></div>
   <button class="play" id="playBtn">Play</button>
   <button class="chip btn gold" id="boonBtn" style="display:none"></button>
   <div class="mut"><button class="link" id="mutBtn"></button><div class="chips" id="mods"></div><div class="hint" id="modInfo"></div></div>
@@ -183,7 +183,7 @@ h1{font-size:26px;letter-spacing:4px}
 </div>
 
 <div id="dead" class="ov">
-  <h2>SHATTERED</h2>
+  <h2 id="deadTitle">SHATTERED</h2>
   <div class="hint" id="deadCause" style="margin-top:-6px"></div>
   <div class="recap" id="deadRecap"></div>
   <div class="stats" id="stats"></div>
@@ -252,7 +252,8 @@ h1{font-size:26px;letter-spacing:4px}
 'use strict';
 const $=id=>document.getElementById(id);
 const hud=$('c'),ctx=hud.getContext('2d');
-const COLS=7,ROWS=9;
+let COLS=7,ROWS=9;const MAXC=8,MAXR=9; // chess mode plays on a real 8x8 board
+const boardCx=()=>(COLS-7)/2,boardCz=()=>(ROWS-9)/2; // world offset of the board centre
 let TOP_H=88,BOT_H=124,WIDE=false; // WIDE: landscape and desktop put the buttons beside the board instead of under it
 const FORCE_HQ=/[?&]hq/.test(location.search);
 let W=0,H=0;
@@ -434,6 +435,7 @@ const PIECES={
   B:{name:'Bishop',cd:0.55,dmg:2,hp:6,desc:'Slides diagonally, and can sidestep 1 tile.'},
   R:{name:'Rook',cd:0.65,dmg:3,hp:6,desc:'Slides any distance in straight lines. Heavy hitter.'},
   Q:{name:'Queen',cd:0.5,dmg:4,hp:6,desc:'Slides in all eight directions. Deadly.'},
+  K:{name:'King',cd:0.5,dmg:2,hp:8,desc:'Steps one tile in any direction.'},
 };
 const ENEMY={
   P:{hp:1,dmg:1,cd:1.05,wind:0.5,xp:1,cost:1},
@@ -581,9 +583,11 @@ let post=null,lowQ=false,pixelRatio=1;
 
 function fitCamera(){
   const el=THREE.MathUtils.degToRad(60),lo=-1+2*BOT_H/H,hi=1-2*TOP_H/H;
-  const pts=[[-3.9,0,-4.9],[3.9,0,-4.9],[-3.9,0,4.9],[3.9,0,4.9],[-3,0.9,-4.4],[3,0.9,-4.4]].map(p=>new THREE.Vector3(...p));
+  const x0=-3.9,x1=COLS-4+0.9,z0=-4.9,z1=ROWS-5+0.9;
+  const pts=[[x0,0,z0],[x1,0,z0],[x0,0,z1],[x1,0,z1],[x0+0.9,0.9,z0+0.5],[x1-0.9,0.9,z0+0.5]].map(p=>new THREE.Vector3(...p));
+  camTarget.z=0.1+boardCz();camTarget.x=boardCx();
   for(let d=10;d<70;d+=0.2){
-    camera.position.set(0,camTarget.y+Math.sin(el)*d,camTarget.z+Math.cos(el)*d);
+    camera.position.set(boardCx(),camTarget.y+Math.sin(el)*d,camTarget.z+Math.cos(el)*d);
     camera.lookAt(camTarget);camera.updateMatrixWorld();camera.updateProjectionMatrix();
     let ok=true;
     for(const p of pts){const v=p.clone().project(camera);if(Math.abs(v.x)>0.96||v.y<lo||v.y>hi){ok=false;break;}}
@@ -1013,9 +1017,9 @@ function setEmissive(g,r,gr,b,k){g.traverse(o=>{if(o.isMesh&&o.userData.own){o.m
 
 /* ---------- board meshes ---------- */
 const tileMeshes=[],tileGeo=new THREE.BoxGeometry(1,1,1);
-for(let y=0;y<ROWS;y++){
+for(let y=0;y<MAXR;y++){
   tileMeshes.push([]);
-  for(let x=0;x<COLS;x++){
+  for(let x=0;x<MAXC;x++){
     const m=new THREE.Mesh(tileGeo,TILE_MATS[(x+y)&1][ri(0,3)]);
     m.userData.tile=[x,y];m.receiveShadow=true;scene.add(m);tileMeshes[y].push(m);
     m.add(new THREE.Mesh(tileGeo,olBox));
@@ -1027,7 +1031,7 @@ const pitTex=mkTex(64,64,(c,w,h)=>{
   c.fillStyle=g;c.fillRect(0,0,w,h);
 });
 const pitMat=new THREE.MeshBasicMaterial({map:pitTex,fog:false,toneMapped:false}),pitGeo=new THREE.PlaneGeometry(0.985,0.985).rotateX(-Math.PI/2),pitMeshes=[];
-for(let y=0;y<ROWS;y++){pitMeshes.push([]);for(let x=0;x<COLS;x++){const pm=new THREE.Mesh(pitGeo,pitMat);pm.position.set(x-3,-0.2,y-4);pm.visible=false;scene.add(pm);pitMeshes[y].push(pm);}}
+for(let y=0;y<MAXR;y++){pitMeshes.push([]);for(let x=0;x<MAXC;x++){const pm=new THREE.Mesh(pitGeo,pitMat);pm.position.set(x-3,-0.2,y-4);pm.visible=false;scene.add(pm);pitMeshes[y].push(pm);}}
 /* ---------- a platform floating over the void ---------- */
 const platGroup=new THREE.Group();scene.add(platGroup);
 const rockMat=TOON({color:0x17102e});
@@ -1078,7 +1082,7 @@ const shadowBlobTex=mkTex(64,64,(g,w,h)=>{const gr=g.createRadialGradient(w/2,h/
 const decalMats={moss:new THREE.MeshBasicMaterial({map:decalTex('moss'),transparent:true,depthWrite:false}),stain:new THREE.MeshBasicMaterial({map:decalTex('stain'),transparent:true,depthWrite:false}),web:new THREE.MeshBasicMaterial({map:decalTex('web'),transparent:true,depthWrite:false,side:THREE.DoubleSide})};
 const decalGeo=new THREE.PlaneGeometry(1,1);
 function applyTheme(){
-  const th=THEMES[(G.floor-1)%THEMES.length];
+  const th=theme();
   const fogc=new THREE.Color(th.fog).multiplyScalar(0.22);scene.fog=new THREE.FogExp2(fogc,0.02);scene.background=fogc;
   hemi.color.setHex(th.a);
   FRAME_MAT.color.setHex(th.wall);WALL_MAT.color.setHex(th.wall);
@@ -1119,7 +1123,7 @@ function buildDecor(){
       if(rng()<0.5){const mo=new THREE.Mesh(decalGeo,decalMats.moss);mo.rotation.x=-Math.PI/2;mo.scale.set(1.5,1.5,1);mo.position.set(x-3,0.014,y-4);decorGroup.add(mo);}
       continue;
     }
-    if(t.k!==0)continue;
+    if(t.k!==0||G.mode==='chess')continue; // the chessboard stays clean
     if(rng()<0.14){ // floor stains and moss
       const d=new THREE.Mesh(decalGeo,decalMats[rng()<0.5?'stain':'moss']);
       d.rotation.x=-Math.PI/2;d.rotation.z=rng()*6;d.scale.set(0.9+rng()*0.6,0.9+rng()*0.6,1);d.position.set(x-3+(rng()-0.5)*0.3,0.012+(y*COLS+x)*0.0002,y-4+(rng()-0.5)*0.3);decorGroup.add(d);
@@ -1146,13 +1150,20 @@ function buildDecor(){
     }
   }
 }
-function setFrame(on){platGroup.visible=on;for(const c of chains)c.grp.visible=on;for(const t of torches)t.flame.visible=on;}
+function setFrame(on){
+  const ch=G&&G.mode==='chess'; // the 8x8 board sits on a stretched platform without the corner torches
+  platGroup.visible=on;platGroup.position.set(boardCx(),0,boardCz());platGroup.scale.set((COLS+0.5)/7.5,1,(ROWS+0.5)/9.5);
+  for(const c of chains)c.grp.visible=on&&!ch;for(const t of torches)t.flame.visible=on&&!ch;
+}
 function setupRoomVisuals(){
   applyTheme();setFrame(G.mode!=='explore');
+  for(let y=0;y<MAXR;y++)for(let x=0;x<MAXC;x++)if(x>=COLS||y>=ROWS){tileMeshes[y][x].visible=false;pitMeshes[y][x].visible=false;}
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)paintTile(x,y);
   riseT=0;buildDecor();
   for(const g of entVis){scene.remove(g);disposeGroup(g);}
   entVis.clear();
+  for(const g of allyVis){scene.remove(g);disposeGroup(g);}
+  allyVis.clear();
   for(const[,o]of itemVis)scene.remove(o);
   itemVis.clear();
 }
@@ -1400,7 +1411,7 @@ function floatText(tx,ty,txt,col='#fff',big=1){texts.push({x:tx-3,y:1.3,z:ty-4,t
    GAME LOGIC
    ===================================================================== */
 let punch=[0,0],camRoll=0,state='menu',time=0,shake=0,fade=0,hurtFlash=0,slowT=0,flashW=0,riseT=0,zoomKick=0;
-let G,P,tiles,items,enemies,room,queued,pickQ;
+let G,P,tiles,items,enemies,room,queued,pickQ,allies=[];
 const entVis=new Set();
 let best=0;
 best=+Store.get('chesscrawl_best')||0;
@@ -1434,10 +1445,15 @@ function newRun(startT,mode){
   if(G.mods.famine){P.maxHp+=2;P.hp=P.maxHp;}
   pickQ=[];queued=null;texts.length=0;
   for(let i=0;i<((meta.legacy||{}).start|0);i++)pickQ.push({type:'level'});
-  if(G.mode==='explore'){G.rooms=['path'];G.roomIdx=0;G.nextCamp=18;G.nextBoss=BOSS_EVERY-2;G.banner='Region 1: '+theme().name.replace(/^The /,'');G.bannerT=3;loadPath();}
+  const ch=G.mode==='chess';
+  if(COLS!==(ch?8:7)||ROWS!==(ch?8:9)){COLS=ch?8:7;ROWS=ch?8:9;fitCamera();}
+  allies=[];
+  if(ch){G.rooms=['chess'];G.roomIdx=0;G.floor=2;G.banner='White to move';G.bannerT=2.4;loadChess();}
+  else if(G.mode==='explore'){G.rooms=['path'];G.roomIdx=0;G.nextCamp=18;G.nextBoss=BOSS_EVERY-2;G.banner='Region 1: '+theme().name.replace(/^The /,'');G.bannerT=3;loadPath();}
   else{genFloor();loadRoom();}
 }
-const theme=()=>THEMES[(G.floor-1)%THEMES.length];
+const CHESS_TH={name:'The Board',a:0xc9bfa6,b:0x4e4068,wall:0x9a8aa8,fog:0x0e0a16,glow:[255,225,170],banner:'#3a2a50'};
+const theme=()=>G.mode==='chess'?CHESS_TH:THEMES[(G.floor-1)%THEMES.length];
 const pDmg=()=>PIECES[P.t].dmg+P.dmgB+(P.avenge&&P.rageT>0?1+P.avenge:0)+(P.lastStand&&P.hp<=P.maxHp*0.4?1+P.lastStand:0)+(P.overT>0?2+P.overLvl:0)+(P.blood&&G.streakT>0?Math.min(P.blood,Math.max(0,G.streak-1)):0);
 const pCd=()=>PIECES[P.t].cd*P.cdMult/(1+0.25*P.haste);
 function genFloor(){
@@ -1598,8 +1614,107 @@ function loadRoom(){
   }
   setupRoomVisuals();
 }
+/* ---------- chess mode: a full 8x8 battle, you steer one white piece at a time ---------- */
+const BACK=['R','N','B','Q','K','B','N','R'];
+let hitBy=null; // 'ally' while one of your army's pieces is striking, so combos and on-kill upgrades stay yours
+const allyVis=new Set();
+const ALLY_MAT=MARBLE.clone();ALLY_MAT.color.setHex(0x9a9080);ALLY_MAT.emissive.setHex(0x1a1610);ALLY_MAT.emissiveIntensity=0.3; // dimmer than you, so your own piece is the bright one
+function allyAt(x,y){return allies.find(o=>!o.dead&&o.x===x&&o.y===y);}
+function makeAlly(t,x,y){
+  const a=makeEnemy(t,x,y,null,true);a.ally=true;a.spawn=0;a.cd=rand(2,5);
+  a.baseCd*=2.6;a.hp=a.maxhp=Math.ceil(a.hp*1.8); // both armies fight at a slower, readable pace; you are the fast pieceif(t==='K'){a.hp=a.maxhp=Math.ceil(a.hp*1.4);a.baseCd*=1.3;}
+  return a;
+}
+function promoteEnemy(e){ // a pawn that crosses the board becomes a queen
+  const k=e.hp/e.maxhp;e.t='Q';e.maxhp=Math.ceil(ENEMY.Q.hp*(1+0.22*(G.floor-1)));e.hp=Math.max(1,Math.round(e.maxhp*k));e.dmg=Math.max(e.dmg,ENEMY.Q.dmg);e.baseCd=ENEMY.Q.cd;e.windMax=Math.max(e.windMax,ENEMY.Q.wind);
+  if(e.vis){scene.remove(e.vis);disposeGroup(e.vis);entVis.delete(e.vis);allyVis.delete(e.vis);e.vis=null;}
+  floatText(e.x,e.y-0.6,e.ally?'YOUR PAWN PROMOTES!':'PROMOTED TO QUEEN!',e.ally?'#ffe08a':'#ff8ab0',1.2);
+  spawnWave(e.x-3,e.y-4,e.ally?0xffe08a:0xff4a9a,2.6,0.6);burst(e.x,e.y,20,e.ally?[255,230,140]:[255,90,170],160,0.7,3.4);sfx('bell',0.7,1.2);
+}
+function hurtAlly(o,d,src){
+  if(o.dead||o.inv>0)return;
+  o.hp-=d;o.flash=0.15;o.inv=0.25;floatText(o.x,o.y,'-'+d,'#ffb0b8',0.85);burst(o.x,o.y,6,[255,200,200],90,0.35,2.2);sfx('hit',0.5,0.9);
+  if(o.hp>0)return;
+  o.dead=true;G.whiteLost=(G.whiteLost||0)+1;floatText(o.x,o.y-0.5,'LOST '+PNAME[o.t].toUpperCase(),'#ff8a96',1.05);
+  if(o.vis){shatter(o.vis,o.t,0,0,1.2,[ALLY_MAT,INNER_STONE],[1,0.9,0.75]);scene.remove(o.vis);disposeGroup(o.vis);allyVis.delete(o.vis);o.vis=null;}
+  sfx('kill',0.6,0.7);shake=Math.max(shake,4);
+  if(o.t==='K'){hurtSrc=src;G.mate=true;checkmate();}
+}
+function checkmate(){
+  if(state!=='play')return;
+  G.banner='CHECKMATE';G.bannerT=2.5;slowT=1;flashW=0.4;P.hp=0;die();
+}
+function allyThink(a){
+  const moves=genMoves(a.t,a.x,a.y,'a',a),caps=moves.filter(m=>m.cap);
+  if(caps.length){ // strike the weakest piece in reach
+    let best=caps[0],bh=1e9;for(const m of caps){const e=enemies.find(o=>!o.dead&&o.x===m.x&&o.y===m.y);const h=e?e.hp:99;if(h<bh){bh=h;best=m;}}
+    a.wind={x:best.x,y:best.y,t:0.55,max:0.55};return;
+  }
+  let opts=moves;
+  if(!opts.length){a.cd=0.5;return;}
+  const here=tileDanger(a.x,a.y,a);
+  if(a.t==='K'){ // the king stays home unless something is coming for him
+    if(here<1){a.cd=a.baseCd;return;}
+    const s=safestTile(opts.concat([{x:a.x,y:a.y}]),a);if(s.x!==a.x||s.y!==a.y)enemyMove(a,s.x,s.y);a.cd=a.baseCd*rand(0.9,1.2);return;
+  }
+  if(here>=10&&Math.random()<0.6){const s=safestTile(opts,a);enemyMove(a,s.x,s.y);a.cd=a.baseCd*rand(0.9,1.2);return;}
+  let tg=null,bd=1e9;for(const e of enemies){if(e.dead||e.spawn>0)continue;const d=Math.max(Math.abs(e.x-a.x),Math.abs(e.y-a.y));if(d<bd){bd=d;tg=e;}}
+  if(!tg){a.cd=0.6;return;}
+  const df=attackDist(a.t,tg.x,tg.y);let bm=null,bs=1e9;
+  for(const m of opts){const sc=df[m.y*COLS+m.x]+tileDanger(m.x,m.y,a)*0.3+rand(0,0.8);if(sc<bs){bs=sc;bm=m;}}
+  if(bm&&df[bm.y*COLS+bm.x]<=df[a.y*COLS+a.x])enemyMove(a,bm.x,bm.y);
+  a.cd=a.baseCd*rand(0.9,1.25);
+}
+function resolveAllyWind(a){
+  const{x,y}=a.wind;a.wind=null;a.cd=a.baseCd*rand(1,1.3);
+  if(!genMoves(a.t,a.x,a.y,'a',a).some(m=>m.cap&&m.x===x&&m.y===y))return;
+  const e=enemies.find(o=>!o.dead&&o.x===x&&o.y===y);if(!e)return;
+  const ox=a.x,oy=a.y;e.hitDir=[Math.sign(x-ox),Math.sign(y-oy)];
+  hitBy='ally';let killed=false;try{killed=hitEnemy(e,a.dmg);}finally{hitBy=null;}
+  if(killed&&!occ(x,y,a))enemyMove(a,x,y);else a.anim={fx:ox,fy:oy,tx:x,ty:y,lunge:true,t:0,dur:0.22};
+}
+function updateAllies(dt){
+  for(const a of allies){
+    if(a.dead)continue;
+    a.flash=Math.max(0,a.flash-dt);a.inv=Math.max(0,(a.inv||0)-dt);
+    if(a.anim){a.anim.t+=dt;if(a.anim.t>=a.anim.dur)a.anim=null;}
+    if(a.wind){a.wind.t-=dt;if(a.wind.t<=0)resolveAllyWind(a);continue;}
+    a.cd-=dt;if(a.cd<=0&&!a.anim)allyThink(a);
+  }
+  allies=allies.filter(a=>!a.dead);
+}
+function swapInto(a,forced){ // your will jumps into another white piece; level and upgrades come along
+  const k=a.hp/a.maxhp,fx=P.x,fy=P.y,ft=P.t,fk=clamp(P.hp/P.maxHp,0,1);
+  allies=allies.filter(o=>o!==a);if(a.vis){scene.remove(a.vis);disposeGroup(a.vis);allyVis.delete(a.vis);a.vis=null;}
+  if(!forced){const b=makeAlly(ft,fx,fy);b.hp=Math.max(1,Math.round(b.maxhp*fk));b.cd=1;allies.push(b);}
+  else if(P.vis){shatter(P.vis,ft,0,0,1.4,[MARBLE,INNER_STONE],[1,0.85,0.4]);}
+  resetPlayerVis();
+  P.t=a.t;P.x=a.x;P.y=a.y;P.anim=null;queued=null;P.hp=Math.max(1,Math.round(P.maxHp*k));P.cd=0.15;P.inv=Math.max(P.inv,forced?1.6:0.4);P.swapCd=forced?0:2.5;P.rise=0.35;
+  spawnWave(P.x-3,P.y-4,0x9fd8ff,2.4,0.5);burst(P.x,P.y,16,[170,220,255],150,0.5,3);sfx('whoosh',0.9,1.3);syn('pick');
+  floatText(P.x,P.y-0.6,forced?'YOU FALL BACK TO THE '+PIECES[P.t].name.toUpperCase():PIECES[P.t].name.toUpperCase(),'#9fd8ff',forced?1.1:1);
+  if(forced){G.banner='Your '+PNAME[ft].toLowerCase()+' fell';G.bannerT=1.8;}
+}
+function soulJump(){ // your piece fell: carry on as the nearest survivor (the king last)
+  let best=null,bd=1e9;
+  for(const o of allies){if(o.dead)continue;const d=Math.hypot(o.x-P.x,o.y-P.y)+(o.t==='K'?50:0);if(d<bd){bd=d;best=o;}}
+  if(!best)return false;
+  swapInto(best,true);return true;
+}
+function loadChess(){
+  room={kind:'chess',seed:Math.random()*1000,waves:[],waveT:0,cleared:false,boss:null,t:0,zones:[],pads:null,variant:null};
+  tiles=[];for(let y=0;y<ROWS;y++){tiles.push([]);for(let x=0;x<COLS;x++)tiles[y].push({k:0,sp:null,s:x*0.37+y*1.91});}
+  items=[];enemies=[];allies=[];queued=null;fade=1;P.hist=[];P.echoes=[];P.swapCd=0;
+  const mine={P:[4,6],N:[6,7],B:[5,7],R:[7,7],Q:[3,7]}[P.t]||[4,6];
+  P.x=mine[0];P.y=mine[1];P.anim=null;
+  for(let x=0;x<8;x++){
+    const eb=makeEnemy(BACK[x],x,0,null,true),ep=makeEnemy('P',x,1,null,true);
+    for(const e of[eb,ep]){e.hp=e.maxhp=Math.ceil(e.hp*2.2);e.baseCd*=2.5;e.cd=rand(3,7);enemies.push(e);}
+    for(const[t,y]of[[BACK[x],7],['P',6]])if(!(x===P.x&&y===P.y))allies.push(makeAlly(t,x,y));
+  }
+  setupRoomVisuals();
+}
 /* ---------- explore mode: an endless path that scrolls under you ---------- */
-let runMode=SET.mode==='explore'?'explore':'dungeon',scrollZ=0;
+let runMode=['explore','chess'].includes(SET.mode)?SET.mode:'dungeon',scrollZ=0;
 const PATH_ROW=5,REGION=36,BOSS_EVERY=72; // the player is kept on row 5 or below; stepping past it scrolls the path
 const CAMP_KINDS=['fountain','anvil','altar','cauldron','lectern','shrine','merchant','chest'];
 function pathRow(clean){
@@ -1844,15 +1959,24 @@ function occ(x,y,ign){
     if(e.x===x&&e.y===y)return e.spawn>0?'wall':'enemy';
     const a=e.anim;if(a&&!a.lunge&&a.t<a.dur*0.7&&a.fx===x&&a.fy===y)return'wall';
   }
+  for(const o of allies){
+    if(o===ign||o.dead)continue;
+    if(o.x===x&&o.y===y)return'ally';
+    const a=o.anim;if(a&&!a.lunge&&a.t<a.dur*0.7&&a.fx===x&&a.fy===y)return'wall';
+  }
   return null;
 }
 function genMoves(t,x,y,side,ign){
-  const foe=side==='p'?'enemy':'player',out=[];
-  const hop=ds=>{for(const[dx,dy]of ds){const nx=x+dx,ny=y+dy,o=occ(nx,ny,ign);if(!o)out.push({x:nx,y:ny});else if(o===foe)out.push({x:nx,y:ny,cap:true});}};
-  const slide=ds=>{for(const[dx,dy]of ds){let nx=x+dx,ny=y+dy;for(;;){const o=occ(nx,ny,ign);if(!o)out.push({x:nx,y:ny});else{if(o===foe)out.push({x:nx,y:ny,cap:true});break;}nx+=dx;ny+=dy;}}};
-  if(t==='P'){
+  const isFoe=side==='e'?o=>o==='player'||o==='ally':o=>o==='enemy',out=[]; // black hunts you and your army; you and your army hunt black
+  const hop=ds=>{for(const[dx,dy]of ds){const nx=x+dx,ny=y+dy,o=occ(nx,ny,ign);if(!o)out.push({x:nx,y:ny});else if(isFoe(o))out.push({x:nx,y:ny,cap:true});}};
+  const slide=ds=>{for(const[dx,dy]of ds){let nx=x+dx,ny=y+dy;for(;;){const o=occ(nx,ny,ign);if(!o)out.push({x:nx,y:ny});else{if(isFoe(o))out.push({x:nx,y:ny,cap:true});break;}nx+=dx;ny+=dy;}}};
+  if(t==='P'&&side!=='p'&&G&&G.mode==='chess'){ // computer pawns play by the real rules: forward, two from home, capture diagonally forward
+    const f=side==='e'?1:-1,home=side==='e'?1:ROWS-2;
+    if(!occ(x,y+f,ign)){out.push({x,y:y+f});if(y===home&&!occ(x,y+2*f,ign))out.push({x,y:y+2*f});}
+    for(const dx of[-1,1])if(isFoe(occ(x+dx,y+f,ign)))out.push({x:x+dx,y:y+f,cap:true});
+  }else if(t==='P'){
     for(const[dx,dy]of ORTH){const nx=x+dx,ny=y+dy;if(!occ(nx,ny,ign))out.push({x:nx,y:ny});}
-    for(const[dx,dy]of DIAG){const nx=x+dx,ny=y+dy;if(occ(nx,ny,ign)===foe)out.push({x:nx,y:ny,cap:true});}
+    for(const[dx,dy]of DIAG){const nx=x+dx,ny=y+dy;if(isFoe(occ(nx,ny,ign)))out.push({x:nx,y:ny,cap:true});}
   }else if(t==='N')hop(KN);
   else if(t==='K')hop(DIR8);
   else if(t==='T'){}
@@ -1873,11 +1997,11 @@ function staticDests(t,x,y){
   else if(t==='B'){slide(DIAG);hop(ORTH);}else if(t==='R')slide(ORTH);else slide(DIR8);
   return out;
 }
-function attackDist(t){
-  const d=new Array(ROWS*COLS).fill(99),q=[],pi=P.y*COLS+P.x;
+function attackDist(t,tx=P.x,ty=P.y){ // moves this piece needs to reach a tile that attacks (tx,ty)
+  const d=new Array(ROWS*COLS).fill(99),q=[],pi=ty*COLS+tx;
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
     if(tiles[y][x].k!==0)continue;
-    const att=t==='P'?(Math.abs(x-P.x)===1&&Math.abs(y-P.y)===1):staticDests(t,x,y).includes(pi);
+    const att=t==='P'?(Math.abs(x-tx)===1&&Math.abs(y-ty)===1):staticDests(t,x,y).includes(pi);
     if(att){d[y*COLS+x]=0;q.push(y*COLS+x);}
   }
   for(let i=0;i<q.length;i++){
@@ -1886,6 +2010,7 @@ function attackDist(t){
   }
   return d;
 }
+const FILES='abcdefgh';
 function setAnim(en,fx,fy,dur,jump){en.anim={fx,fy,t:0,dur,jump};}
 
 /* ---------- player actions ---------- */
@@ -1898,7 +2023,11 @@ function legalMoves(){
 function onTap(x,y){
   if(state!=='play')return;
   const m=legalMoves().find(m=>m.x===x&&m.y===y);
-  if(!m)return;
+  if(!m){
+    const a=allyAt(x,y); // tapping one of your own pieces takes control of it
+    if(a){if((P.swapCd||0)<=0)swapInto(a,false);else{floatText(a.x,a.y-0.4,'WAIT '+Math.ceil(P.swapCd),'#9fd8ff',0.8);sfx('soft',0.4,1.4);}}
+    return;
+  }
   if(P.cd>0){queued={x,y};return;}
   doPlayerMove(m);
 }
@@ -1936,6 +2065,7 @@ function doPlayerMove(m){
         if(P.momentum){P.haste=Math.min(3,P.haste+1);P.hasteT=2+P.momentum*0.5;}
         for(let i=0;i<P.echo;i++)P.echoes.push({x:m.x,y:m.y,t:0.7+i*0.6});
         const fx=P.x,fy=P.y;P.x=m.x;P.y=m.y;setAnim(P,fx,fy,P.t==='N'?0.26:0.14+dist*0.02,P.t==='N');
+        floatText(m.x,m.y-1.15,(P.t==='P'?FILES[fx]:P.t)+'x'+FILES[m.x]+(ROWS-m.y),'#cbbfee',0.8); // the capture in chess notation
         arrive();
       }else{
         P.anim={fx:P.x,fy:P.y,tx:m.x,ty:m.y,lunge:true,t:0,dur:0.22};
@@ -1953,6 +2083,10 @@ function doPlayerMove(m){
   }
   spawnWave(m.x-3,m.y-4,0xfff0c8,1.1,0.28);
   P.cd=pCd();dodgeWindow();
+  if(state==='play'&&time-(P.forkT??-9)>3){ // landing where you attack two pieces at once is a fork
+    const n=genMoves(P.t,P.x,P.y,'p').filter(c=>c.cap&&enemies.some(e=>!e.dead&&e.spawn<=0&&e.x===c.x&&e.y===c.y)).length;
+    if(n>=2){P.forkT=time;floatText(P.x,P.y-1,n>=3?'TRIPLE FORK!':'FORK!','#ffd86b',1.25);addXp(n-1);G.score+=25*n;sfx('confirm',0.55,1.5);spawnWave(P.x-3,P.y-4,0xffd86b,1.6,0.35);}
+  }
   if(counter){P.cd=0;floatText(P.x,P.y-0.5,'COUNTER','#ffd86b');sfx('confirm',0.5,1.4);}
 }
 function spawnMimic(i){
@@ -2041,6 +2175,7 @@ function hurtPlayer(d){
       spawnWave(P.x-3,P.y-4,0xffa040,4,0.8);burst(P.x,P.y,30,[255,170,60],200,0.9,4);sfx('bell',1,1.1);
       return true;
     }
+    if(G.mode==='chess'){if(P.t==='K'){G.mate=true;checkmate();return true;}if(soulJump())return true;}
     P.hp=0;die();
   }
   return true;
@@ -2080,28 +2215,31 @@ function saveMeta(){
 }
 function die(){
   state='dead';slowT=0.9;AD.hideHeal();
-  if(P.vis){shatter(P.vis,P.t,0,0,1.8,[MARBLE,INNER_STONE],[1,0.85,0.4]);scene.remove(P.vis);disposeGroup(P.vis);P.vis=null;}
-  sfx('death',1);sfx('bell',0.7,0.5);shake=14;
-  const ex=G.mode==='explore';
+  const ex=G.mode==='explore',ch=G.mode==='chess',won=!!G.won;
+  if(won){queued=null;sfx('confirm',1,0.8);shake=10;for(const a of allies)if(a.vis)spawnWave(a.x-3,a.y-4,0xffe08a,2,0.7);}
+  else{if(P.vis){shatter(P.vis,P.t,0,0,1.8,[MARBLE,INNER_STONE],[1,0.85,0.4]);scene.remove(P.vis);disposeGroup(P.vis);P.vis=null;}
+  sfx('death',1);sfx('bell',0.7,0.5);shake=14;}
   G.final=(G.floor-1)*5+G.roomIdx;
-  if(!ex)meta.maxFloor=Math.max(meta.maxFloor,G.floor);meta.runs++;meta.kills=(meta.kills||0)+G.kills;checkUnlocks();saveMeta();
-  if(!ex){PG.submit(finalScore());addTop();} // the leaderboard ranks dungeon runs only, so the two modes never mix
+  if(!ex&&!ch)meta.maxFloor=Math.max(meta.maxFloor,G.floor);meta.runs++;meta.kills=(meta.kills||0)+G.kills;checkUnlocks();saveMeta();
+  if(!ex&&!ch){PG.submit(finalScore());addTop();} // the leaderboard ranks dungeon runs only, so the modes never mix
   PG.ev('run_ended',{mode:G.mode,floor:G.floor,distance:G.dist,score:finalScore(),kills:G.kills,bosses:G.bossKills,piece:PIECES[P.t].name,duration_sec:Math.round(AD.runLen?AD.runLen():0)});
-  const isBest=ex?G.dist>(meta.exploreBest||0):G.final>best;AD.endRun(isBest);
+  const isBest=ch?won&&(!meta.chessBest||G.time<meta.chessBest):ex?G.dist>(meta.exploreBest||0):G.final>best;AD.endRun(isBest);
   if(ex&&isBest){meta.exploreBest=G.dist;saveMeta();}
-  {const total=Math.round((G.floor*3+G.bossKills*6+Math.floor(G.kills/10)+(isBest?10:0))*(G.mult||1));
+  if(ch&&won){meta.chessWins=(meta.chessWins||0)+1;if(isBest)meta.chessBest=Math.round(G.time);saveMeta();}
+  {const total=Math.round((ch?(won?30:6)+Math.floor(G.kills/2):G.floor*3+G.bossKills*6+Math.floor(G.kills/10)+(isBest?10:0))*(G.mult||1));
    meta.shards=(meta.shards||0)+Math.max(0,total-(G.paid||0));G.paid=Math.max(G.paid||0,total);G.earned=G.paid;saveMeta();}
-  if(isBest&&!ex){best=G.final;Store.set('chesscrawl_best',best);}
+  if(isBest&&!ex&&!ch){best=G.final;Store.set('chesscrawl_best',best);}
   setTimeout(()=>{
     const rl=P.relics.map(id=>ic((RELICS.find(r=>r.id===id)||{g:'gem'}).g,20)).join('');
-    $('stats').innerHTML=(ex?`<div class="st"><b>${G.dist} m</b><small>Travelled</small></div>`:`<div class="st"><b>${G.floor}</b><small>Floor</small></div>`)+`<div class="st"><b>${P.lvl}</b><small>${PIECES[P.t].name}</small></div><div class="st"><b>${G.kills}</b><small>Captures</small></div><div class="st"><b>${G.bossKills}</b><small>Bosses</small></div><div class="st"><b>${fmtTime(G.time||0)}</b><small>Time</small></div><div class="st"><b>x${G.bestCombo||0}</b><small>Best combo</small></div><div class="st full"><b id="scoreN">0</b><small>Score</small></div>`+
+    $('deadTitle').textContent=won?'VICTORY':G.mate?'CHECKMATE':'SHATTERED';
+    $('stats').innerHTML=(ch?`<div class="st"><b>${allies.filter(a=>!a.dead).length+(won?1:0)}</b><small>White left</small></div>`:ex?`<div class="st"><b>${G.dist} m</b><small>Travelled</small></div>`:`<div class="st"><b>${G.floor}</b><small>Floor</small></div>`)+`<div class="st"><b>${P.lvl}</b><small>${PIECES[P.t].name}</small></div><div class="st"><b>${G.kills}</b><small>Captures</small></div>${ch?`<div class="st"><b>${G.whiteLost||0}</b><small>White lost</small></div>`:`<div class="st"><b>${G.bossKills}</b><small>Bosses</small></div>`}<div class="st"><b>${fmtTime(G.time||0)}</b><small>Time</small></div><div class="st"><b>x${G.bestCombo||0}</b><small>Best combo</small></div><div class="st full"><b id="scoreN">0</b><small>Score</small></div>`+
       (rl?`<div class="st full"><div style="display:flex;gap:10px;justify-content:center;color:var(--gold2);padding:2px 0 4px">${rl}</div><small>Relics</small></div>`:'')+
       (G.mult>1?`<div class="st full"><div class="chips" style="justify-content:center">${MODS.filter(x=>G.mods[x.id]).map(x=>`<span class="chip gold">${x.n}</span>`).join('')}<span class="chip">Score x${G.mult.toFixed(2)}</span></div></div>`:'')+
       `<div class="st full" style="background:none;border:0"><span class="badge2" id="shardBadge" style="background:#8fd4ae">+${G.earned} shards</span> ${isBest?'<span class="badge2">'+ic('trophy')+'New best</span>':''} ${(G.unlocked||[]).map(n=>`<span class="badge2" style="background:#5aa9d6">New skin: ${n}</span>`).join(' ')}</div>`;
-    $('deadCause').textContent=causeText();
+    $('deadCause').textContent=won?`Black wiped out in ${fmtTime(G.time||0)}`:G.mate?'Your king was captured':causeText();
     {const hs=(P.hits||[]).slice(-4);$('deadRecap').innerHTML=hs.length>1?'<small>Last hits</small>'+hs.map(h=>`<span>${h.n} <b>-${h.d}</b></span>`).join('<i>›</i>'):'';}
     countUp($('scoreN'),finalScore());
-    $('revive').style.display=AD.offerRevive()?'':'none';
+    $('revive').style.display=!won&&!G.mate&&AD.offerRevive()?'':'none';
     $('dblShards').style.display=(AD.canOffer()&&G.paid>0&&!G.doubled)?'':'none';
     $('dblShards').innerHTML=ic('gem')+'Double shards · watch ad';
     $('dead').classList.add('show');
@@ -2254,14 +2392,15 @@ function hitEnemy(e,d){
   buzz(e.boss?[40,40,90]:14);
   if(e.role==='warden')for(const o of enemies)if(o.barrierBy===e){o.barrier=false;o.barrierBy=null;}
   if(e.mimic){pickQ.push({type:'relic'});floatText(e.x,e.y-0.6,'REWARD','#ffd86b');}
-  if(P.harvest&&(P.harvested||0)<10&&G.kills%Math.max(5,13-2*P.harvest)===0){P.harvested=(P.harvested||0)+1;P.maxHp++;healPlayer(1);floatText(P.x,P.y-0.5,'+1 MAX HP','#9dffb0');}
-  G.streak=(G.streakT>0?G.streak:0)+1;G.streakT=2.6;
+  const mine=hitBy!=='ally';
+  if(mine&&P.harvest&&(P.harvested||0)<10&&G.kills%Math.max(5,13-2*P.harvest)===0){P.harvested=(P.harvested||0)+1;P.maxHp++;healPlayer(1);floatText(P.x,P.y-0.5,'+1 MAX HP','#9dffb0');}
+  if(mine){G.streak=(G.streakT>0?G.streak:0)+1;G.streakT=2.6;}
   G.bestCombo=Math.max(G.bestCombo||0,G.streak);
-  if(G.streak>=3){G.score+=G.streak*5;floatText(e.x,e.y-0.7,G.streak+'x COMBO','#ffb347');}
+  if(mine&&G.streak>=3){G.score+=G.streak*5;floatText(e.x,e.y-0.7,G.streak+'x COMBO','#ffb347');}
   {const tn2=e.boss?BOSSES[e.bk].tint:ETINT[e.t];spawnWave(e.x-3,e.y-4,((tn2[0]*255|0)<<16)|((tn2[1]*255|0)<<8)|(tn2[2]*255|0),e.boss?4:1.7,e.boss?0.6:0.3);}
-  slowT=Math.max(slowT,0.03+0.012*Math.min(G.streak,8));
-  if(G.streak>=2)syn('combo',G.streak);
-  {const ms={5:'RAMPAGE!',10:'UNSTOPPABLE!',15:'GODLIKE!'}[G.streak];
+  if(mine)slowT=Math.max(slowT,0.03+0.012*Math.min(G.streak,8));
+  if(mine&&G.streak>=2)syn('combo',G.streak);
+  if(mine){const ms={5:'RAMPAGE!',10:'UNSTOPPABLE!',15:'GODLIKE!'}[G.streak];
    if(ms){floatText(P.x,P.y-1.1,ms,'#ff7a4a',2);flashW=Math.max(flashW,0.14);zoomKick=Math.max(zoomKick,1.6);shake=Math.max(shake,8);sfx('bell',0.8,0.9+G.streak*0.02);burst(P.x,P.y,22,[255,160,90],200,0.7,3.6);spawnWave(P.x-3,P.y-4,0xff9a5a,4,0.6);}}
   if(e.vis){
     const pw=e.boss?2.4:(e.t==='Q'||e.t==='R')?1.4:1;
@@ -2275,13 +2414,13 @@ function hitEnemy(e,d){
     floatText(e.x,e.y-0.5,'SPLIT!','#d9a8ff');
   }
   if(e.aff==='explosive'){addZone(areaTiles(e.x,e.y,1),1.25,2+Math.floor(G.floor/5),{label:'an exploding '+PNAME[e.t].toLowerCase()},0xff7a2a);floatText(e.x,e.y-0.5,'IT WILL BLOW!','#ff9a4a');}
-  sfx('kill',0.9,1+Math.min(0.6,0.06*(G.streak||0)));shake=Math.max(shake,e.boss?14:5);
-  if(e.boss||e.aff||e.t==='Q'||e.t==='R')slowT=Math.max(slowT,e.boss?0.8:0.25);
-  const xp=ENEMY[e.t].xp+Math.floor(G.floor/3);
+  sfx('kill',mine?0.9:0.55,1+Math.min(0.6,0.06*(G.streak||0)));shake=Math.max(shake,e.boss?14:mine?5:2);
+  if(mine&&(e.boss||e.aff||e.t==='Q'||e.t==='R'))slowT=Math.max(slowT,e.boss?0.8:0.25);
+  const xp=Math.ceil((ENEMY[e.t].xp+Math.floor(G.floor/3))*(mine?1:0.5)); // your army's kills still teach you a little
   addXp(xp);floatText(e.x,e.y,'+'+xp+' xp','#8fe0b8');
   if(Math.random()<(0.06+P.luck*0.05)*(G.mods&&G.mods.glass?0.5:1)*(G.mods&&G.mods.famine?0:1)&&!items.some(it=>it.x===e.x&&it.y===e.y)&&!(e.x===3&&e.y===0))items.push({x:e.x,y:e.y,t:'heart'});
-  if(P.tithe&&++P.capCount>=Math.max(2,5-P.tithe)){P.capCount=0;healPlayer(1);}
-  if(P.vamp&&(G.kills%2===0))healPlayer(P.vamp);
+  if(mine&&P.tithe&&++P.capCount>=Math.max(2,5-P.tithe)){P.capCount=0;healPlayer(1);}
+  if(mine&&P.vamp&&(G.kills%2===0))healPlayer(P.vamp);
   if(e.boss){
     G.banner='GUARDIAN DEFEATED';G.bannerT=3;flashW=0.5;shake=18;spawnWave(e.x-3,e.y-4,0xffe08a,9,1.1);spawnWave(e.x-3,e.y-4,0xffffff,5,0.7);sfx('bell',1,0.55);
     G.bossKills++;meta.bosses++;checkUnlocks();saveMeta();items.push({x:e.x,y:e.y,t:'heart'});pickQ.push({type:'relic'});pickQ.push({type:'chest'});zoomKick=3;
@@ -2303,25 +2442,28 @@ function addXp(v){
     levelFx();
     if(P.lvl===3&&P.t==='P')pickQ.push({type:'promo1'});
     else if(P.lvl===3&&P.start!=='P'){pickQ.push({type:'level'});pickQ.push({type:'level'});}
-    else if(P.lvl===6&&P.t!=='Q')pickQ.push({type:'promo2'});
+    else if(P.lvl===6&&P.t!=='Q'&&P.t!=='K')pickQ.push({type:'promo2'});
     else pickQ.push({type:'level'});
   }
 }
 function canAttackFrom(e,x,y){return genMoves(e.t,x,y,'e',e).some(m=>m.cap);}
 function enemyMove(e,x,y){
   const fx=e.x,fy=e.y;e.x=x;e.y=y;
+  if(G.mode==='chess'&&e.t==='P'&&y===(e.ally?0:ROWS-1))promoteEnemy(e);
   setAnim(e,fx,fy,e.t==='N'?0.28:0.16+Math.max(Math.abs(x-fx),Math.abs(y-fy))*0.02,e.t==='N');
 }
-function activeWinds(){let n=0;for(const e of enemies)if(!e.dead&&e.wind)n++;return n;}
+function activeWinds(){let n=0;for(const e of enemies)if(!e.dead&&e.wind&&(G.mode!=='chess'||(e.wind.x===P.x&&e.wind.y===P.y)))n++;return n;}
 function think(e){
   let moves=genMoves(e.t,e.x,e.y,'e',e);
-  const cap=moves.find(m=>m.cap);
-  const rush=room.t>30?0.6:1,maxWinds=Math.min(6,2+Math.floor(G.floor/3));
-  if(cap&&(activeWinds()<maxWinds||e.boss)){const wt=Math.max(0.48,e.windMax);e.wind={x:cap.x,y:cap.y,t:wt,max:wt};e.stuck=0;if(cap.x===P.x&&cap.y===P.y)P.cd=Math.min(P.cd,Math.max(0,wt-REACT_T));sfx('tick',0.35);tip('dodge','Enemies flash red before they strike. Step off the marked tile.');return;}
+  const ch=G.mode==='chess',cap=moves.find(m=>m.cap&&m.x===P.x&&m.y===P.y)||moves.find(m=>m.cap);
+  const rush=room.t>30&&!ch?0.6:1,maxWinds=Math.min(6,2+Math.floor(G.floor/3));
+  if(cap&&(ch&&!(cap.x===P.x&&cap.y===P.y)||activeWinds()<maxWinds||e.boss)){const wt=Math.max(0.48,e.windMax);e.wind={x:cap.x,y:cap.y,t:wt,max:wt};e.stuck=0;if(cap.x===P.x&&cap.y===P.y)P.cd=Math.min(P.cd,Math.max(0,wt-REACT_T));sfx('tick',0.35);tip('dodge','Enemies flash red before they strike. Step off the marked tile.');return;} // in chess the wind-up cap only limits attacks aimed at you
   moves=moves.filter(m=>!m.cap);
   if(!moves.length)moves=ORTH.map(([dx,dy])=>({x:e.x+dx,y:e.y+dy})).filter(m=>!occ(m.x,m.y,e)); // deadlock rescue
   if(!moves.length){e.cd=0.4;return;}
-  const df=attackDist(e.t);
+  let tg=P; // in chess black goes after whichever white piece is closest, you a little more than the rest
+  if(ch){let bd=Math.max(Math.abs(P.x-e.x),Math.abs(P.y-e.y))-1.5;for(const o of allies){if(o.dead)continue;const d=Math.max(Math.abs(o.x-e.x),Math.abs(o.y-e.y));if(d<bd){bd=d;tg=o;}}}
+  const df=attackDist(e.t,tg.x,tg.y);
   let bestM=null,bs=1e9;
   for(const m of moves){
     let s=df[m.y*COLS+m.x]+rand(0,room.t>30?0.2:1.0);
@@ -2365,6 +2507,9 @@ function resolveWind(e){
       const s=safestTile(opts,e),fx=P.x,fy=P.y;P.x=s.x;P.y=s.y;setAnim(P,fx,fy,0.14,false);
       enemyMove(e,x,y);arrive();
     }else e.anim={fx:ox,fy:oy,tx:x,ty:y,lunge:true,t:0,dur:0.22};
+  }else if(allyAt(x,y)){
+    const o=allyAt(x,y);hurtAlly(o,e.dmg,e);
+    if(o.dead&&!occ(x,y,e))enemyMove(e,x,y);else e.anim={fx:ox,fy:oy,tx:x,ty:y,lunge:true,t:0,dur:0.22};
   }else if(!occ(x,y,e))enemyMove(e,x,y);
   if(e.aff==='blinker'&&!e.dead){const t=freeSpawnTile();if(t){burst(e.x,e.y,8,[170,255,150],90,0.4,2.6);e.x=t[0];e.y=t[1];e.anim=null;burst(t[0],t[1],8,[170,255,150],90,0.4,2.6);}}
 }
@@ -2848,6 +2993,9 @@ function update(dt){
   if(P.parry&&P.shield<=0){P.shieldT-=dt;if(P.shieldT<=0)P.shield=1;}
   if(queued&&P.cd<=0){const q=queued;queued=null;onTap(q.x,q.y);}
   updateEnemies(dt);
+  if(allies.length)updateAllies(dt);
+  if(P.swapCd>0)P.swapCd-=dt;
+  if(G.mode==='chess'&&state==='play'&&!enemies.some(e=>!e.dead)){G.won=true;G.banner='VICTORY';G.bannerT=3;flashW=0.5;slowT=1;sfx('bell',1,0.55);die();return;}
   updatePads();updateWisp(dt);updateEchoes(dt);AD.healTick(dt);
   if(state==='play'&&P.hp<=P.maxHp*0.3){P.beatT=(P.beatT||0)-dt;if(P.beatT<=0){P.beatT=1.1;buzz([14,70,14]);syn('beat');}}
   fixOverlaps();
@@ -2858,7 +3006,7 @@ function update(dt){
     if(ph>2.3&&P.inv<=0){hurtSrc={label:'spikes'};hurtPlayer(1);}
   }
   if(G.mode==='explore'&&P.y<PATH_ROW&&!(room.boss&&!room.boss.dead))pathShift(PATH_ROW-P.y);
-  if(!room.cleared&&room.kind!=='path'){
+  if(!room.cleared&&room.kind!=='path'&&room.kind!=='chess'){
     const alive=enemies.some(e=>!e.dead);
     if(!alive){
       if(room.waves.length){room.waveT-=dt;if(room.waveT<=0){spawnWaveList(room.waves.shift());room.waveT=0.7;}}
@@ -2914,10 +3062,10 @@ function getBlob(i){while(blobs.length<=i){const m=new THREE.Mesh(blobGeo,blobMa
 
 function syncScene(dt){
   const sw=state==='menu'?Math.sin(time*0.35)*0.9:0,sk=shake*SET.shake*0.012;
-  const pp0=epos(P),par=(state==='play'||state==='dead')?(pp0.x-3)*0.1:0;
-  camTarget.x+=((state==='menu'?0:(pp0.x-3)*0.12)-camTarget.x)*Math.min(1,dt*3);
+  const pp0=epos(P),par=(state==='play'||state==='dead')?(pp0.x-3-boardCx())*0.1:0;
+  camTarget.x+=(boardCx()+(state==='menu'?0:(pp0.x-3-boardCx())*0.12)-camTarget.x)*Math.min(1,dt*3);
   const pk=SET.shake?1:0;
-  camera.position.set(camBase.x+sw+par+(sk?rand(-sk,sk):0)+punch[0]*pk,camBase.y+(sk?rand(-sk,sk):0),camBase.z+(pp0.y-4)*0.03+punch[1]*pk+scrollZ);
+  camera.position.set(camBase.x+sw+par+(sk?rand(-sk,sk):0)+punch[0]*pk,camBase.y+(sk?rand(-sk,sk):0),camBase.z+(pp0.y-4-boardCz())*0.03+punch[1]*pk+scrollZ);
   punch[0]*=Math.exp(-dt*11);punch[1]*=Math.exp(-dt*11);
   camera.lookAt(camTarget.x,camTarget.y,camTarget.z+scrollZ);scrollZ*=Math.exp(-dt*6);if(scrollZ<0.002)scrollZ=0;
   if(SET.shake&&Math.abs(camRoll)>0.0004)camera.rotateZ(camRoll);camRoll*=Math.exp(-dt*6);
@@ -3003,7 +3151,7 @@ function syncScene(dt){
     }
     const p=epos(P),g=P.vis;
     let rise=0;if(P.rise>0){P.rise-=dt;rise=Math.max(0,P.rise/0.6);}
-    const pk=clamp((riseT-tileMeshes[8][3].userData.delay)/0.55,0,1),pe=1-Math.pow(1-pk,3);
+    const pk=clamp((riseT-(tileMeshes[ROWS-1][3].userData.delay||0))/0.55,0,1),pe=1-Math.pow(1-pk,3);
     g.position.set(p.x-3,p.z+Math.sin(time*3+P.seed)*0.012-rise*0.9-(riseT<1.6?(1-pe)*3.5:0),p.y-4);
     g.userData.orbit.rotation.y=time*1.8;g.userData.rune.rotation.z=time*0.9;
     const s=1-rise*0.4;g.scale.set(s/p.sq,s*p.sq,s/p.sq);
@@ -3068,6 +3216,20 @@ function syncScene(dt){
     if(e.spawn<=0){const b=getBlob(bi++);b.visible=true;b.position.set(p.x-3,0.022,p.y-4);b.scale.set(e.boss?1.5:0.95,e.boss?1.5:0.95,1);}
     if(e.boss&&e.spawn<=0){bossActive=e;if(Math.random()<dt*14)emit(sparkSys,p.x-3+rand(-0.4,0.4),0.1,p.y-4+rand(-0.4,0.4),rand(-0.2,0.2),rand(0.6,1.4),rand(-0.2,0.2),rand(0.6,1.1),0.06,tn);}
   }
+  for(const a of allies){ // your army: ivory pieces with a pale blue rune
+    if(a.dead)continue;
+    if(!a.vis){
+      a.vis=buildPiece(a.t,true);a.vis.traverse(o=>{if(o.isMesh&&o.material===MARBLE)o.material=ALLY_MAT;});
+      addRune(a.vis,'ally',0x8fd0ff,1.05);a.vis.userData.enemy=a;scene.add(a.vis);allyVis.add(a.vis);
+    }
+    const p=epos(a),g=a.vis;let sc=1+(a.flash>0?a.flash*1.6:0);
+    if(a.wind){const k=1-a.wind.t/a.wind.max;sc*=1+0.1*k;}
+    g.position.set(p.x-3,p.z+Math.sin(time*3+a.seed)*0.01,p.y-4);g.scale.set(sc/p.sq,sc*p.sq,sc/p.sq);
+    let tf=g.rotation.y,nd=1e9;for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-a.x,e.y-a.y);if(d<nd){nd=d;tf=Math.atan2(e.x-a.x,e.y-a.y);}}
+    g.rotation.y=lerpAng(g.rotation.y,tf+(a.t==='N'?0.95:0),Math.min(1,dt*8));
+    if(g.userData.rune)g.userData.rune.rotation.z=time*0.6+a.seed;
+    const b=getBlob(bi++);b.visible=true;b.position.set(p.x-3,0.022,p.y-4);b.scale.set(0.95,0.95,1);
+  }
   for(let i=bi;i<blobs.length;i++)blobs[i].visible=false;
   if(blobs[0]&&bi>0)blobs[0].scale.set(0.95,0.95,1);
   if(bossActive){const tn=BOSSES[bossActive.bk].tint;bossLight.color.setRGB(tn[0],tn[1],tn[2]);bossLight.intensity=1.8+0.5*Math.sin(time*4);bossLight.position.set(bossActive.x-3,1.6,bossActive.y-4);}
@@ -3081,8 +3243,9 @@ function syncScene(dt){
   playerDanger=false;
   for(const e of enemies){
     if(e.dead||e.frozen>0||!e.wind)continue;
-    const k=1-e.wind.t/e.wind.max;mark(e.wind.x,e.wind.y,k,e.wind.t,0xff2a3a);
-    if(e.wind.x===P.x&&e.wind.y===P.y)playerDanger=true;
+    const k=1-e.wind.t/e.wind.max,onYou=e.wind.x===P.x&&e.wind.y===P.y;
+    if(onYou||!allies.length)mark(e.wind.x,e.wind.y,k,e.wind.t,0xff2a3a);else mark(e.wind.x,e.wind.y,k*0.45,e.wind.t,0xff9a3a); // strikes at your army read softer than strikes at you
+    if(onYou)playerDanger=true;
     const ax=e.x-3,az=e.y-4,bx=e.wind.x-3,bz=e.wind.y-4,len=Math.hypot(bx-ax,bz-az);
     if(len>1.1)useP((ax+bx)/2,(az+bz)/2,0.12,len,0.25+0.3*k,Math.atan2(bx-ax,bz-az)+Math.PI);
   }
@@ -3122,7 +3285,7 @@ function tileFromScreen(px,py){
   ndc.set(px/W*2-1,-(py/H)*2+1);
   raycaster.setFromCamera(ndc,camera);
   // 1) tapping a piece itself always means that piece's tile
-  const list=[];for(const g of entVis)list.push(g);
+  const list=[];for(const g of entVis)list.push(g);for(const g of allyVis)list.push(g);
   for(const h of raycaster.intersectObjects(list,true)){
     let o=h.object;
     while(o){if(o.userData.enemy)return[o.userData.enemy.x,o.userData.enemy.y];o=o.parent;}
@@ -3168,10 +3331,24 @@ function drawOverlay(){
   }
   ctx.globalAlpha=1;
   for(const e of enemies){ // health pips over wounded or sturdy enemies
-    if(e.dead||e.boss||e.spawn>0||e.maxhp<2||!e.vis)continue;
+    if(e.dead||e.boss||e.spawn>0||e.maxhp<2||!e.vis||(G.mode==='chess'&&e.hp>=e.maxhp))continue;
     const ep=epos(e),[bx,by]=proj(ep.x-3,HEIGHT[e.t]*PSY+0.14,ep.y-4),w=Math.min(34,10+e.maxhp*3.2),k=clamp(e.hp/e.maxhp,0,1);
     ctx.fillStyle='rgba(10,6,24,.8)';ctx.fillRect(bx-w/2-1.5,by-3.5,w+3,7);
     ctx.fillStyle=k>0.5?'#ff6a7a':'#ff3a4a';ctx.fillRect(bx-w/2,by-2,w*k,4);
+  }
+  for(const a of allies){ // your army's health
+    if(a.dead||!a.vis||a.hp>=a.maxhp)continue;
+    const ep=epos(a),[bx,by]=proj(ep.x-3,HEIGHT[a.t]*PSY+0.14,ep.y-4),w=Math.min(34,10+a.maxhp*3.2),k=clamp(a.hp/a.maxhp,0,1);
+    ctx.fillStyle='rgba(10,6,24,.8)';ctx.fillRect(bx-w/2-1.5,by-3.5,w+3,7);ctx.fillStyle='#8fd8ff';ctx.fillRect(bx-w/2,by-2,w*k,4);
+  }
+  if(G.mode==='chess'){ // files and ranks round the board
+    ctx.font=FNT(700,11);ctx.fillStyle='rgba(240,230,210,.55)';ctx.textAlign='center';ctx.textBaseline='middle';
+    for(let x=0;x<COLS;x++){const[px,py]=proj(x-3,0,ROWS-4.3);ctx.fillText('abcdefgh'[x],px,py);}
+    for(let y=0;y<ROWS;y++){const[px,py]=proj(-3.75,0,y-4);ctx.fillText(String(ROWS-y),px,py);}
+  }
+  if(G.mode==='chess'&&!playerDanger&&P.vis&&state==='play'){ // which white piece is you
+    const p=epos(P),[mx,my]=proj(p.x-3,HEIGHT[P.t]*PSY+0.45+p.z,p.y-4),bob=Math.sin(time*4)*3;
+    ctx.fillStyle='#ffd86b';ctx.strokeStyle='#2a1a04';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(mx-7,my-9+bob);ctx.lineTo(mx+7,my-9+bob);ctx.lineTo(mx,my+bob);ctx.closePath();ctx.stroke();ctx.fill();
   }
   if(playerDanger&&P.vis){ // you are standing on a warning: say so right over your piece
     const p=epos(P),[dx,dy]=proj(p.x-3,HEIGHT[P.t]*PSY+0.5+p.z,p.y-4),sc=1+0.18*Math.sin(time*18);
@@ -3192,10 +3369,14 @@ function drawOverlay(){
   barFill(12,36,150,8,P.xpDisp,P.lvlPulse>0?'#a8ffe0':'#4fae8a','');P.lvlPulse=Math.max(0,(P.lvlPulse||0)-0.016);}
   ctx.textAlign='left';ctx.fillStyle='#fff';ctx.font=FNT(700,15);ot(`Lv ${P.lvl} ${PIECES[P.t].name}`,12,51);
   if(P.hits&&P.hits.length&&time-P.lastHitT<2.6){const h=P.hits[P.hits.length-1];ctx.globalAlpha=clamp((2.6-(time-P.lastHitT))/0.6,0,1);ctx.fillStyle='#ff8a96';ctx.font=FNT(700,13);ot(`-${h.d}  ${h.n}`,12,room.boss&&!room.boss.dead&&!WIDE?104:70,3.5);ctx.globalAlpha=1;}
-  ctx.textAlign='right';ctx.font=FNT(700,17);ctx.fillStyle='#ffd86b';ot(G.mode==='explore'?`Region ${G.floor}`:`Floor ${G.floor}`,W-12,11);
+  ctx.textAlign='right';ctx.font=FNT(700,17);ctx.fillStyle='#ffd86b';ot(G.mode==='explore'?`Region ${G.floor}`:G.mode==='chess'?'Chess':`Floor ${G.floor}`,W-12,11);
   ctx.font=FNT(600,14);ctx.fillStyle='#f0eaff';
   const kn={combat:'Combat',elite:'Elite',boss:'BOSS',treasure:'Treasure',rest:'Rest',altar:'Altar',forge:'Forge',merchant:'Merchant',kitchen:'Kitchen',library:'Library',shrine:'Shrine'}[room.kind]+(room.variant?' · '+room.variant.name:'');
-  if(G.mode==='explore'){ // distance travelled and how far the next region is
+  if(G.mode==='chess'){ // what is left of each army
+    const nb=enemies.filter(e=>!e.dead).length,nw=allies.filter(a=>!a.dead).length+1;
+    ctx.font=FNT(600,14);ctx.fillStyle='#f0eaff';ot(`White ${nw} · Black ${nb}`,W-12,34,3.5);
+    if((P.swapCd||0)>0){ctx.fillStyle='#9fd8ff';ot(`Swap in ${Math.ceil(P.swapCd)}`,W-12,52,3.5);}
+  }else if(G.mode==='explore'){ // distance travelled and how far the next region is
     const into=G.dist%REGION;ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(W-12-70,35,70,4);ctx.fillStyle='#ffd86b';ctx.fillRect(W-12-70,35,70*into/REGION,4);
     ctx.font=FNT(600,14);ctx.fillStyle='#f0eaff';ot(`${G.dist} m`,W-12,46,3.5);
   }else{
@@ -3329,7 +3510,7 @@ function startRun(t){
   tipQ.length=0;resetPlayerVis();newRun(t,runMode);scrollZ=0;state='play';startMusic();AD.startRun();PG.preload();PG.ev('run_started',{mode:runMode,piece:t,mods:Object.keys(modsOn).filter(k=>modsOn[k]).join(',')||'none'});if(boonReady){boonReady=false;pickQ.push({type:'relic'});refreshBoon();}setTimeout(()=>tip('move','Tap a glowing dot to move. Tap a red ring to attack.'),700);
   $('menu').classList.remove('show');$('dead').classList.remove('show');$('pick').classList.remove('show');
 }
-const bestText=()=>runMode==='explore'?(meta.exploreBest?`Farthest ${meta.exploreBest} m`:''):best?`Deepest ${Math.floor(best/5)+1}-${(best%5)+1}`:'';
+const bestText=()=>runMode==='chess'?(meta.chessBest?`Fastest win ${fmtTime(meta.chessBest)}`:''):runMode==='explore'?(meta.exploreBest?`Farthest ${meta.exploreBest} m`:''):best?`Deepest ${Math.floor(best/5)+1}-${(best%5)+1}`:'';
 function renderModes(){$('modes').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===runMode));$('best').textContent=bestText();}
 $('modes').querySelectorAll('button').forEach(b=>b.onclick=()=>{runMode=b.dataset.m;SET.mode=runMode;saveSet();syn('pick');renderModes();});
 function showMenu(){
@@ -3496,7 +3677,7 @@ function hydrate(){ // re-read saved data once Bridge Storage has answered
   modsOn=parseJ('inpieces_mods',modsOn);
   topList=parseJ('inpieces_top',topList);
   try{if(PIECES[SET.piece]){pickT=SET.piece;renderPick();}}catch(e){}
-  runMode=SET.mode==='explore'?'explore':'dungeon';
+  runMode=['explore','chess'].includes(SET.mode)?SET.mode:'dungeon';
   try{if(state==='menu')showMenu();}catch(e){}
 }
 const PG={
@@ -3681,7 +3862,7 @@ function frame(now){
 }
 initPost();resize();showMenu();PG.init();
 requestAnimationFrame(frame);
-window.__cc={get state(){return state;},setMode(m){runMode=m;},legal(){return legalMoves();},get scrollZ(){return scrollZ;},pathShift,get drops(){return dropPool.filter(m=>m.visible).length;},get P(){return P;},get G(){return G;},get enemies(){return enemies;},get room(){return room;},get tiles(){return tiles;},get items(){return items;},get time(){return time;},get chunks(){return chunks.length;},get post(){return !!post;},get lowQ(){return lowQ;},
+window.__cc={get state(){return state;},setMode(m){runMode=m;},legal(){return legalMoves();},get allies(){return allies;},swapInto,get scrollZ(){return scrollZ;},pathShift,get drops(){return dropPool.filter(m=>m.visible).length;},get P(){return P;},get G(){return G;},get enemies(){return enemies;},get room(){return room;},get tiles(){return tiles;},get items(){return items;},get time(){return time;},get chunks(){return chunks.length;},get post(){return !!post;},get lowQ(){return lowQ;},
   legalMoves,onTap,startRun,castActive,bossIndex,bombard,
   step(sec){for(let t=0;t<sec;t+=0.05)update(0.05);},
   knock(i,sx,sy){knock(enemies[i],sx,sy);},
