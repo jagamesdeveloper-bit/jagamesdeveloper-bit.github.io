@@ -10,7 +10,8 @@
   const PAD = { x: 70, y: 790, w: 270, h: 110 };
   const HOLE = { x: 30, y: 862 };
   const goalFor = (n) => Math.min(1800, 700 + 250 * (n - 1));
-  const REACH = 205, MAX_ARM = 345, PR = 22, ESCAPE_TIME = 11;
+  let REACH = 205, MAX_ARM = 345;
+  const PR = 22, ESCAPE_TIME = 11;
   const REEL = 135;
   const OUT = Art.INK;
   const TAU = Math.PI * 2;
@@ -84,7 +85,22 @@
     { id: 'balloon', name: 'Balloon', value: 80, x: 1680, y: 18, mat: 'rubber', nm: 0.3, hitR: 26, rest: 78, stiff: 0.06, damp: 0.02, attach: { x: 0, y: 19 }, tip: 'Floats, and lifts you. Pops if it hits something hard.',
       build: (x, y) => Bodies.circle(x, y, 16, { density: 0.00018, restitution: 0.3, friction: 0.1, frictionAir: 0.03 }) },
     { id: 'catmouse', name: 'Catnip mouse', value: 75, x: 610, y: 759, mat: 'soft', hitR: 28, rest: 50, stiff: 0.1, damp: 0.02, attach: { x: 0, y: -8 }, tip: 'Catnip! Mr. Whiskers goes wild for it.',
-      build: (x, y) => Bodies.rectangle(x, y, 34, 18, { chamfer: { radius: 8 }, density: 0.0012, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) }
+      build: (x, y) => Bodies.rectangle(x, y, 34, 18, { chamfer: { radius: 8 }, density: 0.0012, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) },
+    { id: 'goldenegg', name: 'Golden egg', value: 220, x: 2310, y: 294, mat: 'gold', nm: 0.8, hitR: 24, rest: 52, stiff: 0.08, damp: 0.02, attach: { x: 0, y: -14 }, tip: 'Pure gold. Rolls off shelves if bumped.',
+      build: (x, y) => Bodies.circle(x, y, 15, { density: 0.002, restitution: 0.2, friction: 0.04, frictionAir: 0.003 }) },
+    { id: 'harmonica', name: 'Harmonica', value: 70, x: 852, y: 763, mat: 'metal', nm: 0.7, hitR: 24, rest: 50, stiff: 0.1, damp: 0.02, attach: { x: 0, y: -7 }, tip: 'Wheezes loudly when bumped.',
+      build: (x, y) => Bodies.rectangle(x, y, 44, 14, { chamfer: { radius: 3 }, density: 0.0012, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) },
+    { id: 'lunchbox', name: 'Lunchbox', value: 100, x: 2290, y: 743, mat: 'plastic', nm: 0.9, hitR: 28, rest: 54, stiff: 0.12, damp: 0.03, attach: { x: 0, y: -16 },
+      build: (x, y) => Bodies.rectangle(x, y, 46, 32, { chamfer: { radius: 5 }, density: 0.0011, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) },
+    { id: 'jewelbox', name: 'Jewel box', value: 280, x: 2050, y: 183, mat: 'gold', nm: 1.0, hitR: 30, rest: 58, stiff: 0.13, damp: 0.03, attach: { x: 0, y: -17 }, tip: 'The giant\'s best secret.',
+      build: (x, y) => Bodies.rectangle(x, y, 54, 34, { chamfer: { radius: 6 }, density: 0.0019, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) },
+    { id: 'dumbbell', name: 'Dumbbell', value: 120, x: 1250, y: 884, mat: 'metal', nm: 1.3, hitR: 42, rest: 66, stiff: 0.18, damp: 0.04, attach: { x: 0, y: -16 }, tip: 'Heavy. Really heavy. Why?',
+      build: (x, y) => {
+        const bar = Bodies.rectangle(x, y, 52, 6, { density: 0.0035 }), l = Bodies.circle(x - 27, y, 15, { density: 0.0035 }), r = Bodies.circle(x + 27, y, 15, { density: 0.0035 });
+        return Body.create({ parts: [bar, l, r], restitution: 0.1, friction: 0.5, frictionAir: 0.004 });
+      } },
+    { id: 'lavalamp', name: 'Lava lamp', value: 150, x: 1520, y: 669, mat: 'glass', nm: 0.9, hitR: 30, rest: 58, stiff: 0.12, damp: 0.03, attach: { x: 0, y: -30 }, tip: 'Glows. Tips over easily.',
+      build: (x, y) => Bodies.rectangle(x, y, 22, 62, { chamfer: { radius: 6 }, density: 0.001, restitution: 0.1, friction: 0.5, frictionAir: 0.004 }) }
   ];
   const TOTAL_VALUE = DEFS.reduce((s, d) => s + d.value, 0);
 
@@ -112,7 +128,7 @@
   resize();
 
   /* ============================================================ platform (Bridge) */
-  const P = { bridge: false, audioOn: true, paused: false, hidden: false, best: 0, runs: 0, bestNight: 1, introT: 0, introDone: false, userMute: false, ready: false };
+  const P = { cash: 0, gear: [0, 0, 0, 0], loan: -1, adBusy: false, shop: false, bridge: false, audioOn: true, paused: false, hidden: false, best: 0, runs: 0, bestNight: 1, introT: 0, introDone: false, userMute: false, ready: false };
   function hasBridge() { return typeof window.bridge !== 'undefined' && window.bridge && P.bridge; }
   function syncAudio() {
     Snd.setMuted(P.userMute || !P.audioOn || P.hidden);
@@ -131,19 +147,21 @@
             window.bridge.platform.on(window.bridge.EVENT_NAME.AUDIO_STATE_CHANGED, on => { P.audioOn = !!on; syncAudio(); });
             window.bridge.platform.on(window.bridge.EVENT_NAME.PAUSE_STATE_CHANGED, p => { P.paused = !!p; Snd.suspend(P.paused); });
           } catch (e) {}
-          try { window.bridge.advertisement.setMinimumDelayBetweenInterstitial(60); } catch (e) {}
-          return window.bridge.storage.get(['omt_best', 'omt_runs', 'omt_night']).then(d => {
+                    return window.bridge.storage.get(['omt_best', 'omt_runs', 'omt_night', 'omt_cash', 'omt_gear']).then(d => {
             P.best = parseInt(d && d[0], 10) || 0; P.runs = parseInt(d && d[1], 10) || 0; P.bestNight = parseInt(d && d[2], 10) || 1;
+            P.cash = Math.max(0, parseInt(d && d[3], 10) || 0);
+            const gs = String((d && d[4]) || '').split(',').map(v => Math.max(0, Math.min(3, parseInt(v, 10) || 0)));
+            for (let i = 0; i < 4; i++) P.gear[i] = gs[i] || 0;
           }).catch(() => {});
         }).catch(() => {}).then(fin);
       } catch (e) { fin(); }
     });
   }
   function saveProgress() {
-    try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs', 'omt_night'], [String(P.best), String(P.runs), String(P.bestNight)]).catch(() => {}); } catch (e) {}
+    try { if (hasBridge()) window.bridge.storage.set(['omt_best', 'omt_runs', 'omt_night', 'omt_cash', 'omt_gear'], [String(P.best), String(P.runs), String(P.bestNight), String(P.cash), P.gear.join(',')]).catch(() => {}); } catch (e) {}
   }
   function platMsg(m, data) { try { if (hasBridge()) window.bridge.platform.sendMessage(m, data); } catch (e) {} }
-  const GAME_VERSION = '1.7.2';
+  const GAME_VERSION = '1.8.0';
   const Tele = {
     send(name, data) { try { if (hasBridge() && window.bridge.analytics) window.bridge.analytics.send(name, data); } catch (e) {} },
     frames: [], windowStart: 0, active: 0, jsErr: 0,
@@ -170,8 +188,28 @@
     }
   };
   window.addEventListener('error', () => { Tele.jsErr++; });
-  function showInterstitial() {
-    try { if (hasBridge() && window.bridge.advertisement.isInterstitialSupported) window.bridge.advertisement.showInterstitial('run_finished'); } catch (e) {}
+  // The Bridge decides whether an ad actually shows (first-ad hold-back, spacing); we only mark pauses.
+  function showInterstitial(placement) {
+    try { if (hasBridge() && window.bridge.advertisement.isInterstitialSupported) window.bridge.advertisement.showInterstitial(placement || 'run_finished'); } catch (e) {}
+  }
+  function rewardedOK() { try { return hasBridge() && !!window.bridge.advertisement.isRewardedSupported && !P.adBusy; } catch (e) { return false; } }
+  // resolves true ONLY when the Bridge reports the 'rewarded' state; closed/failed grant nothing
+  function offerRewarded(placement) {
+    return new Promise(resolve => {
+      if (!rewardedOK()) { resolve(false); return; }
+      P.adBusy = true;
+      let done = false, to = 0;
+      const ad = window.bridge.advertisement, EV = window.bridge.EVENT_NAME.REWARDED_STATE_CHANGED;
+      const fin = (ok) => {
+        if (done) return; done = true; P.adBusy = false; clearTimeout(to);
+        try { ad.off && ad.off(EV, h); } catch (e) {}
+        Tele.send(ok ? 'ad_rewarded' : 'ad_failed', { placement });
+        resolve(ok);
+      };
+      const h = (st) => { if (st === 'rewarded') fin(true); else if (st === 'closed' || st === 'failed') fin(false); };
+      to = setTimeout(() => fin(false), 120000);
+      try { ad.on(EV, h); Tele.send('ad_accepted', { placement }); ad.showRewarded(placement); } catch (e) { fin(false); }
+    });
   }
   document.addEventListener('visibilitychange', () => { P.hidden = document.hidden; Snd.suspend(P.hidden); syncAudio(); if (P.hidden) clearInput(); });
   window.addEventListener('blur', clearInput);
@@ -196,6 +234,13 @@
   const mouse = { sx: 400, sy: 200, has: false };
   let touchMode = false;
   let NIGHT = 1;
+  const GEAR = [
+    { name: 'Rubber soles', desc: 'Your own landings are quieter', cost: [200, 450, 800] },
+    { name: 'Long sleeves', desc: 'Arms reach further', cost: [200, 450, 800] },
+    { name: 'Deep pouch', desc: 'Your haul swings less', cost: [250, 500, 850] },
+    { name: 'Cat treats', desc: 'Mr. Whiskers sleeps heavier', cost: [150, 350, 700] }
+  ];
+  const gearLvl = (i) => Math.min(3, P.gear[i] + (P.loan === i ? 1 : 0));
 
   function newRun() {
     if (items) for (const it of items) if (it.vac && it.vac.snd) Snd.whirrStop(it.vac.snd);
@@ -208,12 +253,19 @@
       sqS: 0, saS: 0, blink: 3, walk: 0, caughtT: 0, flags: {}, hint: 14, toast: null, stepT: 0, hbT: 0, flash: 0, goalHit: false,
       lastGreed: '', carriedPeak: 0, giant: null, crushed: false, rumble: 0, punch: 0, cracks: [], rings: [], hitstop: 0, slowT: 0, lampDip: 0, bankBump: 0, bankDisp: 0, stepPh: 0, night: NIGHT, defer: [], brokenCount: 0, lostValue: 0, stunT: 0, cat: null, traps: [], lagX: 0
     };
-    G.goal = goalFor(NIGHT); G.stars = [G.goal, Math.round((G.goal + TOTAL_VALUE) / 2 / 50) * 50, TOTAL_VALUE];
+    REACH = 205 * (1 + 0.08 * gearLvl(1)); MAX_ARM = 345 * (1 + 0.08 * gearLvl(1));
+    G.mod = NIGHT >= 4 ? (NIGHT % 2 === 0 ? 'storm' : 'moon') : null; G.stormT = 7; G.thunderIn = -1; G.roomba = NIGHT >= 3 ? { x: 1150, dir: 1, cd: 0, anim: 0 } : null;
+    const tv = Math.round(TOTAL_VALUE * 0.75 * (G.mod === 'moon' ? 1.2 : 1) / 50) * 50; // third star: three quarters of the room
+    G.goal = goalFor(NIGHT); G.stars = [G.goal, Math.round((G.goal + tv) / 2 / 50) * 50, tv];
     Art.cracksList = G.cracks; Art.rumble = 0; Snd.rumble(false);
     buildWorld();
     initCat(); initTraps();
     hands = [mkHand(), mkHand()];
-    toast(NIGHT > 1 ? 'Night ' + NIGHT + '. Bank $' + G.goal + '. Mr. Whiskers is napping on the sofa.' : 'Steal what you can carry. Don\'t wake the giant.', 5);
+    if (P.loan >= 0) toast('Borrowed for tonight: ' + GEAR[P.loan].name + ' +1', 4, 'good');
+    else if (G.mod === 'storm') toast('Night ' + NIGHT + ': STORM. Thunder is loud, so keep still when it flashes.', 5.5, 'warn');
+    else if (G.mod === 'moon') toast('Night ' + NIGHT + ': FULL MOON. Loot is worth 20% more, the giant sleeps lighter.', 5.5, 'good');
+    else if (NIGHT === 3) toast('Night 3. Bank $' + G.goal + '. A robot vacuum patrols the floor, so hop over it.', 5.5, 'warn');
+    else toast(NIGHT > 1 ? 'Night ' + NIGHT + '. Bank $' + G.goal + '. Mr. Whiskers is napping on the sofa.' : 'Steal what you can carry. Don\'t wake the giant.', 5);
     platMsg('level_started');
   }
   function mkHand() { return { on: false, pid: null, sx: 0, sy: 0, con: null, kind: null, it: null, anchor: null, held: 0, miss: false, side: 1, flash: 0 }; }
@@ -248,7 +300,7 @@
       setCat(body, CAT_LOOT);
       body.label = 'loot';
       const it = {
-        def: d, id: d.id, name: d.name, value: d.value, body, art, seed: i * 7.31,
+        def: d, id: d.id, name: d.name, value: G.mod === 'moon' ? Math.round(d.value * 1.2 / 5) * 5 : d.value, body, art, seed: i * 7.31,
         attach: { x: art.x + d.attach.x, y: art.y + d.attach.y }, hitR: d.hitR, rest: d.rest, stiff: d.stiff, damp: d.damp,
         state: 'loose', con: null, padT: 0, spawn: { x: d.x, y: d.y }, hauledAt: 0, sq: 0, popT: 0, alarm: d.id === 'alarm' ? { ring: 0, beep: 0 } : null, vac: d.id === 'vacuum' ? { timer: 2, on: false, warn: 0, left: 0, dir: 1, snd: null } : null
       };
@@ -285,8 +337,8 @@
     if (!mat) mat = { m: MATS.me.mul, name: 'me' };
     const sup = pair.collision.supports[0];
     const pos = sup ? { x: sup.x, y: sup.y } : { x: (a.position.x + b.position.x) / 2, y: (a.position.y + b.position.y) / 2 };
-    const duck = ia && ia.id === 'duck' ? ia : ib && ib.id === 'duck' ? ib : null;
-    if (duck && rv > 90) { duck.sq = 0.3; Snd.squeak(); if (G.state === 'play' && G.time > 1.2) addNoise(inPad(pos) ? 0.4 : 1.6); popWord(pos.x, pos.y - 18, 'squeak!', 0.8, '#ffe27a'); }
+    const isHonk = (x) => x && (x.id === 'duck' || x.id === 'harmonica'), duck = isHonk(ia) ? ia : isHonk(ib) ? ib : null;
+    if (duck && rv > 90) { duck.sq = 0.3; if (duck.id === 'harmonica') Snd.honk(); else Snd.squeak(); if (G.state === 'play' && G.time > 1.2) addNoise(inPad(pos) ? 0.4 : duck.id === 'harmonica' ? 2.4 : 1.6); popWord(pos.x, pos.y - 18, duck.id === 'harmonica' ? 'wheeze!' : 'squeak!', 0.8, '#ffe27a'); }
     const globe = ia && ia.id === 'snowglobe' ? ia : ib && ib.id === 'snowglobe' ? ib : null;
     if (globe && rv > 430 && globe.state !== 'broken') { G.defer.push(() => breakItem(globe, pos, 'globe')); return; }
     const bln = ia && ia.id === 'balloon' ? ia : ib && ib.id === 'balloon' ? ib : null;
@@ -295,6 +347,7 @@
     // a quiet tick for tiny bumps so the world still feels tactile
     if (raw <= 0) { if (rv > 150) Snd.impact(MATS[mat.name].snd, 0.12); return; }
     let n = Math.min(24, raw * (1 + 0.1 * ((G.night || 1) - 1)));
+    if (a === player || b === player) n *= 1 - 0.25 * gearLvl(0);
     if (inPad(pos)) n *= 0.25; // the doormat muffles things
     const mt = MATS[mat.name];
     Snd.impact(mt.snd, n / 9);
@@ -322,7 +375,7 @@
   function attach(it) {
     if (it.state !== 'loose') return;
     it.state = 'hauled'; it.hauledAt = G.time;
-    const con = Constraint.create({ bodyA: player, pointA: { x: 0, y: 8 }, bodyB: it.body, pointB: it.attach, length: it.rest, stiffness: it.stiff, damping: it.damp });
+    const con = Constraint.create({ bodyA: player, pointA: { x: 0, y: 8 }, bodyB: it.body, pointB: it.attach, length: it.rest, stiffness: it.stiff, damping: it.damp + 0.04 * gearLvl(2) });
     it.con = con; Composite.add(engine.world, con); hauled.push(it);
     // kill any hand holding it
     for (const h of hands) if (h.on && h.it === it) endHand(h, true);
@@ -581,6 +634,36 @@
     }
   }
 
+  function updateRoomba(dt) {
+    const r = G.roomba; if (!r) return;
+    r.anim += dt; r.cd = Math.max(0, r.cd - dt);
+    if (G.state !== 'play') return; // it docks when the giant is up
+    const sp = 62 + 9 * (G.night - 3);
+    r.x += r.dir * sp * dt;
+    if (r.x > 1900) { r.x = 1900; r.dir = -1; } else if (r.x < 560) { r.x = 560; r.dir = 1; }
+    if (r.cd <= 0 && G.stunT <= 0) {
+      const th = player.position;
+      if (Math.abs(th.x - r.x) < 44 && th.y + PR > 872) {
+        r.cd = 1.4; const kd = th.x >= r.x ? 1 : -1;
+        G.stunT = 0.8; for (const h of hands) if (h.on) endHand(h, true, 'tear');
+        Body.setVelocity(player, { x: kd * 6, y: -6 }); G.hitstop = Math.max(G.hitstop, 0.05); G.shake = Math.max(G.shake, 8);
+        addNoise(7); Snd.bang(); popWord(r.x, FLOOR - 50, 'BZZT!', 1.3, '#ffe9a0');
+        r.dir = -kd; toast('Bumped by the robot vacuum! Hop over it.', 2.5, 'warn');
+        Tele.send('roomba_bump', { night: G.night });
+      }
+    }
+  }
+  function updateStorm(dt) {
+    if (G.mod !== 'storm' || G.state !== 'play') return;
+    if (G.thunderIn > 0) {
+      G.thunderIn -= dt;
+      if (G.thunderIn <= 0) { Snd.bang(); G.shake = Math.max(G.shake, 9); addNoise(8); popWord(player.position.x, player.position.y - 70, 'BOOM!', 1.4, '#cfe0ff'); }
+    } else {
+      G.stormT -= dt;
+      if (G.stormT <= 0) { G.stormT = rand(9, 15); G.flash = 0.8; G.thunderIn = 0.9; }
+    }
+  }
+
   function quirkUpdate(dt) {
     for (const it of items) {
       if (it.sq > 0) it.sq = Math.max(0, it.sq - dt * 5);
@@ -638,7 +721,7 @@
     G.cat = null;
     if (G.night < 2) return;
     G.cat = { x: 1050, y: 800, vx: 0, vy: 0, dir: 1, state: 'sleep', t: 0, ground: true, jumpCd: 0, atkCd: 0.4, hit: false, anim: 0, near: 0,
-      sp: 185 + 14 * (G.night - 2), wakeAt: Math.max(22, 50 - 10 * (G.night - 2)) };
+      sp: 185 + 14 * (G.night - 2), wakeAt: Math.max(22, 50 - 10 * (G.night - 2)) + 9 * gearLvl(3) };
   }
   function wakeCat(c) {
     c.state = 'wake'; c.t = 0.9; Snd.meow();
@@ -789,7 +872,7 @@
       if (G.state !== 'caught') {
         G.stunT = Math.max(0, G.stunT - dt);
         if (G.stunT <= 0) { movement(dt); handsUpdate(dt); }
-        vacuumUpdate(dt); quirkUpdate(dt); updateCat(dt); updateTraps(dt);
+        vacuumUpdate(dt); quirkUpdate(dt); updateCat(dt); updateTraps(dt); updateRoomba(dt); updateStorm(dt);
       }
     }
     refreshMasks();
@@ -835,7 +918,7 @@
 
     // giant / noise
     if (G.state === 'play') {
-      G.noise = Math.max(0, G.noise - 2.4 * dt);
+      G.noise = Math.max(0, G.noise - (G.mod === 'moon' ? 1.7 : 2.4) * dt);
       const stage = G.noise >= 70 ? 2 : G.noise >= 35 ? 1 : 0;
       if (stage > G.stage) { Snd.groan(stage); if (stage === 1) toast('The giant is stirring…', 2.5, 'warn'); else toast('Something is wrong. He\'s about to wake!', 2.5, 'alarm'); }
       G.stage = stage;
@@ -865,7 +948,10 @@
     }
     if (G.state === 'caught') {
       G.caughtT += dt;
-      if (G.caughtT > 1.5) endRun('caught');
+      if (G.caughtT > 1.5 && !G.reviveAsk) {
+        if (G.reviveState === undefined && !G.revived && rewardedOK() && hauledLost() >= 150) { G.reviveState = 'ask'; G.reviveAsk = true; Tele.send('ad_offered', { placement: 'second_chance' }); }
+        else endRun('caught');
+      }
     }
     G.shake *= 0.9;
     G.grin = Math.max(0, G.grin - dt);
@@ -875,7 +961,7 @@
 
   function endRun(kind) {
     if (G.over) return;
-    Snd.rumble(false);
+    Snd.rumble(false); G.reviveAsk = false;
     G.over = { kind, banked: G.banked, stars: G.stars.filter(s => G.banked >= s).length, success: kind !== 'caught' && G.banked >= G.goal, night: G.night, quip: (kind === 'caught' ? QUIPS_CAUGHT : QUIPS_ESCAPE)[Math.floor(Math.random() * 3)] };
     G.overT = 0;
     for (const it of items) if (it.vac && (it.vac.on || it.vac.snd)) stopVac(it);
@@ -883,14 +969,44 @@
     const newBest = G.banked > P.best;
     if (newBest) P.best = G.banked;
     G.over.newBest = newBest && G.banked > 0;
+    G.over.cash = G.banked; G.over.doubled = false; P.cash += G.banked; P.loan = -1;
     if (G.over.success) P.bestNight = Math.max(P.bestNight, Math.min(9, G.night + 1));
     P.runs++; saveProgress();
     Tele.send('run_result', { night: G.night, broken: G.brokenCount, outcome: kind, banked: G.banked, stars: G.over.stars, items_banked: G.bankedCount, peak_haul: G.carriedPeak, duration_sec: Math.round(G.time), goal_reached: G.goalHit });
     if (kind === 'caught') { Snd.lose(); platMsg('level_failed'); } else { Snd.win(); platMsg('level_completed'); }
   }
   function restart(fromOver) {
-    if (fromOver) { if (G.over && G.over.success) NIGHT = Math.min(9, NIGHT + 1); showInterstitial(); }
+    if (fromOver) {
+      const ok = G.over && G.over.success;
+      if (ok) NIGHT = Math.min(9, NIGHT + 1);
+      showInterstitial(P.shop ? 'shop_closed' : ok ? 'night_cleared' : 'run_finished');
+    }
+    P.shop = false;
     newRun();
+  }
+  function doRevive() {
+    const hs = hauled.slice();
+    for (const it of hs) dropItem(it);
+    Body.setStatic(player, false);
+    Body.setPosition(player, { x: PAD.x + 120, y: FLOOR - PR - 1 }); Body.setVelocity(player, { x: 0, y: 0 });
+    hs.forEach((it, i) => { Body.setPosition(it.body, { x: PAD.x + 150 + i * 22, y: FLOOR - 70 - i * 6 }); Body.setVelocity(it.body, { x: 0, y: 0 }); attach(it); });
+    G.state = 'play'; G.crushed = false; G.caughtT = 0; G.giant = null; G.revived = true; G.reviveAsk = false; G.reviveState = 'done';
+    G.noise = 55; G.slowT = 0; G.hitstop = 0; G.flash = 0.5; G.rumble = 0; Art.rumble = 0; G.stunT = 0.6;
+    toast('Second chance! He lost interest. Keep your haul and get it home.', 4.5, 'good');
+    for (let i = 0; i < 10; i++) puff(player.position.x + rand(-30, 30), player.position.y + rand(-10, 20), rand(10, 18), 0.7, rand(-90, 90), rand(-80, -10));
+    Tele.send('second_chance', { night: G.night, haul: hs.length });
+  }
+  function pressRevive() { G.reviveState = 'busy'; offerRewarded('second_chance').then(ok => { if (ok && G.reviveAsk) doRevive(); else if (G.reviveAsk) { G.reviveAsk = false; G.reviveState = 'done'; } }); }
+  function pressDouble() { const o = G.over; if (!o || o.doubled || o.cash <= 0) return; offerRewarded('double_take').then(ok => { if (ok && G.over === o && !o.doubled) { o.doubled = true; P.cash += o.cash; saveProgress(); Snd.coin(2); } }); }
+  function buyGear(i) {
+    const lvl = P.gear[i]; if (lvl >= 3) return;
+    const cost = GEAR[i].cost[lvl]; if (P.cash < cost) { Snd.miss(); return; }
+    P.cash -= cost; P.gear[i]++; saveProgress(); Snd.coin(lvl); Tele.send('gear_bought', { gear: i, level: P.gear[i] });
+  }
+  function pressBorrow() {
+    const opts = []; for (let i = 0; i < 4; i++) if (P.gear[i] < 3) opts.push(i);
+    if (!opts.length || P.loan >= 0) return;
+    offerRewarded('borrow_gadget').then(ok => { if (ok && P.loan < 0 && P.shop) { P.loan = opts[Math.floor(Math.random() * opts.length)]; Snd.coin(3); } });
   }
 
   /* ============================================================ effects */
@@ -929,6 +1045,7 @@
     else if (c === 'KeyE' && !e.repeat) { if (!G.over) stashNearCursor(); }
     else if (c === 'KeyR' && !e.repeat) restart(!!G.over);
     else if (c === 'KeyM' && !e.repeat) toggleMute();
+    else if (c === 'Escape' && P.shop) P.shop = false;
     else if (c === 'Enter' && !e.repeat) { if (G.over) { if (G.overT > 0.6) restart(true); } else leaveAction(); }
   });
   window.addEventListener('keyup', e => {
@@ -959,7 +1076,7 @@
       const b = uiButtons[i];
       if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { pressUI(b, e.pointerId); try { canvas.setPointerCapture(e.pointerId); } catch (er) {} return; }
     }
-    if (G.over) return;
+    if (G.over || G.reviveAsk) return;
     try { canvas.setPointerCapture(e.pointerId); } catch (er) {}
     let hi = e.pointerType === 'mouse' ? (e.button === 2 ? 1 : 0) : (hands[0].on ? 1 : 0);
     if (e.pointerType === 'mouse' && e.button > 2) return;
@@ -989,6 +1106,14 @@
       case 'restart': restart(!!G.over); break;
       case 'again': if (G.over && G.overT > 0.4) restart(true); break;
       case 'leave': leaveAction(); break;
+      case 'revive': if (G.reviveAsk && G.reviveState === 'ask') pressRevive(); break;
+      case 'norevive': if (G.reviveAsk && G.reviveState === 'ask') { G.reviveAsk = false; G.reviveState = 'done'; } break;
+      case 'fence': if (G.over && G.overT > 0.4) { P.shop = true; } break;
+      case 'fback': P.shop = false; break;
+      case 'fstart': if (G.over) restart(true); break;
+      case 'double': pressDouble(); break;
+      case 'borrow': pressBorrow(); break;
+      default: if (b.id.indexOf('buy') === 0) buyGear(+b.id.slice(3));
     }
   }
 
@@ -1057,6 +1182,7 @@
 
     if (G.cat && G.cat.state !== 'gone') Art.cat(c, G.cat, t);
     for (const tr of G.traps) Art.trap(c, tr, t);
+    if (G.roomba) Art.roomba(c, G.roomba, t, G.state === 'play');
 
     // loose + hauled loot behind the burglar
     for (const it of items) if (it.state === 'loose') drawItem(c, it, t);
@@ -1233,8 +1359,9 @@
     const s = cam.s, awake = G.state === 'awake' || G.state === 'leaving' || G.state === 'caught';
     const L = lctx; L.setTransform(1, 0, 0, 1, 0, 0);
     L.globalCompositeOperation = 'source-over';
-    const dark = awake ? 0.06 : G.stage >= 1 ? 0.3 : 0.36;
+    const dark = (awake ? 0.06 : G.stage >= 1 ? 0.3 : 0.36) + (G.mod === 'storm' ? 0.1 : G.mod === 'moon' ? -0.05 : 0);
     L.fillStyle = `rgba(6,12,34,${dark})`; L.fillRect(0, 0, lightCv.width, lightCv.height);
+    if (G.mod === 'moon') { L.fillStyle = 'rgba(120,160,255,0.09)'; L.fillRect(0, 0, lightCv.width, lightCv.height); }
     L.globalCompositeOperation = 'destination-out';
     const W2S = (x, y) => ({ x: (cw / 2 + (x - cam.x) * s) * dpr, y: (ch / 2 + (y - cam.y) * s) * dpr });
     const light = (x, y, r, a) => {
@@ -1262,6 +1389,7 @@
       if (it.state === 'banking' || it.state === 'banked' || it.state === 'broken') continue;
       const bp = it.body.position;
       if (it.id === 'tv') glow(bp.x, bp.y, 190, 'rgba(100,225,215,0.2)');
+      else if (it.id === 'lavalamp') glow(bp.x, bp.y - 6, 130, 'rgba(255,90,170,' + (0.2 + 0.04 * Math.sin(t * 2.2)) + ')');
       else if (it.id === 'candle') glow(bp.x, bp.y - 30, 140, 'rgba(255,170,70,' + (0.22 + 0.05 * Math.sin(t * 13)) + ')');
       else if (it.alarm && it.alarm.ring > 0) glow(bp.x, bp.y, 150, 'rgba(255,90,70,0.28)');
     }
@@ -1358,6 +1486,30 @@
     else { c.fillStyle = 'rgba(42,26,46,0.12)'; c.fill(); c.setLineDash([4, 4]); c.strokeStyle = 'rgba(42,26,46,0.5)'; c.lineWidth = 2; c.stroke(); c.setLineDash([]); }
   }
 
+  function drawShop(c, px, py, pw, ph, U, fs, o) {
+    const fsz = (n) => fs(n);
+    c.save(); c.translate(cw / 2, py + 50 * U); c.rotate(-0.04);
+    c.font = '900 ' + fsz(30) + 'px ' + Art.SERIF; const tw = c.measureText('THE FENCE').width + 32 * U;
+    Art.rr(c, -tw / 2, -32 * U, tw, 46 * U, 6); c.lineWidth = 3.5; c.strokeStyle = '#7a4a1a'; c.stroke();
+    inkText(c, 'THE FENCE', 0, 0, fsz(30), '#7a4a1a', 'center'); c.restore();
+    const xs = 30 * U; btn('fback', px + pw - xs - 8 * U, py + 8 * U, xs, xs); card(c, px + pw - xs - 8 * U, py + 8 * U, xs, xs, '#dccfa6', 8);
+    inkText(c, '×', px + pw - xs / 2 - 8 * U, py + 8 * U + xs * 0.74, fsz(22), INKC, 'center');
+    inkText(c, 'Cash  $' + P.cash, cw / 2, py + 96 * U, fsz(20), '#2d6a3a', 'center');
+    const ry0 = py + 112 * U, rh = 50 * U;
+    for (let i = 0; i < 4; i++) {
+      const g = GEAR[i], lvl = P.gear[i], ry = ry0 + i * rh, bwid = 92 * U, bhgt = 34 * U, bx = px + pw - bwid - 16 * U, by = ry + 8 * U;
+      inkText(c, g.name + (P.loan === i ? '  +1 loan' : ''), px + 18 * U, ry + 22 * U, fsz(15), P.loan === i ? '#2d7a3a' : INKC, 'left');
+      inkText(c, g.desc, px + 18 * U, ry + 40 * U, fsz(11.5), '#5a3a52', 'left', Art.SANS);
+      for (let j = 0; j < 3; j++) { c.beginPath(); c.arc(bx - 20 * U + j * 0 - (2 - j) * 13 * U, ry + 25 * U, 4.6 * U, 0, TAU); c.fillStyle = j < lvl ? '#e2b13a' : 'rgba(42,26,46,0.15)'; c.fill(); c.lineWidth = 1.2; c.strokeStyle = 'rgba(42,26,46,0.6)'; c.stroke(); }
+      if (lvl >= 3) { card(c, bx, by, bwid, bhgt, '#cbd8b8', 8); inkText(c, 'MAX', bx + bwid / 2, by + bhgt * 0.68, fsz(14), '#2d6a3a', 'center'); }
+      else { const cost = g.cost[lvl], ok = P.cash >= cost; btn('buy' + i, bx, by, bwid, bhgt); card(c, bx, by, bwid, bhgt, ok ? '#e5a24e' : '#cfc3a0', 8); inkText(c, '$' + cost, bx + bwid / 2, by + bhgt * 0.68, fsz(15), ok ? INKC : 'rgba(42,26,46,0.5)', 'center'); }
+    }
+    const bw = Math.min(270 * U, pw - 40), bh = 48 * U, bx = (cw - bw) / 2, by = py + ph - bh - 14 * U;
+    btn('fstart', bx, by, bw, bh); card(c, bx, by, bw, bh, '#e5a24e', 12);
+    inkText(c, (o.success ? 'Start night ' + Math.min(9, o.night + 1) : 'One more try') + '  (R)', cw / 2, by + 32 * U, fsz(19), INKC, 'center');
+    const canBorrow = P.loan < 0 && P.gear.some(v => v < 3) && rewardedOK(), sh = 36 * U, sy = by - sh - 8 * U;
+    if (canBorrow) { btn('borrow', bx, sy, bw, sh); card(c, bx, sy, bw, sh, '#b5dba5', 10); inkText(c, 'Borrow a gadget tonight (ad)', cw / 2, sy + sh * 0.66, fsz(14), INKC, 'center'); }
+  }
   function drawHUD(c, t) {
     uiButtons.length = 0;
     if (window.__omtNoHud) return;
@@ -1370,7 +1522,7 @@
     const lw = Math.min(238 * U, cw * (narrow ? 0.58 : 0.34)), lh = 84 * U;
     card(c, pad, pad, lw, lh);
     tape(c, pad + lw * 0.2, pad + 1, -0.08);
-    inkText(c, (narrow ? 'NIGHT ' + G.night : 'NIGHT ' + G.night + '  ·  BANKED'), pad + 14 * U, pad + 22 * U, fs(11), RUST, 'left', Art.SANS);
+    inkText(c, (G.mod ? 'NIGHT ' + G.night + '  ·  ' + (G.mod === 'storm' ? 'STORM' : 'FULL MOON') : lw < 215 * U ? 'NIGHT ' + G.night : 'NIGHT ' + G.night + '  ·  BANKED'), pad + 14 * U, pad + 22 * U, fs(11), RUST, 'left', Art.SANS);
     c.save(); c.translate(pad + 14 * U, pad + 49 * U); const bsc = 1 + 0.24 * G.bankBump; c.scale(bsc, bsc); inkText(c, '$' + Math.round(G.bankDisp), 0, 0, fs(28), G.bankBump > 0.08 ? '#2d7a3a' : INKC, 'left'); c.restore();
     inkText(c, 'GOAL $' + G.goal, pad + lw - 14 * U, pad + 22 * U, fs(11), G.banked >= G.goal ? '#2d7a3a' : RUST, 'right', Art.SANS);
     gauge(c, pad + 14 * U, pad + 55 * U, lw - 28 * U, 8 * U, clamp(G.banked / G.goal, 0, 1), G.banked >= G.goal ? '#7bbf6a' : '#e2b13a', [0.25, 0.5, 0.75]);
@@ -1451,14 +1603,29 @@
       tb('jump', cw - sz - 14 * U, by2, 'HOP'); tb('drop', cw - sz * 2 - gap - 14 * U, by2, 'DROP', '#a3201a');
     }
 
+    // second chance offer (opt-in rewarded ad, never automatic)
+    if (G.reviveAsk && !G.over) {
+      c.fillStyle = 'rgba(14,6,22,0.5)'; c.fillRect(0, 0, cw, ch);
+      const pw = Math.min(cw - 24, 380 * U), ph = Math.min(ch - 24, 214 * U), px = (cw - pw) / 2, py = (ch - ph) / 2;
+      card(c, px, py, pw, ph, '#f0e2bd', 12); tape(c, px + pw * 0.2, py + 2, -0.1); tape(c, px + pw * 0.8, py + 2, 0.12);
+      inkText(c, 'SPLAT!', cw / 2, py + 48 * U, fs(32), '#a3201a', 'center');
+      inkText(c, 'Keep your $' + hauledLost() + ' haul and try again?', cw / 2, py + 82 * U, fs(15), INKC, 'center');
+      const bw = pw - 40 * U, bh = 46 * U, bx = px + 20 * U;
+      btn('revive', bx, py + 100 * U, bw, bh); card(c, bx, py + 100 * U, bw, bh, '#e5a24e', 12);
+      inkText(c, 'Second chance  (watch an ad)', cw / 2, py + 100 * U + 30 * U, fs(16), INKC, 'center');
+      btn('norevive', bx, py + 154 * U, bw, 40 * U); card(c, bx, py + 154 * U, bw, 40 * U, '#dccfa6', 12);
+      inkText(c, 'No thanks', cw / 2, py + 154 * U + 27 * U, fs(15), INKC, 'center');
+    }
     // result overlay
     if (G.over && G.overT > 0.5) {
       const o = G.over, k = clamp((G.overT - 0.5) / 0.35, 0, 1);
       c.fillStyle = 'rgba(14,6,22,' + 0.66 * k + ')'; c.fillRect(0, 0, cw, ch);
-      const wantGrid = ch - 24 >= 430 * U, pw = Math.min(cw - 24, 470 * U), ph = Math.min(ch - 24, (wantGrid ? 430 : 340) * U), px = (cw - pw) / 2, py = Math.round((ch - ph) / 2 - (1 - k) * 20);
+      const rows = Math.ceil(DEFS.length / 10), wantGrid = ch - 24 >= (380 + rows * 30) * U, pw = Math.min(cw - 24, 470 * U), ph = Math.min(ch - 24, (wantGrid ? 380 + rows * 30 : 370) * U), px = (cw - pw) / 2, py = Math.round((ch - ph) / 2 - (1 - k) * 20);
       c.globalAlpha = k;
       card(c, px, py, pw, ph, '#f0e2bd', 12);
       tape(c, px + pw * 0.15, py + 2, -0.1); tape(c, px + pw * 0.85, py + 2, 0.12);
+      if (P.shop) drawShop(c, px, py, pw, ph, U, fs, o);
+      else {
       const caught = o.kind === 'caught';
       const empty = !caught && o.banked <= 0;
       const title = caught ? 'SQUASHED!' : empty ? 'EMPTY HANDS' : o.kind === 'clean' ? 'CLEAN SWEEP!' : o.kind === 'escaped' ? 'ESCAPED!' : 'SNEAKED OUT!';
@@ -1470,21 +1637,37 @@
       c.restore();
       inkText(c, 'Banked  $' + o.banked + (caught && hauledLost() > 0 ? '    (dropped $' + hauledLost() + ')' : ''), cw / 2, py + 112 * U, fs(22), INKC, 'center');
       for (let i = 0; i < 3; i++) star(c, cw / 2 + (i - 1) * 56 * U, py + 158 * U, 21 * U, i < o.stars);
+      let gridEnd = 190;
       if (wantGrid) {
-        const cell = Math.min(40 * U, (pw - 30 * U) / 10), gx0 = cw / 2 - cell * 5, gy0 = py + 196 * U;
+        const cell = Math.min(30 * U, (pw - 30 * U) / 10), gx0 = cw / 2 - cell * 5, gy0 = py + 190 * U;
+        gridEnd = 190 + rows * cell / U;
         DEFS.forEach((d, i) => {
           const it = items.find(q => q.id === d.id), got = it && it.state === 'banked', cx = gx0 + (i % 10 + 0.5) * cell, cy = gy0 + (Math.floor(i / 10) + 0.5) * cell;
           c.save(); c.translate(cx, cy); const sc = clamp(cell * 0.36 / d.hitR, 0.2, 0.7); c.scale(sc, sc); c.globalAlpha = k * (got ? 1 : 0.2);
           Art.LOOT[d.id](c, { seed: i * 7.3, state: 'loose', hauled: false, sq: 0, popT: 0, jingle: 0, alarm: null, vac: null, mbOpen: false }, t); c.restore();
-          if (got) { c.strokeStyle = '#2d7a3a'; c.lineWidth = 2.4 * U; c.lineCap = 'round'; c.beginPath(); c.moveTo(cx + cell * 0.14, cy + cell * 0.3); c.lineTo(cx + cell * 0.24, cy + cell * 0.4); c.lineTo(cx + cell * 0.42, cy + cell * 0.16); c.stroke(); c.lineCap = 'butt'; }
+          if (got) { c.strokeStyle = '#2d7a3a'; c.lineWidth = 2.2 * U; c.lineCap = 'round'; c.beginPath(); c.moveTo(cx + cell * 0.14, cy + cell * 0.3); c.lineTo(cx + cell * 0.24, cy + cell * 0.4); c.lineTo(cx + cell * 0.42, cy + cell * 0.16); c.stroke(); c.lineCap = 'butt'; }
         });
       }
-      inkText(c, o.success ? 'Night ' + o.night + ' cleared! The giant will be angrier tomorrow.' : (G.brokenCount > 0 && o.kind !== 'caught' ? 'Smashed loot: $' + G.lostValue + '. Careful with the glass.' : (empty ? 'A whole night and not a single thing to show for it.' : o.quip)), cw / 2, py + (wantGrid ? 304 : 206) * U, fs(14), '#5a3a52', 'center');
-      inkText(c, (o.newBest ? 'NEW BEST  $' : 'Best  $') + P.best + '   ·   goal $' + G.goal + '   ·   all loot $' + TOTAL_VALUE, cw / 2, py + (wantGrid ? 328 : 230) * U, fs(13), o.newBest ? '#2d7a3a' : RUST, 'center', Art.SANS);
-      const bw = Math.min(270 * U, pw - 40), bh = 50 * U, bx = (cw - bw) / 2, by = py + ph - bh - 22 * U;
+      inkText(c, o.success ? 'Night ' + o.night + ' cleared! The giant will be angrier tomorrow.' : (G.brokenCount > 0 && o.kind !== 'caught' ? 'Smashed loot: $' + G.lostValue + '. Careful with the glass.' : (empty ? 'A whole night and not a single thing to show for it.' : o.quip)), cw / 2, py + (wantGrid ? gridEnd + 20 : 206) * U, fs(14), '#5a3a52', 'center');
+      inkText(c, (o.newBest ? 'NEW BEST  $' : 'Best  $') + P.best + '   ·   goal $' + G.goal + '   ·   cash $' + P.cash, cw / 2, py + (wantGrid ? gridEnd + 40 : 228) * U, fs(13), o.newBest ? '#2d7a3a' : RUST, 'center', Art.SANS);
+      const bw = Math.min(270 * U, pw - 40), bh = 48 * U, bx = (cw - bw) / 2, by = py + ph - bh - 18 * U;
       btn('again', bx, by, bw, bh);
       card(c, bx, by, bw, bh, '#e5a24e', 12);
-      inkText(c, o.success ? 'Night ' + Math.min(9, o.night + 1) + '  (R)' : 'One more try  (R)', cw / 2, by + 33 * U, fs(20), INKC, 'center');
+      inkText(c, o.success ? 'Night ' + Math.min(9, o.night + 1) + '  (R)' : 'One more try  (R)', cw / 2, by + 32 * U, fs(20), INKC, 'center');
+      // secondary row: the Fence + opt-in "double the take"
+      const sh = 38 * U, sy = by - sh - 8 * U, canDouble = o.cash > 0 && !o.doubled && rewardedOK(), gap = 10 * U, fw = canDouble ? (pw - 40 * U - gap) / 2 : bw;
+      const fx = canDouble ? px + 20 * U : (cw - fw) / 2;
+      btn('fence', fx, sy, fw, sh); card(c, fx, sy, fw, sh, '#dccfa6', 10);
+      inkText(c, 'The Fence  ·  $' + P.cash, fx + fw / 2, sy + sh / 2 + 5 * U, fs(14), INKC, 'center');
+      if (canDouble) {
+        const dx = fx + fw + gap;
+        btn('double', dx, sy, fw, sh); card(c, dx, sy, fw, sh, '#b5dba5', 10);
+        inkText(c, 'Double the take (ad)', dx + fw / 2, sy + sh / 2 - 1 * U, fs(13), INKC, 'center');
+        inkText(c, '+$' + o.cash + ' cash', dx + fw / 2, sy + sh / 2 + 13 * U, fs(11), '#2d6a3a', 'center', Art.SANS);
+      } else if (o.doubled) {
+        inkText(c, 'Cash doubled!', cw / 2, sy - 4 * U, fs(12), '#2d7a3a', 'center', Art.SANS);
+      }
+      }
       c.globalAlpha = 1;
     }
     if (!P.introDone && !G.over) { const a = P.introT < 2.8 ? 1 : clamp(1 - (P.introT - 2.8) / 0.9, 0, 1); if (a > 0) Art.logo(c, cw / 2, ch * 0.27, Math.min(cw * 0.085, 92 * U), P.introT, a); }
@@ -1528,7 +1711,7 @@
   window.__omt = {
     get G() { return G; }, get player() { return player; }, get items() { return items; }, get hauled() { return hauled; }, get hands() { return hands; }, get cam() { return cam; },
     stepN(n) { for (let i = 0; i < n; i++) stepSim(); }, input, mouse, toWorld, startGrab, endHand, attach, dropItem, dropNearest, endRun, addNoise, restart, P,
-    get parts() { return parts; }, get popups() { return popups; }, setTouch(v) { touchMode = v; }, findTarget, bankItem, jump() { G.jumpBuf = 0.15; }
+    get parts() { return parts; }, get popups() { return popups; }, setTouch(v) { touchMode = v; }, findTarget, bankItem, jump() { G.jumpBuf = 0.15; }, ui: uiButtons, press(id) { const b = uiButtons.find(q => q.id === id); if (b) pressUI(b, 99); return !!b; }, gearLvl, GEAR, get NIGHT() { return NIGHT; }, setNight(n) { NIGHT = n; newRun(); }
   };
   platformInit().then(() => {
     syncAudio();

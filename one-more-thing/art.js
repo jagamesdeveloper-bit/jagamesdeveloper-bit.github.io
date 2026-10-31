@@ -719,6 +719,25 @@
     hallLightOnFloor(c, t, stateName);
   }
 
+  /* ---------------------------------------------------------------- robot vacuum */
+  function roomba(c, r, t, active) {
+    const x = r.x, y = 900;
+    c.save(); c.translate(x, y);
+    c.fillStyle = 'rgba(10,0,20,0.28)'; c.beginPath(); c.ellipse(0, 2, 34, 4.5, 0, 0, TAU); c.fill();
+    c.scale(r.dir < 0 ? -1 : 1, 1);
+    // side brush
+    c.save(); c.translate(26, -3); c.rotate(active ? t * 18 : 0); c.strokeStyle = INK; c.lineWidth = 1.8; c.lineCap = 'round';
+    for (let i = 0; i < 3; i++) { const a = i * TAU / 3; c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * 8, Math.sin(a) * 4); c.stroke(); } c.restore();
+    blob(c, 0, -13, 31, 14, 7); shaded(c, '#8e95a6', -31, -27, 62, 28, 2.8, 0.95);
+    c.fillStyle = 'rgba(255,255,255,0.35)'; rr(c, -22, -24, 30, 4, 2); c.fill();
+    c.beginPath(); c.arc(-4, -16, 8.5, 0, TAU); fillStroke(c, '#5b6176', 2);
+    c.beginPath(); c.arc(-4, -16, 3.4, 0, TAU); fillStroke(c, active ? '#6fe08a' : '#e24a4a', 1.4);
+    const on = active && Math.sin(t * 6) > 0;
+    c.fillStyle = on ? '#ff5a4a' : '#6b2a2a'; c.beginPath(); c.arc(14, -20, 2.2, 0, TAU); c.fill();
+    c.strokeStyle = INK; c.lineWidth = 2.4; c.lineCap = 'round'; c.beginPath(); c.moveTo(30, -10); c.lineTo(32, -4); c.stroke(); c.lineCap = 'butt';
+    c.restore();
+  }
+
   /* ---------------------------------------------------------------- floor traps */
   // a wooden snap trap, centred on x at floor level. `k` is 0 (cocked) to 1 (sprung)
   function trap(c, tr, t) {
@@ -825,6 +844,57 @@
   }
 
   const LOOT = {
+    goldenegg(c, it, t) {
+      c.beginPath(); c.moveTo(0, -17); c.bezierCurveTo(15, -16, 17, 6, 10, 13); c.bezierCurveTo(5, 18, -5, 18, -10, 13); c.bezierCurveTo(-17, 6, -15, -16, 0, -17); c.closePath();
+      shaded(c, '#f4c430', -16, -17, 32, 35, 2.8, 0.9);
+      c.strokeStyle = 'rgba(150,90,0,0.45)'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-12, 2); c.quadraticCurveTo(0, 8, 12, 2); c.stroke();
+      c.fillStyle = 'rgba(255,250,210,0.8)'; c.beginPath(); c.ellipse(-6, -8, 2.6, 5, -0.4, 0, TAU); c.fill();
+      sparkle(c, 7, -9, 5 + Math.sin(t * 3 + it.seed) * 1.5, 0.6 + 0.4 * Math.sin(t * 3 + it.seed));
+    },
+    harmonica(c, it, t) {
+      rr(c, -22, -7, 44, 14, 3); shaded(c, '#c4c9d4', -22, -7, 44, 14, 2.6, 0.9);
+      c.fillStyle = INK; for (let i = 0; i < 8; i++) { rr(c, -18 + i * 4.6, -2.4, 2.4, 5, 1); c.fill(); }
+      for (const sx of [-22, 17]) { rr(c, sx, -8, 5, 16, 2); fillStroke(c, '#b5482a', 2); }
+      c.fillStyle = 'rgba(255,255,255,0.6)'; rr(c, -17, -6, 30, 2, 1); c.fill();
+      if (it.sq > 0) { c.strokeStyle = INK; c.lineWidth = 1.6; c.lineCap = 'round'; for (const k of [-1, 1]) { c.beginPath(); c.arc(k * 28, 0, 5, -0.8, 0.8); c.stroke(); } c.lineCap = 'butt'; }
+    },
+    lunchbox(c, it, t) {
+      c.strokeStyle = INK; c.lineWidth = 4; c.lineCap = 'round'; c.beginPath(); c.moveTo(-10, -15); c.quadraticCurveTo(0, -24, 10, -15); c.stroke(); c.lineCap = 'butt';
+      rr(c, -23, -16, 46, 32, 5); shaded(c, '#d4402e', -23, -16, 46, 32, 2.8, 0.9);
+      c.strokeStyle = 'rgba(40,10,10,0.55)'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-23, -4); c.lineTo(23, -4); c.stroke();
+      rr(c, -4, -7, 8, 6, 1.6); fillStroke(c, '#e8c84a', 1.6);
+      c.beginPath(); c.arc(-11, 7, 5, 0, TAU); fillStroke(c, '#ffd23a', 1.6); c.fillStyle = INK; c.beginPath(); c.arc(-12.4, 6, 0.9, 0, TAU); c.arc(-9.6, 6, 0.9, 0, TAU); c.fill();
+      c.beginPath(); c.arc(-11, 8, 2.2, 0.2, Math.PI - 0.2); c.strokeStyle = INK; c.lineWidth = 0.9; c.stroke();
+      c.fillStyle = 'rgba(255,255,255,0.35)'; rr(c, 6, 3, 12, 3, 1.4); c.fill();
+    },
+    jewelbox(c, it, t) {
+      rr(c, -27, -6, 54, 23, 5); shaded(c, '#7a3a1c', -27, -6, 54, 23, 2.8, 0.9);
+      c.beginPath(); c.moveTo(-27, -4); c.quadraticCurveTo(-27, -17, -14, -17); c.lineTo(14, -17); c.quadraticCurveTo(27, -17, 27, -4); c.closePath(); shaded(c, '#9a4d24', -27, -17, 54, 13, 2.8, 0.9);
+      c.strokeStyle = '#f0c24a'; c.lineWidth = 2.6; c.beginPath(); c.moveTo(-27, -4); c.lineTo(27, -4); c.moveTo(-10, -17); c.lineTo(-10, 17); c.moveTo(10, -17); c.lineTo(10, 17); c.stroke();
+      c.beginPath(); c.moveTo(0, -14); c.lineTo(6, -9); c.lineTo(0, -3); c.lineTo(-6, -9); c.closePath(); fillStroke(c, '#3bd0c8', 2);
+      rr(c, -3, -1, 6, 7, 1.6); fillStroke(c, '#f0c24a', 1.6);
+      sparkle(c, 8, -12, 4 + Math.sin(t * 3.4) * 1.2, 0.5 + 0.5 * Math.sin(t * 3.4));
+    },
+    dumbbell(c, it, t) {
+      rr(c, -26, -3, 52, 6, 2); fillStroke(c, '#9aa0ae', 2);
+      for (const sx of [-27, 27]) {
+        c.beginPath(); for (let i = 0; i < 6; i++) { const a = i * TAU / 6 + 0.3; c.lineTo(sx + Math.cos(a) * 16, Math.sin(a) * 16); } c.closePath();
+        shaded(c, '#3c4150', sx - 16, -16, 32, 32, 2.8, 0.9);
+        c.fillStyle = '#5b6176'; c.beginPath(); c.arc(sx, 0, 5, 0, TAU); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke();
+      }
+      c.fillStyle = INK; c.font = '800 7px ' + SANS; c.textAlign = 'center'; c.fillText('50', -27, 3); c.fillText('50', 27, 3);
+    },
+    lavalamp(c, it, t) {
+      c.beginPath(); c.moveTo(-8, -22); c.lineTo(8, -22); c.lineTo(11, 14); c.lineTo(-11, 14); c.closePath();
+      shaded(c, '#ff6fb0', -11, -22, 22, 36, 2.6, 0.7);
+      c.save(); c.beginPath(); c.moveTo(-8, -22); c.lineTo(8, -22); c.lineTo(11, 14); c.lineTo(-11, 14); c.closePath(); c.clip();
+      c.fillStyle = '#ffd25a';
+      for (let k = 0; k < 3; k++) { const by = 2 - ((t * 7 + k * 13) % 30) + 6, bx = Math.sin(t * 1.3 + k * 2) * 3; c.beginPath(); c.ellipse(bx, by, 4.5 - k * 0.6, 5.2, 0, 0, TAU); c.fill(); }
+      c.restore();
+      c.fillStyle = 'rgba(255,255,255,0.5)'; rr(c, -6, -20, 2.6, 28, 1.3); c.fill();
+      c.beginPath(); c.moveTo(-8, -22); c.lineTo(0, -31); c.lineTo(8, -22); c.closePath(); fillStroke(c, '#b9bfcc', 2);
+      rr(c, -13, 14, 26, 18, 4); shaded(c, '#b9bfcc', -13, 14, 26, 18, 2.6, 0.9);
+    },
     cheesewedge(c, it, t) {
       c.beginPath(); c.moveTo(-14.7, 7.3); c.lineTo(29.3, 7.3); c.lineTo(-14.7, -14.7); c.closePath();
       shaded(c, '#ffd54a', -15, -15, 45, 22, 2.6, 0.9);
@@ -1284,5 +1354,5 @@
     c.beginPath(); c.arc(sx, sy, 2.6, 0, TAU); fillStroke(c, '#8a8c9c', 1.6);
   }
 
-  window.Art = { rumble: 0, giant, cat, trap, foreground, logo, rr, blob, fillStroke, inkStroke, shade, lin, vis, text, room, postfx, LOOT, thief, arm, rope, shoulder, hip, INK, SERIF, SANS, hash };
+  window.Art = { rumble: 0, giant, cat, trap, roomba, foreground, logo, rr, blob, fillStroke, inkStroke, shade, lin, vis, text, room, postfx, LOOT, thief, arm, rope, shoulder, hip, INK, SERIF, SANS, hash };
 })();

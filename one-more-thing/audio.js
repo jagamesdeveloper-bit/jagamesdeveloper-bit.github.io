@@ -122,6 +122,7 @@
     snapTrap() { noise(0.07, 0.5, 'highpass', 2000); tone(300, 0.1, 'square', 0.18, 90); tone(1100, 0.05, 'square', 0.1, 400, 0.01); },
     bang() { noise(0.28, 0.6, 'lowpass', 2500, 300); noise(0.06, 0.4, 'highpass', 3500); tone(90, 0.2, 'sine', 0.35, 40); },
     jingle() { for (let i = 0; i < 3; i++) tone(2200 + Math.random() * 1400, 0.08, 'triangle', 0.035, null, i * 0.045); },
+    honk() { tone(233, 0.22, 'sawtooth', 0.07, 205); tone(294, 0.22, 'sawtooth', 0.06, 262, 0.01); noise(0.12, 0.05, 'bandpass', 1800, 900, 0, 2); },
     squeak() { tone(1050, 0.07, 'square', 0.07, 1750); tone(1500, 0.09, 'sine', 0.06, 2100, 0.05); },
     beep() { tone(1900, 0.07, 'square', 0.055); },
     note() { const f = [523, 587, 659, 784, 880, 1047][Math.floor(Math.random() * 6)]; tone(f, 0.34, 'triangle', 0.05); tone(f * 2, 0.2, 'sine', 0.02); },
