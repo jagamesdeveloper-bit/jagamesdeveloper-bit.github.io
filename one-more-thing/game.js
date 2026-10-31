@@ -1045,7 +1045,6 @@
     else if (c === 'KeyE' && !e.repeat) { if (!G.over) stashNearCursor(); }
     else if (c === 'KeyR' && !e.repeat) restart(!!G.over);
     else if (c === 'KeyM' && !e.repeat) toggleMute();
-    else if (c === 'Escape' && P.shop) P.shop = false;
     else if (c === 'Enter' && !e.repeat) { if (G.over) { if (G.overT > 0.6) restart(true); } else leaveAction(); }
   });
   window.addEventListener('keyup', e => {
