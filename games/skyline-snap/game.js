@@ -110,6 +110,18 @@
     });
     c.fillStyle = rgb(mix([86, 130, 89], [14, 26, 28], sk.night * 0.8)); c.fillRect(0, base, w, h); c.fillStyle = rgb(mix([52, 58, 64], [8, 10, 14], sk.night * 0.6)); c.fillRect(0, base + 16 * scale, w, 14 * scale);
     c.fillStyle = rgb([244, 233, 208], 0.6 * (1 - sk.night * 0.6)); for (var d = 0; d < w; d += 26 * scale) c.fillRect(d, base + 22 * scale, 12 * scale, 2 * scale);
+    // street lamps along the verge (glow at night) and cars on the road
+    var tt = st.t || 0, night = sk.night;
+    for (var lx = 30 * scale; lx < w; lx += 120 * scale) { c.fillStyle = rgb(mix([40, 48, 60], [6, 8, 14], night * 0.5)); c.fillRect(lx - scale, base - 28 * scale, 2 * scale, 30 * scale); c.fillRect(lx - scale, base - 28 * scale, 9 * scale, 2 * scale);
+      if (night > 0.25) { var gr = c.createRadialGradient(lx + 8 * scale, base - 24 * scale, 0, lx + 8 * scale, base - 24 * scale, 38 * scale); gr.addColorStop(0, 'rgba(255,214,120,' + 0.55 * night + ')'); gr.addColorStop(1, 'rgba(255,214,120,0)'); c.fillStyle = gr; c.fillRect(lx - 40 * scale, base - 66 * scale, 96 * scale, 90 * scale); }
+      c.fillStyle = night > 0.25 ? '#ffe9a8' : '#cfc9b8'; c.beginPath(); c.arc(lx + 8 * scale, base - 25 * scale, 2.4 * scale, 0, TAU); c.fill(); }
+    [[0.0, 0.07, '#e76f51', 1], [0.37, 0.05, '#f6bd60', -1], [0.7, 0.09, '#2a9d8f', 1]].forEach(function (cr, ci) {
+      var dir = cr[3], u = ((tt * cr[1] * dir + cr[0]) % 1.3 + 1.3) % 1.3, cx = (u - 0.15) * w, cy = base + 18 * scale + (dir > 0 ? 0 : 5 * scale), cwid = 22 * scale, chh = 7 * scale;
+      c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(cx - cwid / 2, cy + chh * 0.95, cwid, 2 * scale); c.fillStyle = cr[2]; U.rr(c, cx - cwid / 2, cy, cwid, chh, 2 * scale); c.fill();
+      c.fillStyle = cr[2]; U.rr(c, cx - cwid * 0.28, cy - 4 * scale, cwid * 0.56, 5 * scale, 2 * scale); c.fill(); c.fillStyle = 'rgba(190,225,240,.85)'; c.fillRect(cx - cwid * 0.22, cy - 3 * scale, cwid * 0.18, 3 * scale); c.fillRect(cx + cwid * 0.04, cy - 3 * scale, cwid * 0.18, 3 * scale);
+      c.fillStyle = '#12151c'; c.beginPath(); c.arc(cx - cwid * 0.28, cy + chh, 2.1 * scale, 0, TAU); c.arc(cx + cwid * 0.28, cy + chh, 2.1 * scale, 0, TAU); c.fill();
+      if (night > 0.2) { var hx2 = cx + dir * cwid / 2; c.fillStyle = 'rgba(255,240,170,' + 0.9 * night + ')'; c.fillRect(hx2 - (dir > 0 ? 0 : 2 * scale), cy + 1.5 * scale, 2 * scale, 2 * scale); c.fillStyle = 'rgba(255,240,170,' + 0.18 * night + ')'; c.beginPath(); c.moveTo(hx2, cy + 2 * scale); c.lineTo(hx2 + dir * 26 * scale, cy - 2 * scale); c.lineTo(hx2 + dir * 26 * scale, cy + 7 * scale); c.closePath(); c.fill(); }
+    });
   }
   function drawFloor(c, f, y, sk, w, h, alpha, rot) {
     var p = w2s(f.x, y, w, h), th = THEMES[Math.floor(f.i / 6) % THEMES.length], wpx = f.w * scale, hpx = FH * scale, lit = sk.night > 0.3;
@@ -215,6 +227,7 @@
     if (U.button(c, bx, y0, b2, bh, 'Build!', { color: CORAL, size: 34 * sc })) PG.go(startRun);
     if (U.button(c, bx, y0 + bh + 12 * sc, b2, bh * 0.8, 'Upgrades', { color: MUST, size: 26 * sc })) PG.go(function () { st.state = 'shop'; PG.track('shop_opened', { source: 'menu' }); });
     var ly = y0 + bh * 1.8 + 36 * sc; coinIcon(c, bx + b2 / 2 - 40 * sc, ly, 10 * sc); poster(c, PG.fmt(PG.save.coins || 0), bx + b2 / 2 - 24 * sc, ly + 2, 26 * sc, CREAM, NAVY, 'left'); U.text(c, 'Best ' + (PG.save.best || 0) + ' floors', bx + b2 / 2, ly + 26 * sc, 13 * sc, CREAM, 'center', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.6)', strokeWidth: 3 });
+    PG.dailyGift(c, bx, ly + 48 * sc, b2, 42 * sc, 8, { color: TEAL, size: 20 * sc });
     U.text(c, 'Music: qubodup   Sounds: Kenney', w / 2, h - 14 * sc, 11 * sc, 'rgba(244,233,208,.75)', 'center', { font: 'body', shadow: false });
   }
   function render(c, w, h) {
@@ -230,7 +243,7 @@
   PG.onDown = function () { if (st.state === 'play') drop(); };
   PG.setup(document.getElementById('c'), update, render);
   window.__sky = { st: st, start: startRun, drop: drop, update: update, gameOver: gameOver, revive: revive, swayOff: swayOff };
-  PG.init({ id: 'skyline_snap', version: '1.3.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
+  PG.init({ id: 'skyline_snap', version: '1.4.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
     st.floors = [{ x: 0, w: BASE_W, i: 0 }]; PG.music();
   });
 })();

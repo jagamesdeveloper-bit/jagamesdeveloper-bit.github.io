@@ -274,6 +274,10 @@
       c.strokeStyle = COLORS[a.color]; c.lineWidth = tw * 0.16; c.stroke(); c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = tw * 0.05; c.stroke();
       if (Math.random() < 0.5) PG.parts.push({ x: tp2.x + PG.rand(-tw * 0.2, tw * 0.2), y: tgtLevel, vx: PG.rand(-40, 40), vy: PG.rand(-90, -30), life: 0.4, t: 0, size: 2.2, color: COLORS[a.color], g: 300, shape: 'c' });
     }
+    // finished potions breathe out slow curls of coloured steam
+    if (isDone && T.length && !(a && (a.from === i || a.to === i))) {
+      c.save(); c.lineCap = 'round'; for (var sp = 0; sp < 3; sp++) { var ph = ((t * 0.38 + sp / 3 + i * 0.17) % 1), sx = px + Math.sin(t * 1.3 + sp * 2 + ph * 5) * tw * 0.22 * ph, sy = py + lift - ph * th * 0.34 - 4; c.strokeStyle = hexA(COLORS[topC], 0.34 * (1 - ph)); c.lineWidth = tw * (0.1 + ph * 0.1); c.beginPath(); c.moveTo(px + (sp - 1) * tw * 0.08, py + lift - 2); c.quadraticCurveTo(sx - tw * 0.18, (py + sy) / 2 + lift * 0.3, sx, sy); c.stroke(); } c.restore();
+    }
   }
   function hexA(hex, a) { var n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; }
 
@@ -379,7 +383,7 @@
   };
   PG.setup(document.getElementById('c'), update, render);
   window.__potion = { st: st, tap: tapTube, start: startLevel, solved: solved, canPour: canPour, topRun: topRun, update: update, done: done };
-  PG.init({ id: 'potion_pour', version: '1.3.0', defaults: { level: 1, best: 0, muted: false } }).then(function () {
+  PG.init({ id: 'potion_pour', version: '1.4.0', defaults: { level: 1, best: 0, muted: false } }).then(function () {
     PG.music(); st.tubes = [];
   });
 })();

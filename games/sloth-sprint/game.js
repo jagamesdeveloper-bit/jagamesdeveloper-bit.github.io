@@ -248,6 +248,9 @@
       var bx = ((i * 0.37 + t * 0.012 * (1 + i * 0.3)) % 1.2 - 0.1) * w - par * 0.1 % 40, by = h * (0.3 + i * 0.13) + Math.sin(t * 1.6 + i * 2) * 24 * sc, fl = Math.abs(Math.sin(t * 11 + i * 3)), col = ['#f4a259', '#e56b6f', '#8fd3e8'][i];
       c.save(); c.translate(bx, by); c.rotate(Math.sin(t * 1.6 + i * 2) * 0.3); c.fillStyle = col; [-1, 1].forEach(function (d) { c.beginPath(); c.ellipse(d * 4 * sc * (0.3 + fl * 0.7), -1 * sc, 4.5 * sc * (0.3 + fl * 0.7), 3.2 * sc, d * 0.5, 0, TAU); c.fill(); c.beginPath(); c.ellipse(d * 3 * sc * (0.3 + fl * 0.7), 2.5 * sc, 3 * sc * (0.3 + fl * 0.7), 2.4 * sc, d * -0.4, 0, TAU); c.fill(); }); c.fillStyle = '#3a2a22'; c.fillRect(-0.7 * sc, -3 * sc, 1.4 * sc, 7 * sc); c.restore();
     }
+    for (var mb = 0; mb < 3; mb++) { var my = h * (0.55 + mb * 0.13), mx = ((t * (6 + mb * 3) + mb * 130) % (w + 360)) - 180, mg = c.createRadialGradient(mx, my, 0, mx, my, 190 * sc); mg.addColorStop(0, rgb(pal.fog, 0.16)); mg.addColorStop(1, rgb(pal.fog, 0)); c.fillStyle = mg; c.fillRect(mx - 200 * sc, my - 70 * sc, 400 * sc, 140 * sc); }
+    if (pal.day > 0.5) for (i = 0; i < 2; i++) { var dx = ((t * (22 + i * 9) + i * 210) % (w + 100)) - 50, dy = h * (0.42 + i * 0.2) + Math.sin(t * 2.4 + i * 3) * 12 * sc, dfl = Math.sin(t * 50) * 0.5;
+      c.save(); c.translate(dx, dy); c.scale(sc, sc); c.strokeStyle = i ? '#2a9d8f' : '#e76f51'; c.lineWidth = 1.8; c.lineCap = 'round'; c.beginPath(); c.moveTo(-8, 0); c.lineTo(8, 0); c.stroke(); c.fillStyle = 'rgba(255,255,255,.55)'; [-1, 1].forEach(function (d) { c.beginPath(); c.ellipse(d * 2, -3, 6, 1.7 + dfl, d * 0.25, 0, TAU); c.fill(); c.beginPath(); c.ellipse(d * 2, 3, 5.5, 1.5 + dfl, -d * 0.25, 0, TAU); c.fill(); }); c.fillStyle = '#222'; c.beginPath(); c.arc(8.5, 0, 1.6, 0, TAU); c.fill(); c.restore(); }
     if (pal.day > 0.3) { // a toucan crosses the canopy every ~28 seconds
       var cyc = (t % 28) / 28; if (cyc < 0.3) { var k = cyc / 0.3, tx = -60 + k * (w + 120), ty = h * 0.2 + Math.sin(k * 6.28 * 1.5) * 18 * sc + k * 24 * sc, flap = Math.sin(t * 9) * 0.6;
         c.save(); c.translate(tx, ty); c.scale(sc * 1.1, sc * 1.1); c.fillStyle = '#1b1f2a'; c.beginPath(); c.ellipse(0, 0, 13, 6.5, 0.1, 0, TAU); c.fill(); c.beginPath(); c.moveTo(-12, 0); c.lineTo(-24, 5); c.lineTo(-11, 3); c.fill();
@@ -398,6 +401,7 @@
     if (U.button(c, w / 2 - bw / 2, y0, bw, bh, 'Swing!', { color: '#ffd166' })) PG.go(startRun);
     if (U.button(c, w / 2 - bw / 2, y0 + bh + 14 * sc, bw, bh * 0.8, 'Upgrades', { color: '#9ad08a' })) { st.state = 'upgrades'; PG.track('shop_opened', { source: 'menu' }); }
     leafIcon(c, w / 2 - 34 * sc, y0 + bh * 2.42 + 6 * sc, 10 * sc); U.text(c, PG.fmt(PG.save.coins || 0), w / 2 - 18 * sc, y0 + bh * 2.42 + 7 * sc, 21 * sc, '#ffe07a', 'left', { stroke: DARK, strokeWidth: 4 * sc, shadow: false });
+    PG.dailyGift(c, w / 2 - bw / 2, y0 + bh * 2.42 + 30 * sc, bw, 42 * sc, 12, { color: '#c7a6e6', size: 16 * sc });
     U.text(c, PG.save.best ? 'Best ' + PG.save.best + ' m' : 'Music: emmntt   Sounds: Kenney', w / 2, h - 16 * sc, 12 * sc, CREAM, 'center', { font: 'body', shadow: false, stroke: DARK, strokeWidth: 3 });
   }
   function drawUpgrades(c, w, h) {
@@ -478,7 +482,7 @@
   PG.onDown = function () { tapAction(); };
   PG.setup(document.getElementById('c'), update, render);
   window.__sloth = { update: update, st: st, predict: predict, release: release, start: startRun, grabR: grabR, cam: cam };
-  PG.init({ id: 'sloth_sprint', version: '1.3.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
+  PG.init({ id: 'sloth_sprint', version: '1.4.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
     st.hooks = [firstHook()]; PG.music();
   });
 })();

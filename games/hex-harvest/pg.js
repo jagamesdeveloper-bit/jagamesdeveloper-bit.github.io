@@ -165,6 +165,22 @@
     });
   };
 
+
+  // daily gift: free coins once per UTC day (streak adds 25% per day up to 7), then a short window to double it with a video
+  PG.dailyGift = function (c, x, y, w, h, base, o) {
+    o = o || {}; var day = Math.floor(Date.now() / 864e5), sv = PG.save;
+    if (sv.daily !== day) {
+      var streak = sv.daily === day - 1 ? (sv.dstreak || 0) + 1 : 1, amt = Math.round(base * (1 + Math.min(streak - 1, 6) * 0.25));
+      if (U.button(c, x, y, w, h, 'Daily gift +' + amt + (streak > 1 ? '  x' + streak : ''), o)) { sv.daily = day; sv.dstreak = streak; sv.coins = (sv.coins || 0) + amt; PG.commit(true); PG.sfx('upgrade'); PG.burst(x + w / 2, y + h / 2, 18, { colors: o.burst || ['#ffd166', '#fff3b0'], g: 120, life: 1 }); PG._dg = { amt: amt, t: performance.now(), done: false }; PG.track('daily_gift', { streak: streak, amount: amt }); }
+      return true;
+    }
+    if (PG._dg && !PG._dg.done && performance.now() - PG._dg.t < 20000 && PG.rewardedSupported()) {
+      if (U.button(c, x, y, w, h, 'Ad: double it (+' + PG._dg.amt + ')', o)) { var g = PG._dg; g.done = true; PG.rewarded('bonus').then(function (ok) { if (ok) { sv.coins = (sv.coins || 0) + g.amt; PG.commit(true); PG.sfx('coin'); } else g.done = false; }); }
+      return true;
+    }
+    return false;
+  };
+
   /* ---------------- perf telemetry ---------------- */
   PG.playMs = 0;
   var perf = { dts: [], active: 0, wall0: 0, target: 60, over: [0, 0, 0, 0, 0] };

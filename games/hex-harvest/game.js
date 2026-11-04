@@ -312,7 +312,10 @@
   // little island residents: a ladybug strolling the tiles, a bee orbiting the garden, dew glints on the grass
   var LADY = [[0, 0], [1, 0], [1, 1], [0, 2], [-1, 2], [-2, 2], [-2, 1], [-1, 0], [0, -1], [1, -1], [2, -1], [2, 0]];
   function drawResidents(c, t) {
-    if (!geo.s || !cellAt['0,0']) return; var s = geo.s, n = LADY.length, u = (t * 0.16) % n, i0 = Math.floor(u), k = u - i0, A = cellXY(cellAt[LADY[i0][0] + ',' + LADY[i0][1]] || cells[0]), B = cellXY(cellAt[LADY[(i0 + 1) % n][0] + ',' + LADY[(i0 + 1) % n][1]] || cells[0]);
+    if (!geo.s || !cellAt['0,0']) return;
+    // grass tufts swaying on bare tiles
+    cells.forEach(function (cl, ci) { if (cl.t !== -1) return; var p = cellXY(cl), s0 = geo.s; c.save(); c.translate(p.x, p.y + s0 * 0.22); c.strokeStyle = 'rgba(86,128,64,.9)'; c.lineWidth = Math.max(1.2, s0 * 0.04); c.lineCap = 'round';
+      for (var b = 0; b < 5; b++) { var bx = (b - 2) * s0 * 0.16 + (PG.hash(ci * 5 + b) - 0.5) * s0 * 0.08, bh = s0 * (0.18 + PG.hash(ci + b * 7) * 0.14), sw = Math.sin(t * 1.7 + ci * 0.6 + b) * s0 * 0.07; c.beginPath(); c.moveTo(bx, 0); c.quadraticCurveTo(bx + sw * 0.4, -bh * 0.6, bx + sw, -bh); c.stroke(); } c.restore(); }); var s = geo.s, n = LADY.length, u = (t * 0.16) % n, i0 = Math.floor(u), k = u - i0, A = cellXY(cellAt[LADY[i0][0] + ',' + LADY[i0][1]] || cells[0]), B = cellXY(cellAt[LADY[(i0 + 1) % n][0] + ',' + LADY[(i0 + 1) % n][1]] || cells[0]);
     var e = k * k * (3 - 2 * k), lx = A.x + (B.x - A.x) * e + Math.sin(t * 9) * s * 0.02, ly = A.y + (B.y - A.y) * e + s * 0.28, ang = Math.atan2(B.y - A.y, B.x - A.x);
     c.save(); c.translate(lx, ly); c.rotate(ang + Math.PI / 2); var r = s * 0.13;
     c.fillStyle = 'rgba(59,47,42,.2)'; c.beginPath(); c.ellipse(r * 0.2, r * 0.3, r, r * 1.15, 0, 0, TAU); c.fill();
@@ -474,7 +477,7 @@
   [[0, 0, 7], [1, 0, 5], [-1, 0, 3], [0, 1, 2], [-1, 1, 1], [1, -1, 4], [0, -1, 6], [2, -1, 0], [-2, 1, 2], [-1, 2, 1], [2, 0, 3], [1, 1, 0], [-2, 2, 4], [0, 2, 1], [-3, 2, 0], [3, -2, 2]].forEach(function (d) { cellAt[d[0] + ',' + d[1]].t = d[2]; });
   PG.setup(document.getElementById('c'), update, render);
   window.__hex = { cells: cells, st: st, newGame: newGame, place: place, cellAt: cellAt };
-  PG.init({ id: 'hex_harvest', version: '1.3.0', defaults: { best: 0, games: 0, found: 0, board: null, muted: false } }).then(function () {
+  PG.init({ id: 'hex_harvest', version: '1.4.0', defaults: { best: 0, games: 0, found: 0, board: null, muted: false } }).then(function () {
     PG.music();
   });
 })();

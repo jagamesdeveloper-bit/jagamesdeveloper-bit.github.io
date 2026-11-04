@@ -54,6 +54,7 @@
       shake(14); PG.sfx('err'); PG.burst(rp.x, rp.y, 14, { colors: [CREAM, f.c, NAVY], shape: 's', s0: 3, s1: 6 }); die(); return;
     }
     st.pins.push({ a: a, w: 1, c: f.c }); st.recoil = 1; PG.sfx('hit', 1 + (st.pins.length % 5) * 0.06); PG.vibrate(8);
+    if (st.pins.length % 5 === 0) { PG.burst(rp.x, rp.y, 26, { colors: [RED, MUST, TEAL, CREAM, '#7b5ea7'], g: 260, shape: 's', s0: 2.5, s1: 5, min: 120, max: 420, life: 1.3 }); PG.popText(rp.x, rp.y - 30, st.pins.length + ' in a row!', MUST, 24); PG.sfx('coin'); }
     PG.burst(rp.x, rp.y + 4, 7, { colors: ['#c8935f', '#e8c9a0', CREAM], g: 500, angle: Math.PI / 2, spread: 2.2, min: 60, max: 220, shape: 's', s0: 1.5, s1: 3 });
     for (i = st.apples.length - 1; i >= 0; i--) if (angDiff(st.apples[i].a, a) < 13) {
       var ap = st.apples.splice(i, 1)[0], v = 2; st.coinsRun += v; PG.save.coins += v; PG.sfx('pop', 1.5); PG.sfx('coin');
@@ -206,6 +207,9 @@
     // easel legs
     var r = geo.r, fl = geo.floor; c.lineCap = 'round';
     [-1, 1].forEach(function (s) { c.strokeStyle = NAVY; c.lineWidth = r * 0.13 + 4; c.beginPath(); c.moveTo(geo.cx + s * r * 0.3, geo.cy); c.lineTo(geo.cx + s * r * 1.05, fl + 4); c.stroke(); c.strokeStyle = '#a8703f'; c.lineWidth = r * 0.13; c.beginPath(); c.moveTo(geo.cx + s * r * 0.3, geo.cy); c.lineTo(geo.cx + s * r * 1.05, fl + 4); c.stroke(); c.strokeStyle = 'rgba(255,230,190,.35)'; c.lineWidth = r * 0.03; c.beginPath(); c.moveTo(geo.cx + s * r * 0.3 - r * 0.03, geo.cy); c.lineTo(geo.cx + s * r * 1.05 - r * 0.03, fl + 4); c.stroke(); });
+    // audience silhouettes in front of the stage, bobbing along to the music
+    for (var cr = 0; cr < 14; cr++) { var cxp = (cr + 0.5) / 14 * w + Math.sin(cr * 7.3) * 8 * sc, bob = Math.sin(t * 3.2 + cr * 1.9) * 2.4 * sc, hh = (15 + PG.hash(cr * 3.3) * 9) * sc; c.fillStyle = cr % 3 === 0 ? '#2a1b2d' : cr % 3 === 1 ? '#1d2a3a' : '#33202a';
+      c.beginPath(); c.arc(cxp, fl + 2 * sc - hh + bob, 6.5 * sc, 0, TAU); c.fill(); c.fillRect(cxp - 8 * sc, fl + 2 * sc - hh + 5 * sc + bob, 16 * sc, hh); if (cr % 4 === 1) { c.fillRect(cxp + 4 * sc, fl - hh - 8 * sc + bob, 2 * sc, 11 * sc); c.beginPath(); c.arc(cxp + 5 * sc, fl - hh - 10 * sc + bob, 4 * sc, 0, TAU); c.fillStyle = cr % 2 ? '#e63946' : '#f2b134'; c.fill(); } }
     // stage floor
     c.fillStyle = NAVY; c.fillRect(0, fl - 3, w, h - fl + 3);
     c.fillStyle = '#9a6337'; c.fillRect(0, fl, w, h - fl);
@@ -345,6 +349,7 @@
     if (U.button(c, col - bw / 2, y0, bw, bh, 'Throw!', { color: RED })) PG.go(startRun);
     if (U.button(c, col - bw / 2, y0 + bh + 14 * sc, bw, bh * 0.8, 'Upgrades', { color: MUST })) { st.state = 'upgrades'; PG.track('shop_opened', { source: 'menu' }); }
     var ly = y0 + bh * 1.8 + 40 * sc; token(c, col - 40 * sc, ly, 11 * sc); inked(c, PG.fmt(PG.save.coins), col - 22 * sc, ly + 1, 19 * sc, CREAM, { align: 'left' });
+    PG.dailyGift(c, col - bw / 2, ly + 44 * sc, bw, 40 * sc, 10, { color: TEAL, size: 14 * sc });
     if (PG.save.best) inked(c, 'BEST STAGE ' + PG.save.best, col, ly + 26 * sc, 11 * sc, CREAM);
     U.text(c, 'MUSIC: PRO SENSORY  SOUNDS: KENNEY', w / 2, h - 22 * sc, 8.5 * sc, 'rgba(245,230,200,.75)', 'center', { shadow: false });
   }
@@ -421,7 +426,7 @@
   PG.setup(document.getElementById('c'), update, render);
   window.__pin = { st: st, throwPin: throwPin, start: startRun, geo: geo, update: update, stick: stick };
   decorate();
-  PG.init({ id: 'pin_the_tail', version: '1.3.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
+  PG.init({ id: 'pin_the_tail', version: '1.4.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
     PG.music(); layout(PG.w, PG.h); st.scaleIn = 0; st.nextC = RED;
   });
 })();
