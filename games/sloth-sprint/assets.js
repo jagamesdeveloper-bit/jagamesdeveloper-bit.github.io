@@ -10,8 +10,7 @@ window.PG_ASSETS = {
    "files": [
     "audio/whoosh_0.mp3",
     "audio/whoosh_1.mp3",
-    "audio/whoosh_2.mp3",
-    "audio/whoosh_3.mp3"
+    "audio/whoosh_2.mp3"
    ],
    "vol": 0.8
   },
@@ -19,9 +18,7 @@ window.PG_ASSETS = {
    "files": [
     "audio/land_0.mp3",
     "audio/land_1.mp3",
-    "audio/land_2.mp3",
-    "audio/land_3.mp3",
-    "audio/land_4.mp3"
+    "audio/land_2.mp3"
    ],
    "vol": 0.8
   },
@@ -37,15 +34,12 @@ window.PG_ASSETS = {
     "audio/coin_1.mp3",
     "audio/coin_2.mp3"
    ],
-   "vol": 0.45
+   "vol": 0.4
   },
   "hit": {
    "files": [
     "audio/hit_0.mp3",
-    "audio/hit_1.mp3",
-    "audio/hit_2.mp3",
-    "audio/hit_3.mp3",
-    "audio/hit_4.mp3"
+    "audio/hit_1.mp3"
    ],
    "vol": 0.8
   },

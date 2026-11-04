@@ -12,8 +12,7 @@ window.PG_ASSETS = {
    "files": [
     "audio/shoot_0.mp3",
     "audio/shoot_1.mp3",
-    "audio/shoot_2.mp3",
-    "audio/shoot_3.mp3"
+    "audio/shoot_2.mp3"
    ],
    "vol": 0.55
   },
@@ -21,19 +20,14 @@ window.PG_ASSETS = {
    "files": [
     "audio/hit_0.mp3",
     "audio/hit_1.mp3",
-    "audio/hit_2.mp3",
-    "audio/hit_3.mp3",
-    "audio/hit_4.mp3"
+    "audio/hit_2.mp3"
    ],
    "vol": 0.85
   },
   "err": {
    "files": [
     "audio/err_0.mp3",
-    "audio/err_1.mp3",
-    "audio/err_2.mp3",
-    "audio/err_3.mp3",
-    "audio/err_4.mp3"
+    "audio/err_1.mp3"
    ],
    "vol": 0.9
   },
@@ -66,10 +60,7 @@ window.PG_ASSETS = {
   "boom": {
    "files": [
     "audio/boom_0.mp3",
-    "audio/boom_1.mp3",
-    "audio/boom_2.mp3",
-    "audio/boom_3.mp3",
-    "audio/boom_4.mp3"
+    "audio/boom_1.mp3"
    ],
    "vol": 0.9
   },
@@ -83,10 +74,7 @@ window.PG_ASSETS = {
   "pop": {
    "files": [
     "audio/pop_0.mp3",
-    "audio/pop_1.mp3",
-    "audio/pop_2.mp3",
-    "audio/pop_3.mp3",
-    "audio/pop_4.mp3"
+    "audio/pop_1.mp3"
    ],
    "vol": 0.8
   }

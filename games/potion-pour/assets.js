@@ -10,9 +10,7 @@ window.PG_ASSETS = {
    "files": [
     "audio/pick_0.mp3",
     "audio/pick_1.mp3",
-    "audio/pick_2.mp3",
-    "audio/pick_3.mp3",
-    "audio/pick_4.mp3"
+    "audio/pick_2.mp3"
    ],
    "vol": 0.7
   },
@@ -34,7 +32,7 @@ window.PG_ASSETS = {
    "files": [
     "audio/seal_0.mp3"
    ],
-   "vol": 0.55
+   "vol": 0.6
   },
   "win": {
    "files": [

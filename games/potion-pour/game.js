@@ -158,6 +158,21 @@
     var wall = wallBG(w, h); c.drawImage(wall, 0, 0, w, h);
     var sc = PG.scale(); sconces(w, h).forEach(function (s, i) { flame(c, s.x, s.y - 36 * sc, sc, t, i * 2.1); });
     motes.forEach(function (m) { var x = ((m.x + Math.sin(t * 0.25 + m.p) * 0.03) % 1) * w, y = (1 - ((m.y + t * 0.012 * m.s) % 1)) * h; c.fillStyle = 'rgba(255,220,160,' + 0.25 * (0.5 + 0.5 * Math.sin(t * 2 + m.p)) + ')'; c.beginPath(); c.arc(x, y, 0.8 + m.s * 1.2, 0, TAU); c.fill(); });
+    // cobweb in the top-left corner with a dangling spider
+    var cw = Math.min(w * 0.26, 110 * sc); c.save(); c.strokeStyle = 'rgba(225,215,195,.34)'; c.lineWidth = 1; c.beginPath();
+    for (var a = 0; a <= 5; a++) { var an = a * (Math.PI / 2) / 5; c.moveTo(0, 0); c.lineTo(Math.cos(an) * cw, Math.sin(an) * cw); }
+    for (var rr = 1; rr <= 5; rr++) { var rd = cw * rr / 5.4; for (a = 0; a < 5; a++) { var a0 = a * (Math.PI / 2) / 5, a1 = (a + 1) * (Math.PI / 2) / 5, am = (a0 + a1) / 2; c.moveTo(Math.cos(a0) * rd, Math.sin(a0) * rd); c.quadraticCurveTo(Math.cos(am) * rd * 0.9, Math.sin(am) * rd * 0.9, Math.cos(a1) * rd, Math.sin(a1) * rd); } }
+    c.stroke(); c.fillStyle = 'rgba(210,235,255,.5)'; [[0.35, 0.5], [0.62, 0.3], [0.5, 0.85]].forEach(function (d) { c.beginPath(); c.arc(cw * d[0] * 0.8, cw * d[1] * 0.7, 1.6, 0, TAU); c.fill(); });
+    var sx = cw * 0.62, sy0 = cw * 0.5, sy = sy0 + (30 + Math.sin(t * 0.6) * 22) * sc; c.strokeStyle = 'rgba(225,215,195,.45)'; c.beginPath(); c.moveTo(sx, sy0); c.lineTo(sx, sy); c.stroke();
+    c.fillStyle = '#16100e'; c.beginPath(); c.ellipse(sx, sy + 3 * sc, 3.6 * sc, 3 * sc, 0, 0, TAU); c.fill(); c.beginPath(); c.arc(sx, sy - 1 * sc, 2.2 * sc, 0, TAU); c.fill(); c.strokeStyle = '#16100e'; c.lineWidth = 1;
+    for (var lg = -1; lg <= 1; lg += 2) for (var q = 0; q < 3; q++) { c.beginPath(); c.moveTo(sx, sy + 2 * sc); c.lineTo(sx + lg * (5 + q) * sc, sy + (q - 1) * 2.4 * sc); c.lineTo(sx + lg * (7 + q) * sc, sy + (q + 1) * 2.4 * sc); c.stroke(); }
+    c.restore();
+    // hanging dried herbs (right side), swaying a little
+    var hx = w * 0.76, sw = Math.sin(t * 0.9) * 0.05; c.save(); c.translate(hx, 0); c.strokeStyle = '#2a1a0e'; c.lineWidth = 1.6 * sc; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 62 * sc); c.stroke(); c.translate(0, 62 * sc); c.rotate(sw);
+    c.fillStyle = '#b98b52'; c.fillRect(-4 * sc, -3 * sc, 8 * sc, 4 * sc);
+    for (var hb = 0; hb < 9; hb++) { var ha = (hb - 4) * 0.13, hl = (34 + (hb % 3) * 6) * sc; c.save(); c.rotate(ha); c.strokeStyle = hb % 2 ? '#5a7a43' : '#6c8d4f'; c.lineWidth = 1.4 * sc; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, hl); c.stroke();
+      c.fillStyle = hb % 3 === 0 ? '#8e6bbf' : '#6f9a52'; for (var lf = 0; lf < 5; lf++) { c.beginPath(); c.ellipse((lf % 2 ? 2 : -2) * sc, hl * (0.35 + lf * 0.14), 1.8 * sc, 4 * sc, (lf % 2 ? 0.5 : -0.5), 0, TAU); c.fill(); } c.restore(); }
+    c.restore();
   }
 
   /* ---------- flasks ---------- */
@@ -266,6 +281,7 @@
   function goldGrad(c, y, h) { var g = c.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, '#f7e2a4'); g.addColorStop(0.45, '#d9a94a'); g.addColorStop(0.55, '#b9852f'); g.addColorStop(1, '#7c5418'); return g; }
   function diamond(c, x, y, s) { c.beginPath(); c.moveTo(x, y - s); c.lineTo(x + s * 0.7, y); c.lineTo(x, y + s); c.lineTo(x - s * 0.7, y); c.closePath(); c.fill(); }
   PG.theme.font = 'Cinzel'; PG.theme.body = 'Alegreya Sans'; PG.theme.weight = '700'; PG.theme.bodyWeight = '700'; PG.theme.text = PARCH; PG.theme.textShadow = 'rgba(0,0,0,.5)'; PG.theme.pageColor = DEEP;
+  PG.theme.reverb = 0.28; PG.theme.reverbTime = 1.3;
   PG.theme.popStyle = { stroke: 'rgba(30,15,10,.85)' };
   PG.theme.button = function (c, x, y, w, h, label, o, s) {
     var col = o.disabled ? '#4b4452' : o.color || '#2d6d6a', r = Math.min(h * 0.32, 14), off = s.press ? 2 : 0;
@@ -315,6 +331,7 @@
     if (st.hidden) U.text(c, 'Mystery layers', 19 * sc, 78 * sc, 14 * sc, '#c9a8ff', 'left', { font: 'body', shadow: false, stroke: 'rgba(10,4,2,.6)', strokeWidth: 3 });
     var btns = [['Undo', '#3a5a7a', undo], ['Restart', WINE, function () { PG.track('level_restarted', { step_index: Math.min(st.level, 80) }); PG.go(function () { startLevel(st.level); }); }]];
     var canAd = !st.extraUsed && PG.rewardedSupported(); if (canAd) btns.push(['+ Flask (ad)', '#5b2f86', function () { PG.rewarded('bonus').then(function (ok) { if (ok) addFlask(); }); }]);
+    if (!canAd && !st.won && st.moves >= 15 && PG.rewardedSupported()) btns.push(['Skip (ad)', '#5b2f86', function () { PG.rewarded('bonus').then(function (ok) { if (ok) { PG.save.level = Math.max(PG.save.level || 1, st.level + 1); PG.track('rewarded_skip_level', { step_index: Math.min(st.level, 80) }); PG.commit(true); PG.go(function () { startLevel(st.level + 1); }); } }); }]);
     btns.forEach(function (b, k) { var r = layoutBtn(k, btns.length, w, h); if (!st.won && U.button(c, r.x, r.y, r.w, r.h, b[0], { color: b[1], size: Math.min(r.h * 0.4, 17 * sc), disabled: k === 0 && !st.hist.length })) b[2](); });
     if (st.won) {
       var k2 = PG.ease.out(Math.min(1, Math.max(0, st.winT - 0.4) * 2)); if (k2 <= 0) return; c.fillStyle = 'rgba(10,4,20,' + 0.55 * k2 + ')'; c.fillRect(0, 0, w, h);
@@ -322,7 +339,7 @@
       c.save(); c.font = '700 ' + 38 * sc + 'px "Cinzel Decorative","Cinzel",serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = WINE; c.fillText('Brewed!', w / 2, py + 52 * sc); c.restore();
       U.text(c, 'Level ' + st.level + '  ·  ' + st.moves + ' moves', w / 2, py + 98 * sc, 18 * sc, INK, 'center', { font: 'body', shadow: false });
       c.strokeStyle = 'rgba(138,98,36,.6)'; c.lineWidth = 1; c.beginPath(); c.moveTo(w / 2 - 70 * sc, py + 120 * sc); c.lineTo(w / 2 + 70 * sc, py + 120 * sc); c.stroke(); c.fillStyle = '#8a6224'; diamond(c, w / 2, py + 120 * sc, 4);
-      if (U.button(c, w / 2 - 100 * sc, py + 146 * sc, 200 * sc, 56 * sc, 'Next level', { color: '#2d6d6a' })) { PG.interstitial('level_end').then(function () { PG.go(function () { startLevel(st.level + 1); }); }); }
+      if (U.button(c, w / 2 - 100 * sc, py + 146 * sc, 200 * sc, 56 * sc, 'Next level', { color: '#2d6d6a' })) { PG.adBreak('level_end').then(function () { PG.go(function () { startLevel(st.level + 1); }); }); }
     }
   }
   function drawMenu(c, w, h, t) {
@@ -362,7 +379,7 @@
   };
   PG.setup(document.getElementById('c'), update, render);
   window.__potion = { st: st, tap: tapTube, start: startLevel, solved: solved, canPour: canPour, topRun: topRun, update: update, done: done };
-  PG.init({ id: 'potion_pour', version: '1.1.0', defaults: { level: 1, best: 0, muted: false } }).then(function () {
+  PG.init({ id: 'potion_pour', version: '1.3.0', defaults: { level: 1, best: 0, muted: false } }).then(function () {
     PG.music(); st.tubes = [];
   });
 })();

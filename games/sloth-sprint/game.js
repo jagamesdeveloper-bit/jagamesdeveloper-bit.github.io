@@ -60,7 +60,7 @@
   function firstHook() { return { x: 0, y: 0, pts: [], tg: 0, wob: 0, side: -1, flower: '#f25f5c' }; }
   function startRun() {
     st.state = 'play'; st.hooks = [firstHook()]; st.cur = 0; st.phase = 0.9; st.flying = false; st.leaves = []; st.bees = []; st.coinsRun = 0; st.dist = 0; st.perfects = 0; st.streak = 0;
-    st.rescues = lvl('vine'); st.doubled = false; st.bestHit = false; st.runIdx++; st.deadT = 0; st.t = 0; st.stretch = 0;
+    st.rescues = lvl('vine'); st.doubled = false; st.usedRev = false; st.bestHit = false; st.runIdx++; st.deadT = 0; st.t = 0; st.stretch = 0;
     st.body = bodyOnHook(st.hooks[0], theta()); st.rot = -theta(); extendWorld(); PG.playing = true; PG.parts = []; PG.pops = [];
     cam.x = st.body.x + 60; cam.y = st.body.y - 40; st.tut = PG.save.runs ? 0 : 1;
     PG.track('progression_started', { step_id: 'run', step_index: Math.min(st.runIdx, 50) }); PG.msg('level_started', { level: String(st.runIdx) });
@@ -84,6 +84,10 @@
     PG.track('hook_grabbed', { index: Math.min(i, 200), perfect: perfect });
     if (st.dist > (PG.save.best || 0)) { PG.save.best = st.dist; st.bestHit = true; }
     PG.commit(); extendWorld();
+  }
+  function reviveRun() { // rewarded second chance: the vine lifts the sloth back to its last branch
+    st.usedRev = true; PG.save.runs = Math.max(0, (PG.save.runs || 1) - 1); st.state = 'rescue'; st.rescueT = 0; st.rescueFrom = { x: st.body.x, y: st.body.y }; st.flying = false; st.deadT = 0; PG.playing = true;
+    PG.sfx('upgrade'); PG.popText(st.body.x, st.body.y - 40, 'Second chance!', '#c8f2a8', 24); PG.track('rewarded_continue', { step_id: 'run' });
   }
   function die() {
     if (st.state !== 'play') return;
@@ -230,6 +234,27 @@
     c.restore();
     if (pal.day < 0.3) { c.fillStyle = rgb(mix(pal.top, pal.bot, 0.4)); c.beginPath(); c.arc(sx + sr * 0.35, sy - sr * 0.2, sr * 0.85, 0, TAU); c.fill(); }
   }
+
+  /* ---------- ambient life: drifting pollen, fireflies at dusk, butterflies and a passing toucan (screen space, light parallax) ---------- */
+  function drawAmbient(c, w, h, pal, t) {
+    var sc = scale, n = 22, par = cam.x * 0.35;
+    for (var i = 0; i < n; i++) { // pollen motes / fireflies
+      var gx = ((PG.hash(i * 3.1) * (w + 80) - par * (0.5 + PG.hash(i) * 0.6) + t * (6 + PG.hash(i * 7) * 10)) % (w + 80) + (w + 80)) % (w + 80) - 40, gy = PG.hash(i * 5.7) * h * 0.85 + Math.sin(t * 0.8 + i) * 14 * sc;
+      var glow = 0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.7), night = 1 - pal.day, r = (1.4 + PG.hash(i * 2.3) * 1.8) * sc;
+      if (night > 0.35) { c.fillStyle = 'rgba(255,240,150,' + (0.12 * glow * night) + ')'; c.beginPath(); c.arc(gx, gy, r * 5, 0, TAU); c.fill(); c.fillStyle = 'rgba(255,246,190,' + (0.9 * glow * night) + ')'; c.beginPath(); c.arc(gx, gy, r, 0, TAU); c.fill(); }
+      else { c.fillStyle = 'rgba(255,250,220,' + (0.35 + 0.25 * glow) * pal.day + ')'; c.beginPath(); c.arc(gx, gy, r * 0.8, 0, TAU); c.fill(); }
+    }
+    if (pal.day > 0.4) for (i = 0; i < 3; i++) { // butterflies, paper wings
+      var bx = ((i * 0.37 + t * 0.012 * (1 + i * 0.3)) % 1.2 - 0.1) * w - par * 0.1 % 40, by = h * (0.3 + i * 0.13) + Math.sin(t * 1.6 + i * 2) * 24 * sc, fl = Math.abs(Math.sin(t * 11 + i * 3)), col = ['#f4a259', '#e56b6f', '#8fd3e8'][i];
+      c.save(); c.translate(bx, by); c.rotate(Math.sin(t * 1.6 + i * 2) * 0.3); c.fillStyle = col; [-1, 1].forEach(function (d) { c.beginPath(); c.ellipse(d * 4 * sc * (0.3 + fl * 0.7), -1 * sc, 4.5 * sc * (0.3 + fl * 0.7), 3.2 * sc, d * 0.5, 0, TAU); c.fill(); c.beginPath(); c.ellipse(d * 3 * sc * (0.3 + fl * 0.7), 2.5 * sc, 3 * sc * (0.3 + fl * 0.7), 2.4 * sc, d * -0.4, 0, TAU); c.fill(); }); c.fillStyle = '#3a2a22'; c.fillRect(-0.7 * sc, -3 * sc, 1.4 * sc, 7 * sc); c.restore();
+    }
+    if (pal.day > 0.3) { // a toucan crosses the canopy every ~28 seconds
+      var cyc = (t % 28) / 28; if (cyc < 0.3) { var k = cyc / 0.3, tx = -60 + k * (w + 120), ty = h * 0.2 + Math.sin(k * 6.28 * 1.5) * 18 * sc + k * 24 * sc, flap = Math.sin(t * 9) * 0.6;
+        c.save(); c.translate(tx, ty); c.scale(sc * 1.1, sc * 1.1); c.fillStyle = '#1b1f2a'; c.beginPath(); c.ellipse(0, 0, 13, 6.5, 0.1, 0, TAU); c.fill(); c.beginPath(); c.moveTo(-12, 0); c.lineTo(-24, 5); c.lineTo(-11, 3); c.fill();
+        c.fillStyle = '#f7f1dc'; c.beginPath(); c.ellipse(9, 1.5, 5, 4, 0, 0, TAU); c.fill(); c.fillStyle = '#ffa62b'; c.beginPath(); c.moveTo(11, -3); c.quadraticCurveTo(26, -3, 27, 3); c.quadraticCurveTo(20, 6, 11, 4); c.closePath(); c.fill(); c.fillStyle = '#e63946'; c.beginPath(); c.arc(25, 1, 2.2, 0, TAU); c.fill(); c.fillStyle = '#fff'; c.beginPath(); c.arc(9, -1.5, 1.3, 0, TAU); c.fill(); c.fillStyle = '#111'; c.beginPath(); c.arc(9.4, -1.5, 0.7, 0, TAU); c.fill();
+        c.fillStyle = '#2a2f40'; c.save(); c.rotate(-0.2 - flap); c.beginPath(); c.ellipse(-2, -4, 11, 4, -0.3, 0, TAU); c.fill(); c.restore(); c.restore(); }
+    }
+  }
   function drawNear(c, w, h, pal, t) { // foreground paper leaves framing top and bottom
     var col = pal.near; c.save(); c.shadowColor = 'rgba(0,0,0,.3)'; c.shadowBlur = 12; c.shadowOffsetY = 6; c.fillStyle = rgb(col);
     var span = w * 1.4, off = -((cam.x * 1.25 * scale) % span + span) % span;
@@ -334,6 +359,7 @@
     c.restore();
   }
   PG.theme.font = 'Lilita One'; PG.theme.body = 'Varela Round'; PG.theme.weight = '400'; PG.theme.bodyWeight = '400';
+  PG.theme.reverb = 0.2; PG.theme.reverbTime = 1.1;
   PG.theme.text = DARK; PG.theme.textShadow = false; PG.theme.pageColor = '#1f3d2f';
   PG.theme.transition = { style: 'iris', color: '#173b2c', time: 0.4 };
   PG.theme.popStyle = { stroke: 'rgba(31,61,47,.85)' };
@@ -387,20 +413,26 @@
       if (maxed) U.text(c, 'MAX', bx + bw / 2, y + 28 * sc, 20 * sc, '#5e8a3a', 'center', { shadow: false });
       else if (U.button(c, bx, y + 8 * sc, bw, bh, '' + cost, { color: (PG.save.coins || 0) >= cost ? '#ffd166' : '#cbc5b0', size: 20 * sc })) PG.buyUp(u.id, cost, u.max);
     });
-    if (U.button(c, w / 2 - 85 * sc, py + ph - 60 * sc, 170 * sc, 46 * sc, 'Back', { color: '#9ad08a' })) st.state = 'menu';
+    var minCost = 1e9; UPS.forEach(function (u) { if (PG.upLevel(u.id) < u.max) minCost = Math.min(minCost, PG.upCost(u.base, u.grow, PG.upLevel(u.id))); });
+    var gift = Math.max(15, Math.round(minCost * 0.6)), canGift = minCost < 1e9 && PG.canOffer('shop', 60000);
+    if (canGift) {
+      if (U.button(c, px + 18 * sc, py + ph - 60 * sc, pw / 2 - 24 * sc, 46 * sc, 'Back', { color: '#9ad08a', size: 18 * sc })) st.state = 'menu';
+      if (U.button(c, px + pw / 2 + 6 * sc, py + ph - 60 * sc, pw / 2 - 24 * sc, 46 * sc, 'Ad: +' + gift, { color: '#c7a6e6', size: 18 * sc })) { PG.markOffer('shop'); PG.freeCoins(gift, 'shop_coins').then(function (ok) { if (ok) PG.popText(w / 2, py + 30 * sc, '+' + gift + ' leaves', '#b07d0e', 26); }); }
+    } else if (U.button(c, w / 2 - 85 * sc, py + ph - 60 * sc, 170 * sc, 46 * sc, 'Back', { color: '#9ad08a' })) st.state = 'menu';
   }
   function drawDead(c, w, h) {
     var sc = PG.scale(), k = PG.ease.out(Math.min(1, Math.max(0, st.deadT - 0.5) * 2)); if (k <= 0) return; c.fillStyle = 'rgba(15,35,25,' + 0.5 * k + ')'; c.fillRect(0, 0, w, h);
-    var canAd = !st.doubled && st.coinsRun >= 1 && PG.rewardedSupported();
-    var pw = Math.min(w * 0.88, 370 * sc), ph = (canAd ? 360 : 300) * sc, px = w / 2 - pw / 2, py = h * 0.5 - ph / 2 + (1 - k) * 80;
+    var canRev = !st.usedRev && st.dist >= 15 && PG.rewardedSupported(), canAd = !st.doubled && st.coinsRun >= 1 && PG.rewardedSupported();
+    var pw = Math.min(w * 0.88, 370 * sc), ph = (300 + (canAd ? 60 : 0) + (canRev ? 60 : 0)) * sc, px = w / 2 - pw / 2, py = h * 0.5 - ph / 2 + (1 - k) * 80;
     U.panel(c, px, py, pw, ph);
     U.text(c, 'Oops, a slow fall', w / 2, py + 40 * sc, 25 * sc, DARK, 'center', { shadow: false });
     paperText(c, PG.count('ddist', st.deadT > 0.8 ? st.dist : 0) + ' m', w / 2, py + 92 * sc, 52 * sc, '#ffd166', DARK, -0.02);
     U.text(c, st.bestHit ? 'New best!' : 'Best ' + (PG.save.best || 0) + ' m', w / 2, py + 134 * sc, 16 * sc, st.bestHit ? '#5e8a3a' : '#4d6a58', 'center', { font: 'body', shadow: false });
     leafIcon(c, w / 2 - 50 * sc, py + 166 * sc, 11 * sc); U.text(c, '+' + (Math.round(st.coinsRun * 100) / 100) + (st.doubled ? ' (x2)' : ''), w / 2 - 34 * sc, py + 167 * sc, 23 * sc, '#b07d0e', 'left', { shadow: false });
     var bw = pw * 0.82, bh = 48 * sc, yy = py + 194 * sc;
+    if (canRev) { if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Ad: second chance', { color: '#8fd36f', size: 18 * sc })) PG.rewarded('continue').then(function (ok) { if (ok) reviveRun(); }); yy += bh + 10 * sc; }
     if (canAd) { if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Ad: double leaves', { color: '#c7a6e6', size: 18 * sc })) { var earned = st.coinsRun; PG.rewarded('bonus').then(function (ok) { if (ok) { PG.save.coins = (PG.save.coins || 0) + earned; st.doubled = true; st.coinsRun += earned; PG.commit(true); PG.track('rewarded_double_coins', {}); } }); } yy += bh + 10 * sc; }
-    if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Swing again', { color: '#ffd166' })) { PG.interstitial('game_over').then(function () { PG.go(startRun); }); }
+    if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Swing again', { color: '#ffd166' })) { PG.adBreak('game_over').then(function () { PG.go(startRun); }); }
     if (U.button(c, w / 2 - bw / 2, yy + bh + 10 * sc, bw / 2 - 5 * sc, bh * 0.82, 'Upgrades', { color: '#9ad08a', size: 16 * sc })) PG.go(function () { st.state = 'upgrades'; st.hooks = []; PG.track('shop_opened', { source: 'game_over' }); });
     if (U.button(c, w / 2 + 5 * sc, yy + bh + 10 * sc, bw / 2 - 5 * sc, bh * 0.82, 'Menu', { color: CREAM, size: 16 * sc })) PG.go(function () { st.state = 'menu'; st.hooks = []; });
   }
@@ -430,6 +462,7 @@
     c.restore();
     PG.drawParts(c); PG.drawPops(c);
     drawNear(c, w, h, pal, t);
+    drawAmbient(c, w, h, pal, t);
     c.restore();
     PG.grain(c, w, h, 0.05, { mode: 'multiply' });
     if (st.state === 'play' || st.state === 'rescue') drawHUD(c, w, h);
@@ -445,7 +478,7 @@
   PG.onDown = function () { tapAction(); };
   PG.setup(document.getElementById('c'), update, render);
   window.__sloth = { update: update, st: st, predict: predict, release: release, start: startRun, grabR: grabR, cam: cam };
-  PG.init({ id: 'sloth_sprint', version: '1.1.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
+  PG.init({ id: 'sloth_sprint', version: '1.3.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
     st.hooks = [firstHook()]; PG.music();
   });
 })();

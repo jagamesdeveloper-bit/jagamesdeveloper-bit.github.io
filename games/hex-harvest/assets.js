@@ -5,15 +5,13 @@ window.PG_ASSETS = {
     "audio/tap_0.mp3",
     "audio/tap_1.mp3"
    ],
-   "vol": 0.5
+   "vol": 0.55
   },
   "drop": {
    "files": [
     "audio/drop_0.mp3",
     "audio/drop_1.mp3",
-    "audio/drop_2.mp3",
-    "audio/drop_3.mp3",
-    "audio/drop_4.mp3"
+    "audio/drop_2.mp3"
    ],
    "vol": 0.9
   },

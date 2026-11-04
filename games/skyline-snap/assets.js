@@ -18,9 +18,7 @@ window.PG_ASSETS = {
    "files": [
     "audio/land_0.mp3",
     "audio/land_1.mp3",
-    "audio/land_2.mp3",
-    "audio/land_3.mp3",
-    "audio/land_4.mp3"
+    "audio/land_2.mp3"
    ],
    "vol": 0.8
   },
@@ -33,10 +31,7 @@ window.PG_ASSETS = {
   "drop": {
    "files": [
     "audio/drop_0.mp3",
-    "audio/drop_1.mp3",
-    "audio/drop_2.mp3",
-    "audio/drop_3.mp3",
-    "audio/drop_4.mp3"
+    "audio/drop_1.mp3"
    ],
    "vol": 0.7
   },

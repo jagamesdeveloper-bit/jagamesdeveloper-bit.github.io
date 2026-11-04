@@ -130,13 +130,49 @@
     });
   };
 
+
+  /* ---------------- ad policy ----------------
+     Interstitials only at natural breaks (game over -> play again), never in the first 25s of a session,
+     and only after enough real play since the last one. Rewarded offers are opt-in and never gate progress. */
+  var lastAdPlay = -1, lastAdWall = -1e9, lastRewardWall = -1e9, breaks = 0;
+  PG.adBreak = function (placement, minPlayMs) {
+    var need = minPlayMs || 40000, sinceAd = lastAdPlay < 0 ? PG.playMs : PG.playMs - lastAdPlay;
+    var rewardCool = performance.now() - lastRewardWall < 90000;
+    breaks++;
+    if (PG.playMs < 25000 || sinceAd < need || rewardCool) return Promise.resolve(false);
+    return PG.interstitial(placement).then(function (shown) { if (shown) { lastAdPlay = PG.playMs; lastAdWall = performance.now(); PG.track('interstitial_shown', { placement: placement, play_s: Math.round(PG.playMs / 1000) }); } return shown; });
+  };
+  var rewardedRaw = PG.rewarded;
+  PG.rewarded = function (placement) { return rewardedRaw(placement).then(function (ok) { if (ok) { lastRewardWall = performance.now(); lastAdPlay = PG.playMs; PG.track('rewarded_completed', { placement: placement }); } return ok; }); };
+  PG.canOffer = function (key, cooldownMs) { PG._offer = PG._offer || {}; return PG.rewardedSupported() && performance.now() - (PG._offer[key] || -1e9) > (cooldownMs || 0); };
+  PG.markOffer = function (key) { PG._offer = PG._offer || {}; PG._offer[key] = performance.now(); };
+  // small pulsing round "watch a video" badge; returns true when tapped
+  PG.adChip = function (c, x, y, r, label, color, t) {
+    var k = 1 + Math.sin((t || PG.time) * 5) * 0.045, w = r * 2, hit = U.hit(x - r, y - r, w, w);
+    c.save(); c.translate(x, y); c.scale(k * (hit ? 0.94 : 1), k * (hit ? 0.94 : 1));
+    c.fillStyle = 'rgba(0,0,0,.28)'; c.beginPath(); c.arc(2, 4, r, 0, Math.PI * 2); c.fill();
+    c.fillStyle = color || '#7a4fa3'; c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = Math.max(2, r * 0.09); c.stroke();
+    c.fillStyle = '#fff'; c.beginPath(); c.moveTo(-r * 0.22, -r * 0.42); c.lineTo(r * 0.5, 0); c.lineTo(-r * 0.22, r * 0.42); c.closePath(); c.fill();
+    c.restore();
+    if (label) U.text(c, label, x, y + r + 12 * PG.scale(), 11 * PG.scale(), '#fff', 'center', { stroke: 'rgba(0,0,0,.55)', strokeWidth: 3 });
+    return hit;
+  };
+  // shop offer: watch a video for a coin bonus worth about half of the next upgrade; returns true after paying out
+  PG.freeCoins = function (amount, placement) {
+    return PG.rewarded(placement || 'shop_coins').then(function (ok) {
+      if (!ok) return false; PG.save.coins = (PG.save.coins || 0) + amount; PG.commit(true); PG.sfx('coin'); PG.track('rewarded_free_coins', { amount: amount }); return true;
+    });
+  };
+
   /* ---------------- perf telemetry ---------------- */
+  PG.playMs = 0;
   var perf = { dts: [], active: 0, wall0: 0, target: 60, over: [0, 0, 0, 0, 0] };
   PG.perfTarget = function (t) { perf.target = t; };
   PG._perfFrame = function (dt) {
     if (!PG.playing || PG.paused || PG.userPaused || document.hidden || dt > 1500) return;
     if (!perf.wall0) perf.wall0 = performance.now();
-    perf.dts.push(dt); perf.active += dt;
+    perf.dts.push(dt); perf.active += dt; PG.playMs += dt;
     if (dt > 50) perf.over[0]++; if (dt > 100) perf.over[1]++; if (dt > 250) perf.over[2]++; if (dt > 500) perf.over[3]++; if (dt > 1000) perf.over[4]++;
     if (perf.active >= 30000) PG._perfFlush();
   };
@@ -398,6 +434,15 @@
     try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; return; }
     master = AC.createGain(); master.connect(AC.destination);
     sfxGain = AC.createGain(); sfxGain.connect(master);
+    // short room reverb send: glues the layered sounds together (wet amount via PG.theme.reverb)
+    if (PG.theme.reverb > 0 && AC.createConvolver) {
+      try {
+        var len = Math.floor(AC.sampleRate * (PG.theme.reverbTime || 0.9)), ir = AC.createBuffer(2, len, AC.sampleRate);
+        for (var ch = 0; ch < 2; ch++) { var d = ir.getChannelData(ch); for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+        var cv = AC.createConvolver(); cv.buffer = ir; var wet = AC.createGain(); wet.gain.value = PG.theme.reverb;
+        var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200; sfxGain.connect(cv); cv.connect(lp); lp.connect(wet); wet.connect(master);
+      } catch (e) { }
+    }
     musicGain = AC.createGain(); musicGain.gain.value = PG.theme.musicVolume; musicGain.connect(master);
     Object.keys(ASSETS.sfx || {}).forEach(function (name) {
       buffers[name] = { list: [], vol: ASSETS.sfx[name].vol || 1, last: -1 };
@@ -442,6 +487,7 @@
     if (!AC || PG.muted || PG.sfxOff || !PG.platAudio || PG.paused || AC.state !== 'running') return;
     var now = AC.currentTime; if (lastSfx[name] && now - lastSfx[name] < 0.03) return; lastSfx[name] = now;
     var p = pitch || 1, b = buffers[name];
+    if (name === 'win' || name === 'lose' || name === 'golden' || name === 'ace' || name === 'boss') PG.musicDuck(0.3, 2.2);
     if (b && b.list.length) {
       var i = Math.floor(Math.random() * b.list.length); if (b.list.length > 1 && i === b.last) i = (i + 1) % b.list.length; b.last = i;
       var src = AC.createBufferSource(), g = AC.createGain(); src.buffer = b.list[i]; src.playbackRate.value = p * (0.96 + Math.random() * 0.08);

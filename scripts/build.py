@@ -10,7 +10,7 @@ CONFIG = '''{
     "minimumDelayBetweenInterstitial": 60,
     "initialInterstitialDelay": 25,
     "interstitial": { "placementFallback": "game_over", "placements": [ { "id": "game_over" }, { "id": "level_end" } ] },
-    "rewarded": { "placementFallback": "bonus", "placements": [ { "id": "bonus" }, { "id": "continue" } ] }
+    "rewarded": { "placementFallback": "bonus", "placements": [ { "id": "bonus" }, { "id": "continue" }, { "id": "shop_coins" }, { "id": "boost" } ] }
   }
 }
 '''

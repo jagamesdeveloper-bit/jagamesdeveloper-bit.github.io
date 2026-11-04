@@ -38,7 +38,7 @@
     if (st.boss) PG.sfx('boss');
     PG.msg('level_started', { level: String(st.stage) }); PG.track('progression_started', { step_id: 'stage', step_index: Math.min(st.stage, 60) });
   }
-  function startRun() { st.stage = 1; st.coinsRun = 0; st.lives = PG.upLevel('life'); st.usedCont = false; st.runIdx++; st.bestHit = false; st.tut = !PG.save.runs; st.deadT = 0; st.hurtPin = null; PG.playing = true; PG.parts = []; PG.pops = []; newStage(); PG.track('progression_started', { step_id: 'run', step_index: Math.min(st.runIdx, 50) }); }
+  function startRun() { st.stage = 1; st.coinsRun = 0; st.lives = PG.upLevel('life'); st.usedCont = false; st.dbl = false; st.runIdx++; st.bestHit = false; st.tut = !PG.save.runs; st.deadT = 0; st.hurtPin = null; PG.playing = true; PG.parts = []; PG.pops = []; newStage(); PG.track('progression_started', { step_id: 'run', step_index: Math.min(st.runIdx, 50) }); }
   function throwPin() {
     if (st.state !== 'play' || st.left <= 0 || st.scaleIn < 0.8) return;
     if (st.fly.length >= 3) return;
@@ -187,6 +187,22 @@
     for (var i = 0; i < 28; i += 2) { c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, R, i * TAU / 28, (i + 1) * TAU / 28); c.closePath(); c.fill(); }
     c.restore();
     var ht = halftoneBG(w, h); c.drawImage(ht, 0, 0, w, h);
+    // big-top spotlight cone onto the wheel
+    c.save(); c.globalCompositeOperation = 'lighter'; var sg = c.createRadialGradient(geo.cx, geo.cy, geo.r * 0.2, geo.cx, geo.cy, geo.r * 1.9); sg.addColorStop(0, 'rgba(255,236,170,.22)'); sg.addColorStop(1, 'rgba(255,236,170,0)'); c.fillStyle = sg; c.fillRect(0, 0, w, h); c.restore();
+    // velvet curtains on both sides with gold trim
+    [0, 1].forEach(function (side) {
+      var cw = Math.max(16 * sc, w * 0.065), x0 = side ? w - cw : 0, sw = 0.35 + 0.2 * Math.sin(t * 0.7 + side);
+      c.fillStyle = '#9d2430'; c.fillRect(x0, 0, cw, h); c.fillStyle = 'rgba(0,0,0,.28)';
+      for (var f = 0; f < 4; f++) { var fx = x0 + (f + 0.5) * cw / 4; c.beginPath(); c.moveTo(fx - cw / 8, 0); c.quadraticCurveTo(fx + sw * 3 * (side ? -1 : 1), h * 0.5, fx - cw / 8, h); c.lineTo(fx + cw / 16, h); c.quadraticCurveTo(fx + sw * 3 * (side ? -1 : 1) + cw / 12, h * 0.5, fx + cw / 16, 0); c.closePath(); c.fill(); }
+      c.fillStyle = 'rgba(255,170,150,.18)'; for (f = 0; f < 4; f++) c.fillRect(x0 + (f + 0.15) * cw / 4, 0, 2 * sc, h);
+      c.fillStyle = '#e3b04b'; c.fillRect(side ? x0 - 3 * sc : x0 + cw, 0, 3 * sc, h);
+    });
+    // bunting swagged across the top
+    c.save(); var bn = 11, by0 = Math.max(20 * sc, Math.min(80 * sc, geo.cy - geo.r - 52 * sc)), sag = 14 * sc; c.strokeStyle = NAVY; c.lineWidth = 1.6 * sc; c.beginPath();
+    for (i = 0; i <= 40; i++) { var u = i / 40, bx = u * w, byy = by0 + Math.sin(u * Math.PI) * sag + Math.sin(t * 1.4 + u * 6) * 1.2 * sc; i ? c.lineTo(bx, byy) : c.moveTo(bx, byy); } c.stroke();
+    for (i = 0; i < bn; i++) { var u2 = (i + 0.5) / bn, fx2 = u2 * w, fy2 = by0 + Math.sin(u2 * Math.PI) * sag + Math.sin(t * 1.4 + u2 * 6) * 1.2 * sc, sway = Math.sin(t * 2.2 + i * 0.9) * 0.08, fw = w / bn * 0.6, fh = 24 * sc;
+      c.save(); c.translate(fx2, fy2); c.rotate(sway); c.fillStyle = [RED, MUST, TEAL, CREAM][i % 4]; c.beginPath(); c.moveTo(-fw / 2, 0); c.lineTo(fw / 2, 0); c.lineTo(0, fh); c.closePath(); c.fill(); c.strokeStyle = NAVY; c.lineWidth = 1.4 * sc; c.stroke(); c.fillStyle = 'rgba(29,42,58,.25)'; c.beginPath(); c.moveTo(0, 0); c.lineTo(fw / 2, 0); c.lineTo(0, fh); c.closePath(); c.fill(); c.restore(); }
+    c.restore();
     // easel legs
     var r = geo.r, fl = geo.floor; c.lineCap = 'round';
     [-1, 1].forEach(function (s) { c.strokeStyle = NAVY; c.lineWidth = r * 0.13 + 4; c.beginPath(); c.moveTo(geo.cx + s * r * 0.3, geo.cy); c.lineTo(geo.cx + s * r * 1.05, fl + 4); c.stroke(); c.strokeStyle = '#a8703f'; c.lineWidth = r * 0.13; c.beginPath(); c.moveTo(geo.cx + s * r * 0.3, geo.cy); c.lineTo(geo.cx + s * r * 1.05, fl + 4); c.stroke(); c.strokeStyle = 'rgba(255,230,190,.35)'; c.lineWidth = r * 0.03; c.beginPath(); c.moveTo(geo.cx + s * r * 0.3 - r * 0.03, geo.cy); c.lineTo(geo.cx + s * r * 1.05 - r * 0.03, fl + 4); c.stroke(); });
@@ -197,6 +213,9 @@
     var ph = Math.max(14, (h - fl) / 3); c.strokeStyle = 'rgba(29,42,58,.45)'; c.lineWidth = 1.5;
     for (var y = fl + ph, row = 0; y < h; y += ph, row++) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); for (var x = (row % 2) * 60 + 30; x < w; x += 120) { c.beginPath(); c.moveTo(x, y - ph); c.lineTo(x, y); c.stroke(); } }
     c.fillStyle = 'rgba(29,42,58,.25)'; c.beginPath(); c.ellipse(geo.cx, fl + 6 * sc, r * 0.8, 6 * sc, 0, 0, TAU); c.fill();
+    // sawdust, peanut shells and a ticket stub scattered on the boards
+    for (i = 0; i < 46; i++) { var sx = PG.hash(i * 2.9) * w, sy = fl + 8 * sc + PG.hash(i * 5.3) * (h - fl - 14 * sc); c.fillStyle = i % 9 === 0 ? '#e8d5a8' : i % 5 === 0 ? 'rgba(70,40,18,.35)' : 'rgba(235,205,150,.35)'; if (i % 9 === 0) { c.save(); c.translate(sx, sy); c.rotate(i); c.beginPath(); c.ellipse(0, 0, 3.2 * sc, 2 * sc, 0, 0, TAU); c.fill(); c.strokeStyle = 'rgba(29,42,58,.35)'; c.lineWidth = 1; c.stroke(); c.restore(); } else c.fillRect(sx, sy, (1 + PG.hash(i) * 2.2) * sc, (1 + PG.hash(i * 1.7) * 1.4) * sc); }
+    c.save(); c.translate(w * 0.17, fl + (h - fl) * 0.45); c.rotate(-0.35); c.fillStyle = '#f2c14e'; c.fillRect(-9 * sc, -5 * sc, 18 * sc, 10 * sc); c.fillStyle = NAVY; c.fillRect(-9 * sc, -1 * sc, 18 * sc, 1.4 * sc); c.fillRect(-4 * sc, -4 * sc, 8 * sc, 1.2 * sc); c.restore();
   }
   function drawMarquee(c, w, h, t) { // bulb frame around the whole stage
     var sc = PG.scale(), b = 9 * sc, sp = 24 * sc, n = 0;
@@ -263,6 +282,7 @@
     c.beginPath(); c.rect(x + 5 - lift * 0.5, y + 5 - lift, w - 10, h - 10); c.stroke(); c.setLineDash([]);
   }
   PG.theme.font = 'Bungee'; PG.theme.body = 'Bungee'; PG.theme.weight = '400'; PG.theme.bodyWeight = '400'; PG.theme.text = NAVY; PG.theme.textShadow = false; PG.theme.pageColor = NAVY;
+  PG.theme.reverb = 0.1; PG.theme.reverbTime = 0.6;
   PG.theme.popStyle = { stroke: NAVY };
   PG.theme.button = function (c, x, y, w, h, label, o, s) {
     var col = o.disabled ? '#b8ad98' : o.color || RED, lift = s.press ? -2 : s.hover ? 2 : 0;
@@ -356,11 +376,16 @@
       if (maxed) U.text(c, 'MAX', bx + bw / 2, y + 28 * sc, 17 * sc, TEAL, 'center', { shadow: false });
       else if (U.button(c, bx, y + 10 * sc, bw, bh, '' + cost, { color: PG.save.coins >= cost ? MUST : '#d8ccb4', size: 17 * sc })) PG.buyUp(u.id, cost, u.max);
     });
-    if (U.button(c, w / 2 - 85 * sc, py + ph - 58 * sc, 170 * sc, 44 * sc, 'Back', { color: TEAL })) st.state = 'menu';
+    var minCost = 1e9; UPS.forEach(function (u) { if (PG.upLevel(u.id) < u.max) minCost = Math.min(minCost, PG.upCost(u.base, u.grow, PG.upLevel(u.id))); });
+    var gift = Math.max(12, Math.round(minCost * 0.6)), canGift = minCost < 1e9 && PG.canOffer('shop', 60000);
+    if (canGift) {
+      if (U.button(c, px + 18 * sc, py + ph - 58 * sc, pw / 2 - 24 * sc, 44 * sc, 'Back', { color: TEAL, size: 16 * sc })) st.state = 'menu';
+      if (U.button(c, px + pw / 2 + 6 * sc, py + ph - 58 * sc, pw / 2 - 24 * sc, 44 * sc, 'Ad: +' + gift, { color: MUST, size: 16 * sc })) { PG.markOffer('shop'); PG.freeCoins(gift, 'shop_coins').then(function (ok) { if (ok) PG.popText(w / 2, py + 30 * sc, '+' + gift + ' tokens', NAVY, 24); }); }
+    } else if (U.button(c, w / 2 - 85 * sc, py + ph - 58 * sc, 170 * sc, 44 * sc, 'Back', { color: TEAL })) st.state = 'menu';
   }
   function drawDead(c, w, h) {
     var sc = PG.scale(), k = PG.ease.out(Math.min(1, Math.max(0, st.deadT - 0.35) * 2.2)); if (k <= 0) return; c.fillStyle = 'rgba(29,42,58,' + 0.55 * k + ')'; c.fillRect(0, 0, w, h);
-    var canAd = !st.usedCont && PG.rewardedSupported(), pw = Math.min(w * 0.88, 370 * sc), ph = (canAd ? 360 : 300) * sc, px = w / 2 - pw / 2, py = h * 0.5 - ph / 2 + (1 - k) * 70;
+    var canAd = !st.usedCont && PG.rewardedSupported(), canDbl = !st.dbl && st.coinsRun >= 3 && PG.rewardedSupported(), pw = Math.min(w * 0.88, 370 * sc), ph = (300 + (canAd ? 60 : 0) + (canDbl ? 60 : 0)) * sc, px = w / 2 - pw / 2, py = h * 0.5 - ph / 2 + (1 - k) * 70;
     U.panel(c, px, py, pw, ph);
     U.text(c, 'OUCH!', w / 2, py + 40 * sc, 30 * sc, RED, 'center', { shadow: false }); U.text(c, 'DART ON DART', w / 2, py + 66 * sc, 11 * sc, '#6b5a48', 'center', { shadow: false });
     c.save(); c.font = '400 ' + 42 * sc + 'px "Bungee Shade","Bungee",sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = NAVY; c.fillText('STAGE ' + st.stage, w / 2, py + 108 * sc); c.restore();
@@ -368,7 +393,8 @@
     token(c, w / 2 - 40 * sc, py + 170 * sc, 11 * sc); U.text(c, '+' + (Math.round(st.coinsRun * 10) / 10), w / 2 - 22 * sc, py + 171 * sc, 20 * sc, NAVY, 'left', { shadow: false });
     var bw = pw * 0.8, bh = 46 * sc, yy = py + 196 * sc;
     if (canAd) { if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Ad: retry stage', { color: TEAL, size: 15 * sc })) PG.rewarded('continue').then(function (ok) { if (ok) { st.usedCont = true; st.hurtPin = null; PG.playing = true; newStage(); PG.track('rewarded_continue', { step_id: 'stage' }); } }); yy += bh + 10 * sc; }
-    if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Play again', { color: RED })) PG.interstitial('game_over').then(function () { PG.go(startRun); });
+    if (canDbl) { if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Ad: double tokens', { color: MUST, size: 15 * sc })) { var earned = st.coinsRun; PG.rewarded('bonus').then(function (ok) { if (ok) { PG.save.coins += earned; st.coinsRun += earned; st.dbl = true; PG.commit(true); PG.sfx('coin'); PG.track('rewarded_double_coins', {}); } }); } yy += bh + 10 * sc; }
+    if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Play again', { color: RED })) PG.adBreak('game_over').then(function () { PG.go(startRun); });
     if (U.button(c, w / 2 - bw / 2, yy + bh + 10 * sc, bw / 2 - 5 * sc, bh * 0.85, 'Upgrades', { color: MUST, size: 13 * sc })) PG.go(function () { toMenu(); st.state = 'upgrades'; PG.track('shop_opened', { source: 'game_over' }); });
     if (U.button(c, w / 2 + 5 * sc, yy + bh + 10 * sc, bw / 2 - 5 * sc, bh * 0.85, 'Menu', { color: CREAM, size: 13 * sc })) PG.go(toMenu);
   }
@@ -395,7 +421,7 @@
   PG.setup(document.getElementById('c'), update, render);
   window.__pin = { st: st, throwPin: throwPin, start: startRun, geo: geo, update: update, stick: stick };
   decorate();
-  PG.init({ id: 'pin_the_tail', version: '1.1.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
+  PG.init({ id: 'pin_the_tail', version: '1.3.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
     PG.music(); layout(PG.w, PG.h); st.scaleIn = 0; st.nextC = RED;
   });
 })();

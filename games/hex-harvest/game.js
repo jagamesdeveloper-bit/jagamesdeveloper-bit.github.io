@@ -162,7 +162,7 @@
   }
   function newGame(restore) {
     cells.forEach(function (c) { c.t = -1; c.pop = 1; c.glow = 0; });
-    st.score = 0; st.over = false; st.usedRev = false; st.maxT = 0; st.moves = 0; st.hold = -1; st.overT = 0;
+    st.score = 0; st.over = false; st.usedRev = false; st.seedAds = 0; st.maxT = 0; st.moves = 0; st.hold = -1; st.overT = 0;
     st.hand = 0; st.next = 0; st.state = 'play'; anims = []; banner = null; PG.parts = []; PG.pops = [];
     var b = PG.save.board;
     if (restore && b && b.t && b.t.length === cells.length) {
@@ -308,6 +308,29 @@
     });
     petals.forEach(function (p) { p.y += p.v * 0.016; p.x += Math.sin(t * 0.8 + p.p) * 0.0004 + 0.0002; if (p.y > 1.05) { p.y = -0.05; p.x = Math.random(); } c.save(); c.translate(p.x * w, p.y * h); c.rotate(t + p.p); c.fillStyle = p.c; c.beginPath(); c.ellipse(0, 0, 4, 2.2, 0, 0, TAU); c.fill(); c.strokeStyle = 'rgba(59,47,42,.4)'; c.lineWidth = 0.7; c.stroke(); c.restore(); });
   }
+
+  // little island residents: a ladybug strolling the tiles, a bee orbiting the garden, dew glints on the grass
+  var LADY = [[0, 0], [1, 0], [1, 1], [0, 2], [-1, 2], [-2, 2], [-2, 1], [-1, 0], [0, -1], [1, -1], [2, -1], [2, 0]];
+  function drawResidents(c, t) {
+    if (!geo.s || !cellAt['0,0']) return; var s = geo.s, n = LADY.length, u = (t * 0.16) % n, i0 = Math.floor(u), k = u - i0, A = cellXY(cellAt[LADY[i0][0] + ',' + LADY[i0][1]] || cells[0]), B = cellXY(cellAt[LADY[(i0 + 1) % n][0] + ',' + LADY[(i0 + 1) % n][1]] || cells[0]);
+    var e = k * k * (3 - 2 * k), lx = A.x + (B.x - A.x) * e + Math.sin(t * 9) * s * 0.02, ly = A.y + (B.y - A.y) * e + s * 0.28, ang = Math.atan2(B.y - A.y, B.x - A.x);
+    c.save(); c.translate(lx, ly); c.rotate(ang + Math.PI / 2); var r = s * 0.13;
+    c.fillStyle = 'rgba(59,47,42,.2)'; c.beginPath(); c.ellipse(r * 0.2, r * 0.3, r, r * 1.15, 0, 0, TAU); c.fill();
+    c.strokeStyle = INK; c.lineWidth = 0.9; for (var l = -1; l <= 1; l += 2) for (var q = -1; q <= 1; q++) { c.beginPath(); c.moveTo(l * r * 0.7, q * r * 0.5); c.lineTo(l * r * 1.15, q * r * 0.5 + Math.sin(t * 14 + q + l) * r * 0.2); c.stroke(); }
+    c.fillStyle = '#c93a2a'; c.beginPath(); c.ellipse(0, 0, r * 0.95, r * 1.15, 0, 0, TAU); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.2; c.stroke();
+    c.fillStyle = INK; c.beginPath(); c.moveTo(0, -r * 1.1); c.lineTo(0, r * 1.1); c.lineWidth = 1; c.stroke(); c.beginPath(); c.arc(0, -r * 1.2, r * 0.5, Math.PI, 0); c.fill();
+    [[-0.45, -0.3], [0.45, -0.35], [-0.5, 0.35], [0.5, 0.3], [0, 0.75]].forEach(function (d) { c.beginPath(); c.arc(d[0] * r, d[1] * r, r * 0.17, 0, TAU); c.fill(); });
+    c.fillStyle = 'rgba(255,255,255,.4)'; c.beginPath(); c.ellipse(-r * 0.35, -r * 0.5, r * 0.18, r * 0.3, 0.2, 0, TAU); c.fill(); c.restore();
+    // bee
+    var bx = geo.cx + Math.sin(t * 0.9) * s * 3.2, by = geo.cy - s * 0.4 + Math.sin(t * 1.8) * s * 1.1 + Math.sin(t * 7) * s * 0.06, fl = Math.sin(t * 60) * 0.45, bs = s * 0.14;
+    c.save(); c.translate(bx, by); c.rotate(Math.cos(t * 0.9) * 0.4); c.fillStyle = 'rgba(255,255,255,.75)'; c.strokeStyle = 'rgba(59,47,42,.5)'; c.lineWidth = 0.8;
+    [-1, 1].forEach(function (d) { c.save(); c.rotate(d * (0.7 + fl)); c.beginPath(); c.ellipse(0, -bs * 1.1, bs * 0.55, bs * 1.1, 0, 0, TAU); c.fill(); c.stroke(); c.restore(); });
+    c.fillStyle = '#f2c14e'; c.beginPath(); c.ellipse(0, 0, bs * 1.1, bs * 0.8, 0, 0, TAU); c.fill(); c.strokeStyle = INK; c.lineWidth = 1; c.stroke();
+    c.fillStyle = INK; for (var st2 = -1; st2 <= 1; st2++) c.fillRect(st2 * bs * 0.5 - bs * 0.12, -bs * 0.7, bs * 0.24, bs * 1.4); c.beginPath(); c.arc(bs * 1.2, -bs * 0.1, bs * 0.38, 0, TAU); c.fill(); c.restore();
+    // dew glints
+    for (var g = 0; g < 7; g++) { var cl = cells[(g * 5 + Math.floor(t * 0.4 + g)) % cells.length], pp = cellXY(cl), ph = (t * 0.7 + g * 0.37) % 1, a = Math.sin(ph * Math.PI); if (a < 0.1) continue; var dx = pp.x + (PG.hash(g + Math.floor(t * 0.4 + g)) - 0.5) * s * 1.1, dy = pp.y + (PG.hash(g * 3 + 1) - 0.4) * s * 0.4;
+      c.save(); c.translate(dx, dy); c.fillStyle = 'rgba(255,255,255,' + a * 0.9 + ')'; c.beginPath(); c.moveTo(0, -s * 0.1 * a); c.lineTo(s * 0.025, 0); c.lineTo(0, s * 0.1 * a); c.lineTo(-s * 0.025, 0); c.closePath(); c.fill(); c.beginPath(); c.moveTo(-s * 0.1 * a, 0); c.lineTo(0, s * 0.025); c.lineTo(s * 0.1 * a, 0); c.lineTo(0, -s * 0.025); c.closePath(); c.fill(); c.restore(); }
+  }
   // parchment medallion: deckled circle with ink rim
   function medallion(c, x, y, r, active, seed) {
     c.save(); c.fillStyle = 'rgba(59,47,42,.18)'; c.beginPath(); c.arc(x + 2, y + 3, r, 0, TAU); c.fill();
@@ -345,6 +368,12 @@
     var r = Math.min(42 * sc, w * 0.11), rs = r * 0.68;
     if (geo.landscape) { var cx = w - 82 * sc, cy = h * 0.5; slotChip(c, 'hold', st.hold, cx, cy - r * 2.5, rs, 'KEEP', false, t); slotChip(c, 'hand', st.hand, cx, cy, r, 'PLANT', true, t); slotChip(c, 'next', st.next, cx, cy + r * 2.4, rs, 'NEXT', false, t); }
     else { var by = h - r - 34 * sc; slotChip(c, 'hold', st.hold, w / 2 - r * 2.6, by + r * 0.2, rs, 'KEEP', false, t); slotChip(c, 'hand', st.hand, w / 2, by, r, 'PLANT', true, t); slotChip(c, 'next', st.next, w / 2 + r * 2.6, by + r * 0.2, rs, 'NEXT', false, t); }
+    // rewarded: a lucky seed (a strong crop in hand) offered once the board gets crowded, max twice per island
+    if (!st.over && st.moves >= 6 && st.seedAds < 2 && PG.canOffer('seed', 30000)) {
+      var ax = geo.landscape ? cx - r * 2.5 : w / 2 + r * 2.6 + rs * 2.1, ay = geo.landscape ? cy : by - rs * 0.9, ar = rs * 0.78;
+      slots.ad = { x: ax - ar, y: ay - ar, w: ar * 2, h: ar * 2 };
+      if (PG.adChip(c, ax, ay, ar, 'LUCKY SEED', '#8e6aa8', t)) { PG.markOffer('seed'); PG.rewarded('boost').then(function (ok) { if (ok) { st.seedAds++; st.hand = Math.max(3, Math.min(MAXT - 1, st.maxT)); slots.pulse = 1; PG.burst(geo.landscape ? cx : w / 2, geo.landscape ? cy : by, 14, { colors: ['#f2c14e', '#fff6e0'], shape: leafShape }); PG.sfx('golden'); PG.track('rewarded_lucky_seed', {}); persist(); } }); }
+    } else slots.ad = null;
     if (slots.pulse) slots.pulse = Math.max(0, slots.pulse - 0.06);
     if (!st.over && U.hit(slots.hold.x, slots.hold.y, slots.hold.w, slots.hold.h)) swapHold();
     // first-game hint: a little painted hand pointing at a good tile
@@ -362,6 +391,7 @@
 
   /* ------------ theme (wooden sign buttons, parchment panels) ------------ */
   PG.theme.font = 'Grandstander'; PG.theme.body = 'Nunito'; PG.theme.weight = '800'; PG.theme.bodyWeight = '800';
+  PG.theme.reverb = 0.14; PG.theme.reverbTime = 0.8;
   PG.theme.text = INK; PG.theme.textShadow = false; PG.theme.pageColor = '#e5ecdc';
   PG.theme.transition = { style: 'fade', color: PAPER, time: 0.35 };
   PG.theme.popStyle = { stroke: 'rgba(244,234,213,.95)' };
@@ -409,7 +439,7 @@
     U.text(c, TIERS[st.maxT].n, w / 2, py + 207 * sc, 13 * sc, INK, 'center', { font: 'body', shadow: false });
     var bw = pw * 0.8, bh = 46 * sc, yy = py + 226 * sc;
     if (!st.usedRev && PG.rewardedSupported()) { if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Ad: clear 8 crops', { color: '#8e6aa8', size: 18 * sc })) { PG.rewarded('continue').then(function (ok) { if (ok) { reviveClear(); PG.track('rewarded_continue', { step_id: 'run' }); } }); } yy += bh + 10 * sc; }
-    if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Grow again', { color: '#c97a4e' })) { PG.interstitial('game_over').then(function () { PG.go(function () { newGame(false); }); }); }
+    if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Grow again', { color: '#c97a4e' })) { PG.adBreak('game_over').then(function () { PG.go(function () { newGame(false); }); }); }
     c.restore();
   }
 
@@ -434,6 +464,7 @@
     drawWorld(c, w, h, t);
     drawIsland(c, t);
     anims.forEach(function (a) { var e = PG.ease.io(a.t); drawCrop(c, a.tier, PG.lerp(a.from.x, a.to.x, e), PG.lerp(a.from.y, a.to.y, e) - Math.sin(a.t * 3.14) * geo.s, geo.s * 1.18, t, 0, 1 - a.t * 0.5); });
+    drawResidents(c, t);
     drawCreatures(c, w, h, t);
     PG.drawParts(c); PG.drawPops(c);
     c.restore();
@@ -443,7 +474,7 @@
   [[0, 0, 7], [1, 0, 5], [-1, 0, 3], [0, 1, 2], [-1, 1, 1], [1, -1, 4], [0, -1, 6], [2, -1, 0], [-2, 1, 2], [-1, 2, 1], [2, 0, 3], [1, 1, 0], [-2, 2, 4], [0, 2, 1], [-3, 2, 0], [3, -2, 2]].forEach(function (d) { cellAt[d[0] + ',' + d[1]].t = d[2]; });
   PG.setup(document.getElementById('c'), update, render);
   window.__hex = { cells: cells, st: st, newGame: newGame, place: place, cellAt: cellAt };
-  PG.init({ id: 'hex_harvest', version: '1.1.0', defaults: { best: 0, games: 0, found: 0, board: null, muted: false } }).then(function () {
+  PG.init({ id: 'hex_harvest', version: '1.3.0', defaults: { best: 0, games: 0, found: 0, board: null, muted: false } }).then(function () {
     PG.music();
   });
 })();

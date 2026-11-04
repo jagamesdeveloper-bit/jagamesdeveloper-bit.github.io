@@ -123,6 +123,89 @@ SFX = {
     },
 }
 
+def L(*layers):
+    """layered sound: each layer is (kenney basename, delay seconds, gain, semitones)"""
+    return ('layers', layers)
+
+def conv_layers(layers, dst):
+    """mix several Kenney sounds (delay/gain/pitch per layer) into one mp3"""
+    cmd = ['ffmpeg', '-v', 'error', '-y']
+    flt = []
+    for i, (name, delay, gain, st) in enumerate(layers):
+        cmd += ['-i', k(name)]
+        f = f'[{i}:a]aresample=44100,silenceremove=start_periods=1:start_threshold=-50dB'
+        if st:
+            f += f',asetrate={int(44100 * 2 ** (st / 12.0))},aresample=44100'
+        f += f',volume={gain},adelay={int(delay * 1000)}|{int(delay * 1000)}[l{i}]'
+        flt.append(f)
+    mix = ''.join(f'[l{i}]' for i in range(len(layers)))
+    flt.append(f'{mix}amix=inputs={len(layers)}:normalize=0,alimiter=limit=0.95[o]')
+    cmd += ['-filter_complex', ';'.join(flt), '-map', '[o]', '-ac', '1', '-ar', '44100', '-codec:a', 'libmp3lame', '-b:a', '80k', dst]
+    subprocess.run(cmd, check=True)
+
+
+# v1.3 sound design: layered, pitched Kenney recordings (human made, CC0) for the five flagship games
+SFX['hex-harvest'] = {
+    'tap': ([L(('impactSoft_medium_000', 0, 0.9, 5), ('pluck_001', 0.012, 0.35, 0)), L(('impactSoft_medium_001', 0, 0.9, 6), ('pluck_002', 0.012, 0.35, 0))], 0.55),
+    'drop': ([L(('footstep_grass_000', 0, 0.9, -2), ('impactSoft_heavy_000', 0.015, 0.6, -4)), L(('footstep_grass_002', 0, 0.9, -1), ('impactSoft_heavy_001', 0.015, 0.6, -5)), L(('footstep_grass_004', 0, 0.9, -3), ('impactSoft_heavy_002', 0.015, 0.6, -4))], 0.9),
+    'merge': ([L(('pluck_001', 0, 0.9, 0), ('pluck_002', 0.07, 0.8, 4), ('glass_002', 0.14, 0.45, 7)), L(('pluck_002', 0, 0.9, 2), ('pluck_001', 0.07, 0.8, 7), ('glass_004', 0.14, 0.45, 9))], 0.8),
+    'win': ([L((jingle('pizzi', '02'), 0, 0.9, 0), ('glass_002', 0.2, 0.35, 7))], 0.7),
+    'golden': ([L((jingle('pizzi', '15'), 0, 0.9, 0), ('glass_004', 0.1, 0.4, 9), ('glass_006', 0.3, 0.3, 12))], 0.8),
+    'lose': ([L((jingle('pizzi', '01'), 0, 0.9, -2))], 0.7),
+    'whoosh': ([L(('cloth1', 0, 0.9, 0), ('footstep_grass_001', 0.12, 0.35, 3)), L(('cloth2', 0, 0.9, 1))], 0.7),
+    'coin': ([L(('glass_002', 0, 0.8, 3), ('pluck_001', 0.02, 0.3, 12)), L(('glass_004', 0, 0.8, 2), ('pluck_002', 0.02, 0.3, 12))], 0.6),
+    'err': ([L(('impactWood_light_000', 0, 0.9, -6), ('error_004', 0.0, 0.25, -3))], 0.5),
+    'upgrade': ([L(('confirmation_002', 0, 0.8, 0), ('pluck_001', 0.1, 0.5, 7), ('pluck_002', 0.18, 0.5, 12))], 0.6),
+}
+SFX['sloth-sprint'] = {
+    'tap': ([L(('impactWood_light_000', 0, 0.7, 3), ('click_002', 0, 0.3, 0))], 0.5),
+    'whoosh': ([L(('cloth1', 0, 0.9, -2), ('cloth3', 0.04, 0.4, 3)), L(('cloth2', 0, 0.9, -1), ('cloth4', 0.05, 0.4, 2)), L(('cloth3', 0, 0.9, -3))], 0.8),
+    'land': ([L(('impactWood_light_000', 0, 0.9, -2), ('footstep_grass_000', 0.02, 0.5, -3)), L(('impactWood_light_002', 0, 0.9, -1), ('footstep_grass_003', 0.02, 0.5, -2)), L(('impactWood_medium_001', 0, 0.8, 0), ('footstep_grass_001', 0.02, 0.5, -3))], 0.8),
+    'perfect': ([L(('glass_006', 0, 0.8, 2), ('confirmation_001', 0, 0.45, 5), ('pluck_002', 0.1, 0.5, 12))], 0.6),
+    'coin': ([L(('glass_001', 0, 0.8, 5), ('pluck_001', 0.015, 0.4, 14)), L(('glass_003', 0, 0.8, 4), ('pluck_002', 0.015, 0.4, 14)), L(('glass_005', 0, 0.8, 6), ('pluck_001', 0.015, 0.4, 16))], 0.4),
+    'hit': ([L(('impactPunch_medium_000', 0, 0.9, -2), ('impactSoft_heavy_000', 0.01, 0.7, -3)), L(('impactPunch_medium_002', 0, 0.9, -1), ('impactSoft_heavy_002', 0.01, 0.7, -4))], 0.8),
+    'jump': ([L(('cloth2', 0, 0.8, 5), ('maximize_002', 0.03, 0.35, 0))], 0.5),
+    'win': ([L((jingle('steel', '12'), 0, 0.9, 0), ('glass_003', 0.3, 0.3, 7))], 0.7),
+    'lose': ([L((jingle('steel', '01'), 0, 0.9, -2))], 0.7),
+    'upgrade': ([L(('confirmation_003', 0, 0.8, 0), ('pluck_001', 0.1, 0.5, 7), ('pluck_002', 0.17, 0.5, 12))], 0.6),
+    'err': ([L(('impactWood_medium_000', 0, 0.9, -7), ('error_003', 0, 0.2, -4))], 0.5),
+}
+SFX['pin-the-tail'] = {
+    'tap': ([L(('card-place-1', 0, 0.8, 0), ('click_002', 0, 0.25, 4)), L(('card-place-2', 0, 0.8, 1)), L(('card-place-3', 0, 0.8, -1))], 0.7),
+    'shoot': ([L(('knifeSlice', 0, 0.9, 2), ('cloth1', 0, 0.35, 3)), L(('knifeSlice2', 0, 0.9, 1), ('cloth2', 0, 0.35, 2)), L(('drawKnife1', 0, 0.8, 3), ('cloth3', 0, 0.3, 2))], 0.55),
+    'hit': ([L(('impactWood_medium_000', 0, 0.9, -1), ('chop', 0.0, 0.5, 2), ('impactMetal_light_000', 0.02, 0.2, 6)), L(('impactWood_medium_002', 0, 0.9, 0), ('chop', 0.0, 0.5, 3), ('impactMetal_light_001', 0.02, 0.2, 7)), L(('impactWood_medium_004', 0, 0.9, -2), ('chop', 0.0, 0.5, 1), ('impactMetal_light_002', 0.02, 0.2, 5))], 0.85),
+    'err': ([L(('impactMetal_light_000', 0, 0.9, -2), ('impactPlate_light_000', 0.02, 0.5, -3)), L(('impactMetal_light_002', 0, 0.9, -1), ('impactPlate_light_001', 0.02, 0.5, -3))], 0.9),
+    'coin': ([L(('chips-stack-1', 0, 0.9, 0), ('glass_002', 0.03, 0.3, 8)), L(('chips-stack-2', 0, 0.9, 1)), L(('chips-stack-3', 0, 0.9, -1), ('glass_004', 0.03, 0.3, 8))], 0.8),
+    'win': ([L((jingle('sax', '15'), 0, 0.9, 0), ('chips-handle-1', 0.25, 0.4, 0))], 0.75),
+    'boss': ([L((jingle('sax', '02'), 0, 0.9, 0), ('impactPlank_medium_000', 0.0, 0.6, -5))], 0.8),
+    'lose': ([L((jingle('sax', '01'), 0, 0.9, -2))], 0.75),
+    'boom': ([L(('impactPlank_medium_000', 0, 0.9, -3), ('impactWood_heavy_000', 0.01, 0.8, -4), ('impactPlate_heavy_000', 0.03, 0.4, -6)), L(('impactPlank_medium_002', 0, 0.9, -2), ('impactWood_heavy_002', 0.01, 0.8, -5), ('impactPlate_heavy_001', 0.03, 0.4, -6))], 0.9),
+    'upgrade': ([L(('chips-handle-1', 0, 0.9, 0), ('glass_004', 0.08, 0.35, 7), ('confirmation_002', 0.05, 0.3, 4)), L(('chips-handle-2', 0, 0.9, 1), ('glass_006', 0.08, 0.35, 7))], 0.8),
+    'pop': ([L(('impactPunch_heavy_000', 0, 0.8, 4), ('select_003', 0.0, 0.4, 5)), L(('impactPunch_heavy_002', 0, 0.8, 5), ('select_002', 0.0, 0.4, 5))], 0.8),
+}
+SFX['potion-pour'] = {
+    'tap': ([L(('impactGlass_light_000', 0, 0.5, 5), ('click_004', 0, 0.4, 0))], 0.45),
+    'pick': ([L(('impactGlass_light_000', 0, 0.9, 1), ('impactGlass_light_002', 0.05, 0.4, 5)), L(('impactGlass_light_001', 0, 0.9, 2), ('impactGlass_light_003', 0.05, 0.4, 6)), L(('impactGlass_light_004', 0, 0.9, 0), ('impactGlass_light_001', 0.05, 0.4, 4))], 0.7),
+    'pour': ([L(('slime_000', 0, 0.9, 3), ('slime_001', 0.12, 0.6, 5), ('impactGlass_light_001', 0.3, 0.25, 9)), L(('slime_001', 0, 0.9, 2), ('slime_000', 0.12, 0.6, 4), ('impactGlass_light_003', 0.3, 0.25, 8))], 0.6),
+    'bell': ([L(('glass_003', 0, 0.9, 0), ('impactBell_heavy_000', 0, 0.2, 14)), L(('glass_006', 0, 0.9, 2), ('impactBell_heavy_001', 0, 0.2, 12))], 0.55),
+    'seal': ([L(('confirmation_004', 0, 0.8, -2), ('glass_006', 0.08, 0.5, 5), ('bookClose', 0.0, 0.5, 0))], 0.6),
+    'win': ([L((jingle('steel', '12'), 0, 0.9, 0), ('glass_003', 0.4, 0.4, 5), ('glass_006', 0.55, 0.3, 9))], 0.75),
+    'err': ([L(('impactWood_medium_001', 0, 0.8, -5), ('error_006', 0, 0.3, -2))], 0.5),
+    'upgrade': ([L(('maximize_004', 0, 0.7, 0), ('glass_003', 0.1, 0.45, 7), ('glass_006', 0.18, 0.4, 12))], 0.5),
+    'page': ([L(('bookFlip1', 0, 0.9, 0), ('cloth1', 0.0, 0.2, 0)), L(('bookFlip2', 0, 0.9, 0)), L(('bookFlip3', 0, 0.9, 0))], 0.6),
+}
+SFX['skyline-snap'] = {
+    'tap': ([L(('click2', 0, 0.8, -2), ('impactMetal_light_000', 0, 0.3, 2)), L(('click4', 0, 0.8, -2), ('impactMetal_light_001', 0, 0.3, 3))], 0.6),
+    'whoosh': ([L(('minimize_003', 0, 0.7, -2), ('cloth1', 0, 0.3, 0)), L(('minimize_005', 0, 0.7, -2), ('cloth2', 0, 0.3, 0))], 0.45),
+    'land': ([L(('impactWood_heavy_000', 0, 0.9, -2), ('impactPlate_light_000', 0.02, 0.5, -2), ('footstep_concrete_000', 0.03, 0.4, -4)), L(('impactWood_heavy_002', 0, 0.9, -1), ('impactPlate_light_002', 0.02, 0.5, -3), ('footstep_concrete_002', 0.03, 0.4, -3)), L(('impactWood_heavy_004', 0, 0.9, -3), ('impactPlate_medium_000', 0.02, 0.5, -3))], 0.8),
+    'perfect': ([L(('glass_006', 0, 0.8, 0), ('impactBell_heavy_000', 0, 0.25, 12), ('confirmation_001', 0.05, 0.4, 7))], 0.6),
+    'drop': ([L(('footstep_concrete_000', 0, 0.9, -2), ('impactSoft_heavy_000', 0.01, 0.5, -4)), L(('footstep_concrete_002', 0, 0.9, -1), ('impactSoft_heavy_002', 0.01, 0.5, -3))], 0.7),
+    'win': ([L((jingle('sax', '15'), 0, 0.9, 0), ('impactBell_heavy_000', 0.0, 0.3, 7))], 0.75),
+    'lose': ([L((jingle('sax', '01'), 0, 0.9, -2), ('impactPlank_medium_000', 0.2, 0.4, -6))], 0.75),
+    'upgrade': ([L(('confirmation_003', 0, 0.8, 0), ('glass_006', 0.1, 0.35, 7), ('glass_003', 0.18, 0.3, 12))], 0.6),
+    'err': ([L(('impactMetal_medium_000', 0, 0.8, -6), ('error_007', 0, 0.25, -3))], 0.5),
+}
+
 def conv(src, dst, extra=None, mono=True, br='80k'):
     cmd = ['ffmpeg', '-v', 'error', '-y', '-i', src]
     if extra:
@@ -138,7 +221,10 @@ def build(slug):
         outs = []
         for i, f in enumerate(files):
             out = f'{name}_{i}.mp3'
-            conv(k(f), os.path.join(adir, out), ['-af', 'silenceremove=start_periods=1:start_threshold=-50dB'])
+            if isinstance(f, tuple) and f[0] == 'layers':
+                conv_layers(f[1], os.path.join(adir, out))
+            else:
+                conv(k(f), os.path.join(adir, out), ['-af', 'silenceremove=start_periods=1:start_threshold=-50dB'])
             outs.append('audio/' + out)
         manifest['sfx'][name] = {'files': outs, 'vol': vol}
     mf, mslug, author, trim = MUSIC[slug]
