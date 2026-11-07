@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="playgama-bridge.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1e2448">
+  <title>Bloomfall</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1e2448;
+      overscroll-behavior: none;
+    }
+    body {
+      position: fixed;
+      inset: 0;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    canvas {
+      display: block;
+      position: absolute;
+      left: 0;
+      top: 0;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" tabindex="0"></canvas>
+  <script src="js/i18n.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

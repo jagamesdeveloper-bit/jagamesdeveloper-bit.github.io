@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Bloomfall cover</title>
+  <style>html, body { margin: 0; overflow: hidden; background: #1e2448; } canvas { display: block; }</style>
+  <script>
+    window.BLOOMFALL_COVER = new URLSearchParams(location.search).get('kind') || 'landscape';
+  </script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <script src="../game/js/i18n.js"></script>
+  <script src="../game/js/game.js"></script>
+</body>
+</html>

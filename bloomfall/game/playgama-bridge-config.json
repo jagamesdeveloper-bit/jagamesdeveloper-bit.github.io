@@ -1,0 +1,18 @@
+{
+    "advertisement": {
+        "interstitial": {
+            "placementFallback": "level_completed",
+            "placements": [
+                { "id": "level_completed" },
+                { "id": "game_over" },
+                { "id": "menu" }
+            ]
+        },
+        "rewarded": {
+            "placementFallback": "revive",
+            "placements": [
+                { "id": "revive" }
+            ]
+        }
+    }
+}
