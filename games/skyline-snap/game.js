@@ -23,7 +23,7 @@
   function swingSpeed() { return Math.min(330, 120 + st.floors.length * 3.6) * (1 - 0.05 * up('slow')); }
   function swayOff(i, n) { var k = i / Math.max(8, n); return st.sway * k * k * 1.4; } // drawn offset of floor i in an n-floor tower
   function startRun() {
-    st.state = 'play'; var w0 = Math.min(BASE_W * (1 + 0.06 * up('found')), 230); st.floors = [{ x: 0, w: w0, i: 0 }]; st.combo = 0; st.perfects = 0; st.coinsRun = 0; st.paid = 0; st.over = false; st.cut = []; st.falling = null; st.netLeft = up('net'); st.revUsed = false; st.doubled = false; st.runIdx++; st.t = 0; st.camY = 0; st.newBest = false; st.banner = null; st.wind = 0; st.squash = 0;
+    st.state = 'play'; var w0 = Math.min(BASE_W * (1 + 0.06 * up('found')), 230); st.floors = [{ x: 0, w: w0, i: 0 }]; st.combo = 0; st.perfects = 0; st.coinsRun = 0; st.paid = 0; st.over = false; st.cut = []; st.falling = null; st.netLeft = up('net') + (st.boost ? 2 : 0); st.boost = 0; st.revUsed = false; st.doubled = false; st.runIdx++; st.t = 0; st.camY = 0; st.newBest = false; st.banner = null; st.wind = 0; st.squash = 0;
     st.tut = !PG.save.runs; PG.parts = []; PG.pops = []; PG.playing = true; nextBlock();
     PG.track('progression_started', { step_id: 'run', step_index: Math.min(st.runIdx, 50) }); PG.msg('level_started', { level: String(st.runIdx) });
   }
@@ -37,7 +37,7 @@
       if (st.netLeft > 0) { st.netLeft--; st.combo = 0; PG.popText(f.x, f.y - 40, 'Safety net!', '#b5e48c', 24); PG.sfx('upgrade'); nextBlock(); return; } gameOver(); return;
     }
     var perfect = Math.abs(dx) <= tol(), nw = ov, nx = (aL + aR) / 2, maxW = BASE_W * (1 + 0.06 * up('found'));
-    if (perfect) { nw = top.w; nx = tx; st.combo++; st.perfects++; if (st.combo >= 3 && top.w < maxW) nw = Math.min(top.w + 7, maxW); var cn = (1 + 0.15 * up('coin')) * (st.combo >= 3 ? 2 : 1); st.coinsRun += cn; PG.sfx('perfect', 1 + Math.min(st.combo, 8) * 0.06); st.perfectFx.push({ x: nx, y: -(n * FH) - FH / 2, w: nw, t: 0 }); PG.popText(nx, -(n * FH) - 50, st.combo > 1 ? 'PERFECT x' + st.combo : 'PERFECT', MUST, 28); PG.burst(nx, -(n * FH), 14, { colors: [MUST, CREAM, CORAL], g: 200, up: 120, life: 0.9, shape: spark }); }
+    if (perfect) { st.flash = Math.min(1, 0.55 + st.combo * 0.08); nw = top.w; nx = tx; st.combo++; st.perfects++; if (st.combo >= 3 && top.w < maxW) nw = Math.min(top.w + 7, maxW); var cn = (1 + 0.15 * up('coin')) * (st.combo >= 3 ? 2 : 1); st.coinsRun += cn; PG.sfx('perfect', 1 + Math.min(st.combo, 8) * 0.06); st.perfectFx.push({ x: nx, y: -(n * FH) - FH / 2, w: nw, t: 0 }); PG.popText(nx, -(n * FH) - 50, st.combo > 1 ? 'PERFECT x' + st.combo : 'PERFECT', MUST, 28); PG.burst(nx, -(n * FH), 14, { colors: [MUST, CREAM, CORAL], g: 200, up: 120, life: 0.9, shape: spark }); }
     else { st.combo = 0; var cutL = f.x - f.w / 2 < tx - top.w / 2, cw = f.w - ov, cx = cutL ? aL - cw / 2 : aR + cw / 2; st.cut.push({ x: cx, y: f.y, w: cw, vx: cutL ? -40 : 40, vy: 0, r: 0, vr: cutL ? -2 : 2, i: f.i, t: 0 }); PG.sfx('drop', 0.8 + (ov / f.w) * 0.4); PG.burst(nx, -(n * FH), 6, { colors: [CREAM, '#d6cbb3'], g: 300, min: 30, max: 140, life: 0.5, shape: 's' }); }
     st.floors.push({ x: nx - swayOff(n, n + 1), w: nw, i: f.i }); st.falling = null; st.squash = 1; st.shake = perfect ? 3 : 6; PG.vibrate(perfect ? 6 : 14);
     st.coinsRun += (n % 5 === 0 ? 1 : 0) * (1 + 0.15 * up('coin')); if (n % 10 === 0) { st.banner = { s: n + ' FLOORS', t: 0 }; PG.sfx('win'); PG.track('floors_milestone', { floors: Math.min(n, 200) }); }
@@ -54,7 +54,7 @@
   function spark(c, p, k) { var s = p.size * (0.5 + 0.5 * k); c.save(); c.translate(p.x, p.y); c.rotate(p.rot); c.fillRect(-s * 1.6, -s * 0.18, s * 3.2, s * 0.36); c.fillRect(-s * 0.18, -s * 1.6, s * 0.36, s * 3.2); c.restore(); }
 
   function update(dt) {
-    PG.updateParts(dt); PG.updatePops(dt); st.t += dt; st.shake = Math.max(0, st.shake - dt * 30); st.squash = Math.max(0, st.squash - dt * 4); if (st.banner) { st.banner.t += dt; if (st.banner.t > 2) st.banner = null; } if (st.over) st.overT += dt;
+    PG.updateParts(dt); PG.updatePops(dt); st.t += dt; st.shake = Math.max(0, st.shake - dt * 30); st.flash = Math.max(0, (st.flash || 0) - dt * 2.6); st.squash = Math.max(0, st.squash - dt * 4); if (st.banner) { st.banner.t += dt; if (st.banner.t > 2) st.banner = null; } if (st.over) st.overT += dt;
     clouds.forEach(function (c) { c.x += c.v * dt; if (c.x > 480) c.x = -80; });
     for (var i = st.perfectFx.length - 1; i >= 0; i--) { st.perfectFx[i].t += dt * 2.5; if (st.perfectFx[i].t > 1) st.perfectFx.splice(i, 1); }
     st.cut.forEach(function (c) { c.t += dt; c.vy += 900 * dt; c.y += c.vy * dt; c.x += c.vx * dt; c.r += c.vr * dt; }); st.cut = st.cut.filter(function (c) { return c.t < 2.2; });
@@ -90,7 +90,9 @@
     if (sk.night < 0.9) { var sx2 = w * 0.76, sy2 = h * (0.24 + st.floors.length * 0.004), sr = 30 * scale, a = 1 - sk.night; c.save(); c.translate(sx2, sy2); c.rotate(t * 0.05);
       c.fillStyle = rgb([246, 189, 96], 0.55 * a); for (var r2 = 0; r2 < 12; r2++) { c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, sr * 2.3, r2 * TAU / 12, r2 * TAU / 12 + TAU / 30); c.closePath(); c.fill(); }
       c.restore(); c.strokeStyle = rgb([255, 244, 214], 0.6 * a); c.lineWidth = 2 * scale; c.beginPath(); c.arc(sx2, sy2, sr * 1.35, 0, TAU); c.stroke(); c.fillStyle = rgb([244, 162, 97], a); c.beginPath(); c.arc(sx2, sy2, sr, 0, TAU); c.fill(); c.fillStyle = rgb([233, 196, 106], a); c.beginPath(); c.arc(sx2, sy2, sr * 0.7, 0, TAU); c.fill(); }
-    clouds.forEach(function (cl) { var y = ((cl.y + st.camY * 0.25) % 1200 + 1200) % 1200 * (h / 900) - 80, x = cl.x * (w / VW), s = 22 * cl.s * scale; c.fillStyle = rgb([244, 233, 208], 0.9 * (1 - sk.night * 0.85)); U.rr(c, x - s * 1.8, y - s * 0.4, s * 3.6, s * 0.8, s * 0.4); c.fill(); U.rr(c, x - s * 0.9, y - s * 0.95, s * 2, s * 0.8, s * 0.4); c.fill(); });
+    clouds.forEach(function (cl) { var y = ((cl.y + st.camY * 0.25) % 1200 + 1200) % 1200 * (h / 900) - 80, x = cl.x * (w / VW), s = 22 * cl.s * scale; var ca = 0.92 * (1 - sk.night * 0.85); c.fillStyle = rgb(mix([244, 233, 208], [120, 110, 140], 0.35), ca * 0.55); U.rr(c, x - s * 1.8, y - s * 0.1, s * 3.6, s * 0.7, s * 0.35); c.fill();
+      c.fillStyle = rgb([244, 233, 208], ca); U.rr(c, x - s * 1.8, y - s * 0.45, s * 3.6, s * 0.75, s * 0.37); c.fill(); c.beginPath(); c.arc(x - s * 0.7, y - s * 0.5, s * 0.62, 0, TAU); c.arc(x + s * 0.35, y - s * 0.68, s * 0.8, 0, TAU); c.arc(x + s * 1.1, y - s * 0.42, s * 0.5, 0, TAU); c.fill();
+      c.fillStyle = 'rgba(255,255,255,' + 0.35 * ca + ')'; c.beginPath(); c.arc(x + s * 0.2, y - s * 0.85, s * 0.35, 0, TAU); c.fill(); });
     if (sk.night < 0.6) { c.strokeStyle = rgb([29, 45, 68], 0.55 * (1 - sk.night)); c.lineWidth = 1.6 * scale; c.lineCap = 'round'; for (var bi = 0; bi < 5; bi++) { var bt = t * (0.035 + bi * 0.004) + bi * 0.21, bx = ((bt % 1.2) - 0.1) * w, by = h * (0.28 + bi * 0.035) + Math.sin(t * 1.3 + bi) * 5 * scale, fl = Math.sin(t * 9 + bi * 2) * 4 * scale, bs = (6 + (bi % 3) * 1.5) * scale; c.beginPath(); c.moveTo(bx - bs, by + fl * 0.3); c.quadraticCurveTo(bx - bs * 0.4, by - fl, bx, by); c.quadraticCurveTo(bx + bs * 0.4, by - fl, bx + bs, by + fl * 0.3); c.stroke(); } }
     return sk;
   }
@@ -108,6 +110,7 @@
         c.fillStyle = win; for (var wy = 8 * scale; wy < bh - 6; wy += 12 * scale) for (var wx = 5 * scale; wx < bw - 6 * scale; wx += 8 * scale) if (sk.night > 0.3 ? (wy * 7 + wx * 3 + i) % 3 < 1 : (wx + wy) % 2 < 1) c.fillRect(bx + wx, base - bh + wy, 3 * scale, 5 * scale);
       }
     });
+    var hz = c.createLinearGradient(0, base - 90 * scale, 0, base); hz.addColorStop(0, rgb(sk.c[2], 0)); hz.addColorStop(1, rgb(sk.c[2], 0.5)); c.fillStyle = hz; c.fillRect(0, base - 90 * scale, w, 90 * scale);
     c.fillStyle = rgb(mix([86, 130, 89], [14, 26, 28], sk.night * 0.8)); c.fillRect(0, base, w, h); c.fillStyle = rgb(mix([52, 58, 64], [8, 10, 14], sk.night * 0.6)); c.fillRect(0, base + 16 * scale, w, 14 * scale);
     c.fillStyle = rgb([244, 233, 208], 0.6 * (1 - sk.night * 0.6)); for (var d = 0; d < w; d += 26 * scale) c.fillRect(d, base + 22 * scale, 12 * scale, 2 * scale);
     // street lamps along the verge (glow at night) and cars on the road
@@ -144,6 +147,8 @@
     if (f.i % 4 === 2) { c.strokeStyle = 'rgba(29,45,68,.75)'; c.lineWidth = 1.2 * scale; var ry = hpx / 2 - 6 * scale; c.beginPath(); c.moveTo(-wpx / 2 + 2 * scale, ry); c.lineTo(wpx / 2 - 2 * scale, ry); for (var bx = -wpx / 2 + 6 * scale; bx < wpx / 2 - 4 * scale; bx += 6 * scale) { c.moveTo(bx, ry); c.lineTo(bx, ry + 4 * scale); } c.stroke(); }
     if (hs > 0.72 && wpx > 60 * scale) { var ux = -wpx / 2 + (0.12 + hs * 0.6) * wpx; c.fillStyle = '#cfc9b8'; c.fillRect(ux, hpx / 2 - 11 * scale, 11 * scale, 8 * scale); c.fillStyle = '#8f8a7c'; c.beginPath(); c.arc(ux + 5.5 * scale, hpx / 2 - 7 * scale, 2.6 * scale, 0, TAU); c.fill(); c.fillRect(ux, hpx / 2 - 3 * scale, 11 * scale, 1.5 * scale); }
     else if (hs < 0.22 && wpx > 60 * scale) { var px1 = wpx / 2 - (0.2 + hs * 1.6) * 30 * scale; c.fillStyle = '#6b4a35'; c.fillRect(px1, hpx / 2 - 7 * scale, 12 * scale, 4 * scale); c.fillStyle = '#4f8a54'; for (var lf = 0; lf < 4; lf++) { c.beginPath(); c.arc(px1 + (1.5 + lf * 3) * scale, hpx / 2 - (8 + (lf % 2)) * scale, 2.4 * scale, 0, TAU); c.fill(); } }
+    var sh = c.createLinearGradient(-wpx / 2, 0, wpx / 2, 0); sh.addColorStop(0, 'rgba(255,240,200,.16)'); sh.addColorStop(0.5, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,0,0,.2)'); c.fillStyle = sh; c.fillRect(-wpx / 2, -hpx / 2, wpx, hpx);
+    if (f.i % 6 === 5) { c.fillStyle = th[2]; c.fillRect(-wpx / 2, -hpx / 2, 5 * scale, hpx); c.fillRect(wpx / 2 - 5 * scale, -hpx / 2, 5 * scale, hpx); c.fillStyle = 'rgba(255,255,255,.25)'; c.fillRect(-wpx / 2, -hpx / 2, 1.5 * scale, hpx); }
     c.fillStyle = 'rgba(0,0,0,.22)'; c.fillRect(-wpx / 2, hpx / 2 - 3 * scale, wpx, 3 * scale);
     c.restore();
   }
@@ -225,25 +230,34 @@
     poster(c, 'SNAP', cx, ty + big * 1.05, big * 1.15, CORAL); U.text(c, 'BUILD  TO  THE  STARS', cx, ty + big * 1.75, 13 * sc, CREAM, 'center', { font: 'body', shadow: false, spacing: 3, stroke: 'rgba(29,45,68,.5)', strokeWidth: 3 });
     var bh = 58 * sc, b2 = Math.min(240 * sc, w * 0.66), bx = land ? w * 0.72 - b2 / 2 : w / 2 - b2 / 2, y0 = land ? h * 0.32 : h * 0.68;
     if (U.button(c, bx, y0, b2, bh, 'Build!', { color: CORAL, size: 34 * sc })) PG.go(startRun);
+    if (!st.boost && PG.canOffer('boost', 0)) { if (PG.adChip(c, bx + b2 + 34 * sc, y0 + bh / 2 - 8 * sc, 22 * sc, 'SAFETY NETS', TEAL, t)) PG.rewarded('boost').then(function (ok) { if (ok) { st.boost = 1; PG.sfx('upgrade'); PG.track('rewarded_boost', { game: 'skyline' }); } }); }
+    else if (st.boost) U.text(c, 'NETS READY', bx + b2 + 34 * sc, y0 + bh / 2, 13 * sc, '#b5e48c', 'center', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.6)', strokeWidth: 3 });
     if (U.button(c, bx, y0 + bh + 12 * sc, b2, bh * 0.8, 'Upgrades', { color: MUST, size: 26 * sc })) PG.go(function () { st.state = 'shop'; PG.track('shop_opened', { source: 'menu' }); });
     var ly = y0 + bh * 1.8 + 36 * sc; coinIcon(c, bx + b2 / 2 - 40 * sc, ly, 10 * sc); poster(c, PG.fmt(PG.save.coins || 0), bx + b2 / 2 - 24 * sc, ly + 2, 26 * sc, CREAM, NAVY, 'left'); U.text(c, 'Best ' + (PG.save.best || 0) + ' floors', bx + b2 / 2, ly + 26 * sc, 13 * sc, CREAM, 'center', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.6)', strokeWidth: 3 });
     PG.dailyGift(c, bx, ly + 48 * sc, b2, 42 * sc, 8, { color: TEAL, size: 20 * sc });
-    U.text(c, 'Music: qubodup   Sounds: Kenney', w / 2, h - 14 * sc, 11 * sc, 'rgba(244,233,208,.75)', 'center', { font: 'body', shadow: false });
+    U.text(c, 'Audio: CC0 recordings, OpenGameArt', w / 2, h - 14 * sc, 11 * sc, 'rgba(244,233,208,.75)', 'center', { font: 'body', shadow: false });
   }
   function render(c, w, h) {
     scale = PG.clamp(Math.min(w / VW, h / 700) * 1.05, 0.7, 2.2); var t = PG.time, sk = drawSky(c, w, h, t); drawCity(c, w, h, sk);
     c.save(); if (st.shake > 0.2) c.translate((Math.random() - 0.5) * st.shake, (Math.random() - 0.5) * st.shake);
     var gp = w2s(0, 0, w, h); c.fillStyle = NAVY; c.fillRect(gp.x - 120 * scale, gp.y, 240 * scale, 12 * scale); c.fillStyle = MUST; c.fillRect(gp.x - 120 * scale, gp.y, 240 * scale, 3 * scale);
+    // site hoarding, cones, brick pile and a waving site worker flank the base of the tower
+    [-1, 1].forEach(function (sd) { var fx = gp.x + sd * 150 * scale; c.fillStyle = sk.night > 0.5 ? '#3c4a5e' : '#c9a15a'; for (var pn = 0; pn < 3; pn++) { var px2 = fx + sd * pn * 30 * scale - 14 * scale; c.fillRect(px2, gp.y - 20 * scale, 28 * scale, 22 * scale); c.fillStyle = 'rgba(29,45,68,.35)'; c.fillRect(px2, gp.y - 20 * scale, 3 * scale, 22 * scale); c.fillStyle = sk.night > 0.5 ? '#3c4a5e' : '#c9a15a'; }
+      c.fillStyle = '#e76f51'; c.beginPath(); c.moveTo(gp.x + sd * 128 * scale, gp.y); c.lineTo(gp.x + sd * 128 * scale - 5 * scale, gp.y); c.lineTo(gp.x + sd * 128 * scale - 2 * scale, gp.y - 13 * scale); c.lineTo(gp.x + sd * 128 * scale + 1 * scale, gp.y - 13 * scale); c.lineTo(gp.x + sd * 128 * scale + 5 * scale, gp.y); c.closePath(); c.fill(); c.fillStyle = '#fff'; c.fillRect(gp.x + sd * 128 * scale - 3.4 * scale, gp.y - 8 * scale, 6.4 * scale, 2 * scale); });
+    c.fillStyle = '#9c4a3a'; for (var bk = 0; bk < 6; bk++) c.fillRect(gp.x - 112 * scale + (bk % 3) * 11 * scale, gp.y - 5 * scale - Math.floor(bk / 3) * 5 * scale, 10 * scale, 4.5 * scale);
+    var wx2 = gp.x + 98 * scale, wave = Math.sin(t * 6) * (st.flash > 0.1 ? 1 : 0.15); c.fillStyle = '#1d2d44'; c.fillRect(wx2 - 3 * scale, gp.y - 14 * scale, 6 * scale, 14 * scale); c.fillStyle = '#e9c46a'; c.beginPath(); c.arc(wx2, gp.y - 18 * scale, 3.4 * scale, Math.PI, 0); c.fill(); c.fillRect(wx2 - 4.2 * scale, gp.y - 18 * scale, 8.4 * scale, 1.4 * scale); c.fillStyle = '#f4a261'; c.beginPath(); c.arc(wx2, gp.y - 16.5 * scale, 2.4 * scale, 0, TAU); c.fill();
+    c.strokeStyle = '#1d2d44'; c.lineWidth = 2 * scale; c.lineCap = 'round'; c.beginPath(); c.moveTo(wx2 + 3 * scale, gp.y - 12 * scale); c.lineTo(wx2 + 8 * scale, gp.y - (18 + wave * 6) * scale); c.stroke();
     drawTower(c, w, h, sk, t); if (st.state === 'play') drawCrane(c, w, h, sk);
     st.cut.forEach(function (cp) { drawFloor(c, { x: cp.x, w: cp.w, i: cp.i }, cp.y, sk, w, h, Math.max(0, 1 - cp.t / 2.2), cp.r); });
     c.save(); c.translate(w / 2, h * 0.62 - st.camY * scale); c.scale(scale, scale); PG.drawParts(c); PG.drawPops(c); c.restore(); c.restore();
+    if (st.flash > 0.02) { var fg = c.createRadialGradient(w / 2, h * 0.5, h * 0.1, w / 2, h * 0.5, h * 0.75); fg.addColorStop(0, 'rgba(255,244,214,0)'); fg.addColorStop(1, 'rgba(255,226,150,' + st.flash * 0.38 + ')'); c.fillStyle = fg; c.fillRect(0, 0, w, h); }
     PG.grain(c, w, h, 0.07, { mode: 'multiply' });
     if (st.state === 'menu') drawMenu(c, w, h, t); else if (st.state === 'shop') drawShop(c, w, h); else { drawHUD(c, w, h); if (st.over) drawOver(c, w, h); }
   }
   PG.onDown = function () { if (st.state === 'play') drop(); };
   PG.setup(document.getElementById('c'), update, render);
   window.__sky = { st: st, start: startRun, drop: drop, update: update, gameOver: gameOver, revive: revive, swayOff: swayOff };
-  PG.init({ id: 'skyline_snap', version: '1.4.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
-    st.floors = [{ x: 0, w: BASE_W, i: 0 }]; PG.music();
+  PG.init({ id: 'skyline_snap', version: '1.5.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
+    st.floors = [{ x: 0, w: BASE_W, i: 0 }]; PG.music('menu');
   });
 })();

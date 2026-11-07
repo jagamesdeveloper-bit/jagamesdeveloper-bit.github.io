@@ -3,7 +3,8 @@ window.PG_ASSETS = {
   "tap": {
    "files": [
     "audio/tap_0.mp3",
-    "audio/tap_1.mp3"
+    "audio/tap_1.mp3",
+    "audio/tap_2.mp3"
    ],
    "vol": 0.55
   },
@@ -13,61 +14,76 @@ window.PG_ASSETS = {
     "audio/drop_1.mp3",
     "audio/drop_2.mp3"
    ],
-   "vol": 0.9
+   "vol": 0.8
   },
   "merge": {
    "files": [
     "audio/merge_0.mp3",
-    "audio/merge_1.mp3"
+    "audio/merge_1.mp3",
+    "audio/merge_2.mp3",
+    "audio/merge_3.mp3"
    ],
-   "vol": 0.8
+   "vol": 0.7
   },
   "win": {
    "files": [
-    "audio/win_0.mp3"
+    "audio/win_0.mp3",
+    "audio/win_1.mp3",
+    "audio/win_2.mp3"
    ],
    "vol": 0.7
   },
   "golden": {
    "files": [
-    "audio/golden_0.mp3"
+    "audio/golden_0.mp3",
+    "audio/golden_1.mp3"
    ],
-   "vol": 0.8
+   "vol": 0.7
   },
   "lose": {
    "files": [
-    "audio/lose_0.mp3"
+    "audio/lose_0.mp3",
+    "audio/lose_1.mp3"
    ],
-   "vol": 0.7
+   "vol": 0.6
   },
   "whoosh": {
    "files": [
     "audio/whoosh_0.mp3",
-    "audio/whoosh_1.mp3"
+    "audio/whoosh_1.mp3",
+    "audio/whoosh_2.mp3",
+    "audio/whoosh_3.mp3"
    ],
-   "vol": 0.7
+   "vol": 0.6
   },
   "coin": {
    "files": [
     "audio/coin_0.mp3",
-    "audio/coin_1.mp3"
+    "audio/coin_1.mp3",
+    "audio/coin_2.mp3",
+    "audio/coin_3.mp3"
    ],
    "vol": 0.6
   },
   "err": {
    "files": [
-    "audio/err_0.mp3"
+    "audio/err_0.mp3",
+    "audio/err_1.mp3"
    ],
    "vol": 0.5
   },
   "upgrade": {
    "files": [
-    "audio/upgrade_0.mp3"
+    "audio/upgrade_0.mp3",
+    "audio/upgrade_1.mp3",
+    "audio/upgrade_2.mp3"
    ],
    "vol": 0.6
   }
  },
- "music": "audio/music.mp3",
+ "music": "audio/music_play.mp3",
+ "musicMenu": "audio/music_menu.mp3",
+ "musicPlay": "audio/music_play.mp3",
  "fonts": [
   {
    "family": "Grandstander",

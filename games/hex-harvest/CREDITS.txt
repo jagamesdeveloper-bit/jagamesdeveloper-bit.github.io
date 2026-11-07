@@ -1,3 +1,14 @@
-Sound effects: Kenney (www.kenney.nl), CC0 1.0
-Music: "flowerbed-fields-loop" by Zane Little Music, https://opengameart.org/content/flowerbed-fields-loop, CC0 1.0
+All audio is recorded material released under CC0 1.0 (public domain dedication), sourced from OpenGameArt.org.
+
+Sound effects:
+  "80 CC0 RPG SFX" by NoirPhantom89, https://opengameart.org/content/80-cc0-rpg-sfx
+  "100 CC0 SFX" by aijikl, https://opengameart.org/content/100-cc0-sfx
+  "100 CC0 SFX #2" by geekygnome, https://opengameart.org/content/100-cc0-sfx-2
+  "Different steps on wood, stone, leaves, gravel and mud" by qubodup, https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud
+  "Swishes Sound Pack" by qubodup, https://opengameart.org/content/swishes-sound-pack
+
+Music:
+  Menu: "Cozy Puzzle Title", https://opengameart.org/content/cozy-puzzle-title
+  Gameplay: "Cozy Puzzle In-Game 2", https://opengameart.org/content/cozy-puzzle-in-game-2
+
 Fonts: Grandstander, Nunito, SIL Open Font License 1.1 (see fonts/licenses)

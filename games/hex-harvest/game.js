@@ -189,6 +189,7 @@
   function place(c) {
     if (!c || c.t !== -1 || st.over) return;
     st.moves++; c.t = st.hand; c.pop = 0; PG.sfx('drop', 0.95 + Math.random() * 0.1);
+    var dp = cellXY(c); rings.push({ x: dp.x, y: dp.y + geo.s * 0.15, t: 0, c: 'rgba(120,84,52,', r: 0.8 }); PG.burst(dp.x, dp.y + geo.s * 0.2, 6, { colors: ['#8a6a48', '#a98a62', '#6b4f33'], up: 40, g: 260, life: 0.5, s0: 1.5, s1: 3.2, spread: 2.4 });
     var chain = 0, cur = c;
     for (;;) {
       var g = group(cur);
@@ -204,7 +205,7 @@
       var pts2 = TIERS[t + 1].v * g.length * chain; st.score += pts2;
       g.forEach(function (x) { if (x !== cur) anims.push({ t: 0, from: cellXY(x), to: cellXY(cur), tier: t }); x.t = -1; });
       cur.t = t + 1; cur.pop = 0; cur.glow = 1;
-      var cp = cellXY(cur);
+      var cp = cellXY(cur); rings.push({ x: cp.x, y: cp.y + geo.s * 0.1, t: 0, c: 'rgba(242,193,78,', r: 1.9 + chain * 0.35 });
       PG.burst(cp.x, cp.y - geo.s * 0.5, 10 + chain * 5, { colors: ['#9cc27b', '#f2c14e', '#e88d8d', '#fff6e0'], up: 110, g: 160, life: 1.1, s0: 2, s1: 5, shape: leafShape, drag: 1.2 });
       PG.popText(cp.x, cp.y - geo.s * 1.25, '+' + PG.fmt(pts2), chain > 1 ? '#c2571a' : INK, 19 + chain * 3);
       if (chain > 1) PG.popText(cp.x, cp.y - geo.s * 1.85, 'chain x' + chain, '#8e5aa8', 18);
@@ -311,6 +312,11 @@
 
   // little island residents: a ladybug strolling the tiles, a bee orbiting the garden, dew glints on the grass
   var LADY = [[0, 0], [1, 0], [1, 1], [0, 2], [-1, 2], [-2, 2], [-2, 1], [-1, 0], [0, -1], [1, -1], [2, -1], [2, 0]];
+  var rings = [];
+  function drawRings(c) {
+    for (var i = rings.length - 1; i >= 0; i--) { var r = rings[i]; r.t += 0.035; if (r.t >= 1) { rings.splice(i, 1); continue; }
+      var k = PG.ease.out(r.t), a = (1 - r.t) * 0.75; c.save(); c.translate(r.x, r.y); c.scale(1, 0.55); c.strokeStyle = r.c + a + ')'; c.lineWidth = geo.s * 0.14 * (1 - r.t) + 1; c.beginPath(); c.arc(0, 0, geo.s * r.r * k, 0, TAU); c.stroke(); c.restore(); }
+  }
   function drawResidents(c, t) {
     if (!geo.s || !cellAt['0,0']) return;
     // grass tufts swaying on bare tiles
@@ -426,7 +432,7 @@
     var canResume = PG.save.board && PG.save.board.t;
     if (U.button(c, w / 2 - bw / 2, y0, bw, bh, canResume ? 'Continue' : 'Plant', { color: '#c97a4e' })) PG.go(function () { newGame(!!canResume); });
     if (canResume && U.button(c, w / 2 - bw / 2, y0 + bh + 12 * sc, bw, bh * 0.8, 'New island', { color: '#7fa36a' })) PG.go(function () { PG.save.board = null; newGame(false); });
-    var info = PG.save.best ? 'Best ' + PG.fmt(PG.save.best) + '   Islands grown ' + (PG.save.games || 0) : 'Music: Zane Little  Sounds: Kenney';
+    var info = PG.save.best ? 'Best ' + PG.fmt(PG.save.best) + '   Islands grown ' + (PG.save.games || 0) : 'Audio: CC0 recordings, OpenGameArt';
     U.text(c, info, w / 2, h - 18 * sc, 12 * sc, INK, 'center', { font: 'body', shadow: false });
   }
   function gameOver(c, w, h, t) {
@@ -467,7 +473,7 @@
     drawWorld(c, w, h, t);
     drawIsland(c, t);
     anims.forEach(function (a) { var e = PG.ease.io(a.t); drawCrop(c, a.tier, PG.lerp(a.from.x, a.to.x, e), PG.lerp(a.from.y, a.to.y, e) - Math.sin(a.t * 3.14) * geo.s, geo.s * 1.18, t, 0, 1 - a.t * 0.5); });
-    drawResidents(c, t);
+    drawResidents(c, t); drawRings(c);
     drawCreatures(c, w, h, t);
     PG.drawParts(c); PG.drawPops(c);
     c.restore();
@@ -477,7 +483,7 @@
   [[0, 0, 7], [1, 0, 5], [-1, 0, 3], [0, 1, 2], [-1, 1, 1], [1, -1, 4], [0, -1, 6], [2, -1, 0], [-2, 1, 2], [-1, 2, 1], [2, 0, 3], [1, 1, 0], [-2, 2, 4], [0, 2, 1], [-3, 2, 0], [3, -2, 2]].forEach(function (d) { cellAt[d[0] + ',' + d[1]].t = d[2]; });
   PG.setup(document.getElementById('c'), update, render);
   window.__hex = { cells: cells, st: st, newGame: newGame, place: place, cellAt: cellAt };
-  PG.init({ id: 'hex_harvest', version: '1.4.0', defaults: { best: 0, games: 0, found: 0, board: null, muted: false } }).then(function () {
-    PG.music();
+  PG.init({ id: 'hex_harvest', version: '1.5.0', defaults: { best: 0, games: 0, found: 0, board: null, muted: false } }).then(function () {
+    PG.music('menu');
   });
 })();

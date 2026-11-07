@@ -38,7 +38,7 @@
     if (st.boss) PG.sfx('boss');
     PG.msg('level_started', { level: String(st.stage) }); PG.track('progression_started', { step_id: 'stage', step_index: Math.min(st.stage, 60) });
   }
-  function startRun() { st.stage = 1; st.coinsRun = 0; st.lives = PG.upLevel('life'); st.usedCont = false; st.dbl = false; st.runIdx++; st.bestHit = false; st.tut = !PG.save.runs; st.deadT = 0; st.hurtPin = null; PG.playing = true; PG.parts = []; PG.pops = []; newStage(); PG.track('progression_started', { step_id: 'run', step_index: Math.min(st.runIdx, 50) }); }
+  function startRun() { st.stage = 1; st.coinsRun = 0; st.lives = PG.upLevel('life') + (st.boost ? 1 : 0); st.boost = 0; st.usedCont = false; st.dbl = false; st.runIdx++; st.bestHit = false; st.tut = !PG.save.runs; st.deadT = 0; st.hurtPin = null; PG.playing = true; PG.parts = []; PG.pops = []; newStage(); PG.track('progression_started', { step_id: 'run', step_index: Math.min(st.runIdx, 50) }); }
   function throwPin() {
     if (st.state !== 'play' || st.left <= 0 || st.scaleIn < 0.8) return;
     if (st.fly.length >= 3) return;
@@ -261,6 +261,8 @@
     for (var i = 0; i < nb; i++) { var a = i * TAU / nb; bulb(c, Math.cos(a) * r * 0.93, Math.sin(a) * r * 0.93, Math.max(2, r * 0.035), st.boss ? (i + chase) % 2 === 0 : (i + chase) % 4 !== 0); }
     c.restore();
     var sh = wheelShade(r); c.drawImage(sh, -sh.lw / 2, -sh.lh / 2, sh.lw, sh.lh);
+    // a slow specular glint sweeping across the glossy wheel face
+    c.save(); c.beginPath(); c.arc(0, 0, r * 0.97, 0, TAU); c.clip(); c.rotate(-0.45); var gx = (((t * 0.22) % 2.4) - 1.2) * r * 1.5, gg = c.createLinearGradient(gx - r * 0.25, 0, gx + r * 0.25, 0); gg.addColorStop(0, 'rgba(255,255,255,0)'); gg.addColorStop(0.5, 'rgba(255,255,255,.2)'); gg.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gg; c.fillRect(gx - r * 0.3, -r * 1.2, r * 0.6, r * 2.4); c.restore();
     c.fillStyle = NAVY; c.beginPath(); c.arc(0, 0, r * 0.1, 0, TAU); c.fill(); c.fillStyle = MUST; star(c, 0, 0, r * 0.07, 5, 0.45, st.rot * D2R); c.fill();
     if (st.boss) { c.save(); c.rotate(-st.rot * D2R * 0.5); c.strokeStyle = RED; c.lineWidth = r * 0.03; c.setLineDash([r * 0.1, r * 0.08]); c.beginPath(); c.arc(0, 0, r * 1.1, 0, TAU); c.stroke(); c.setLineDash([]); c.restore(); }
     c.restore();
@@ -347,11 +349,13 @@
     drawSignTitle(c, col, land ? 24 * sc : Math.max(26 * sc, h * 0.04), Math.min(land ? w * 0.42 : w * 0.82, 340 * sc), t);
     var bw = Math.min(220 * sc, w * 0.6), bh = 56 * sc, y0 = land ? h * 0.5 : h * 0.71;
     if (U.button(c, col - bw / 2, y0, bw, bh, 'Throw!', { color: RED })) PG.go(startRun);
+    if (!st.boost && PG.canOffer('boost', 0)) { if (PG.adChip(c, col + bw / 2 + 36 * sc, y0 + bh / 2 - 8 * sc, 22 * sc, 'EXTRA LIFE', TEAL, t)) PG.rewarded('boost').then(function (ok) { if (ok) { st.boost = 1; PG.sfx('upgrade'); PG.track('rewarded_boost', { game: 'pin' }); } }); }
+    else if (st.boost) inked(c, 'LIFE READY', col + bw / 2 + 36 * sc, y0 + bh / 2, 10 * sc, CREAM);
     if (U.button(c, col - bw / 2, y0 + bh + 14 * sc, bw, bh * 0.8, 'Upgrades', { color: MUST })) { st.state = 'upgrades'; PG.track('shop_opened', { source: 'menu' }); }
     var ly = y0 + bh * 1.8 + 40 * sc; token(c, col - 40 * sc, ly, 11 * sc); inked(c, PG.fmt(PG.save.coins), col - 22 * sc, ly + 1, 19 * sc, CREAM, { align: 'left' });
     PG.dailyGift(c, col - bw / 2, ly + 44 * sc, bw, 40 * sc, 10, { color: TEAL, size: 14 * sc });
     if (PG.save.best) inked(c, 'BEST STAGE ' + PG.save.best, col, ly + 26 * sc, 11 * sc, CREAM);
-    U.text(c, 'MUSIC: PRO SENSORY  SOUNDS: KENNEY', w / 2, h - 22 * sc, 8.5 * sc, 'rgba(245,230,200,.75)', 'center', { shadow: false });
+    U.text(c, 'AUDIO: CC0 RECORDINGS, OPENGAMEART', w / 2, h - 22 * sc, 8.5 * sc, 'rgba(245,230,200,.75)', 'center', { shadow: false });
   }
   function drawSignTitle(c, cx, top, w, t) { // marquee sign with the title in Bungee Shade
     var sc = PG.scale(), h = w * 0.5, x = cx - w / 2;
@@ -426,7 +430,7 @@
   PG.setup(document.getElementById('c'), update, render);
   window.__pin = { st: st, throwPin: throwPin, start: startRun, geo: geo, update: update, stick: stick };
   decorate();
-  PG.init({ id: 'pin_the_tail', version: '1.4.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
-    PG.music(); layout(PG.w, PG.h); st.scaleIn = 0; st.nextC = RED;
+  PG.init({ id: 'pin_the_tail', version: '1.5.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
+    PG.music('menu'); layout(PG.w, PG.h); st.scaleIn = 0; st.nextC = RED;
   });
 })();

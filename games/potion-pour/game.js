@@ -274,6 +274,12 @@
       c.strokeStyle = COLORS[a.color]; c.lineWidth = tw * 0.16; c.stroke(); c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = tw * 0.05; c.stroke();
       if (Math.random() < 0.5) PG.parts.push({ x: tp2.x + PG.rand(-tw * 0.2, tw * 0.2), y: tgtLevel, vx: PG.rand(-40, 40), vy: PG.rand(-90, -30), life: 0.4, t: 0, size: 2.2, color: COLORS[a.color], g: 300, shape: 'c' });
     }
+    // completed flasks glow and throw off little twinkles
+    if (isDone && T.length && !(a && (a.from === i || a.to === i))) {
+      var gg2 = c.createRadialGradient(px, py + lift + th * 0.5, 0, px, py + lift + th * 0.5, th * 0.7); gg2.addColorStop(0, hexA(COLORS[topC], 0.22 + 0.08 * Math.sin(t * 2.4 + i))); gg2.addColorStop(1, hexA(COLORS[topC], 0)); c.fillStyle = gg2; c.fillRect(px - th * 0.7, py + lift - th * 0.2, th * 1.4, th * 1.4);
+      for (var tw2 = 0; tw2 < 3; tw2++) { var ph2 = (t * 0.6 + tw2 * 0.33 + i * 0.21) % 1, tx2 = px + (PG.hash(i * 7 + tw2) - 0.5) * tw * 1.5, ty2 = py + lift + th * (0.15 + PG.hash(i * 3 + tw2 * 5) * 0.7), ta = Math.sin(ph2 * Math.PI), ts = tw * 0.09 * ta;
+        c.fillStyle = 'rgba(255,248,214,' + ta * 0.85 + ')'; c.beginPath(); c.moveTo(tx2, ty2 - ts * 2); c.lineTo(tx2 + ts * 0.5, ty2); c.lineTo(tx2, ty2 + ts * 2); c.lineTo(tx2 - ts * 0.5, ty2); c.closePath(); c.fill(); c.beginPath(); c.moveTo(tx2 - ts * 2, ty2); c.lineTo(tx2, ty2 + ts * 0.5); c.lineTo(tx2 + ts * 2, ty2); c.lineTo(tx2, ty2 - ts * 0.5); c.closePath(); c.fill(); }
+    }
     // finished potions breathe out slow curls of coloured steam
     if (isDone && T.length && !(a && (a.from === i || a.to === i))) {
       c.save(); c.lineCap = 'round'; for (var sp = 0; sp < 3; sp++) { var ph = ((t * 0.38 + sp / 3 + i * 0.17) % 1), sx = px + Math.sin(t * 1.3 + sp * 2 + ph * 5) * tw * 0.22 * ph, sy = py + lift - ph * th * 0.34 - 4; c.strokeStyle = hexA(COLORS[topC], 0.34 * (1 - ph)); c.lineWidth = tw * (0.1 + ph * 0.1); c.beginPath(); c.moveTo(px + (sp - 1) * tw * 0.08, py + lift - 2); c.quadraticCurveTo(sx - tw * 0.18, (py + sy) / 2 + lift * 0.3, sx, sy); c.stroke(); } c.restore();
@@ -362,7 +368,7 @@
     var bw = Math.min(250 * sc, w * 0.72), bh = 58 * sc, y0 = Math.max(shy + 30 * sc, h - 82 * sc - bh * 1.9 - 24 * sc), lvl = PG.save.level || 1;
     if (U.button(c, w / 2 - bw / 2, y0, bw, bh, lvl > 1 ? 'Continue  ·  Lv ' + lvl : 'Begin', { color: '#2d6d6a', size: 22 * sc })) PG.go(function () { startLevel(lvl); });
     if (lvl > 1 && U.button(c, w / 2 - bw / 2, y0 + bh + 12 * sc, bw, bh * 0.76, 'Start over at level 1', { color: WINE, size: 15 * sc })) PG.go(function () { PG.save.level = 1; startLevel(1); });
-    U.text(c, PG.save.best ? 'Highest brewed: level ' + PG.save.best : 'Music: mintodog   Sounds: Kenney', w / 2, h - 30 * sc, 13 * sc, '#bfa77c', 'center', { font: 'body', shadow: false });
+    U.text(c, PG.save.best ? 'Highest brewed: level ' + PG.save.best : 'Audio: CC0 recordings, OpenGameArt', w / 2, h - 30 * sc, 13 * sc, '#bfa77c', 'center', { font: 'body', shadow: false });
   }
   function update(dt) {
     PG.updateParts(dt); PG.updatePops(dt); st.shake = Math.max(0, st.shake - dt * 30); if (st.won) st.winT += dt;
@@ -383,7 +389,7 @@
   };
   PG.setup(document.getElementById('c'), update, render);
   window.__potion = { st: st, tap: tapTube, start: startLevel, solved: solved, canPour: canPour, topRun: topRun, update: update, done: done };
-  PG.init({ id: 'potion_pour', version: '1.4.0', defaults: { level: 1, best: 0, muted: false } }).then(function () {
-    PG.music(); st.tubes = [];
+  PG.init({ id: 'potion_pour', version: '1.5.0', defaults: { level: 1, best: 0, muted: false } }).then(function () {
+    PG.music('menu'); st.tubes = [];
   });
 })();

@@ -111,8 +111,8 @@
     return new Promise(function (resolve) {
       if (!B || adBusy || !bridgeCall(function () { return B.advertisement.isInterstitialSupported; }, false)) { resolve(false); return; }
       adBusy = true; var opened = false, fin = false;
-      function end(ok) { if (fin) return; fin = true; adBusy = false; try { B.advertisement.off(B.EVENT_NAME.INTERSTITIAL_STATE_CHANGED, onS); } catch (e) { } clearTimeout(t1); clearTimeout(t2); resolve(ok); }
-      function onS(s) { if (s === 'opened') { opened = true; } else if (s === 'closed') end(true); else if (s === 'failed') end(false); }
+      function end(ok) { if (fin) return; fin = true; adBusy = false; PG.adOpen = false; PG._applyAudio(); try { B.advertisement.off(B.EVENT_NAME.INTERSTITIAL_STATE_CHANGED, onS); } catch (e) { } clearTimeout(t1); clearTimeout(t2); resolve(ok); }
+      function onS(s) { if (s === 'opened') { opened = true; PG.adOpen = true; PG._applyAudio(); } else if (s === 'closed') end(true); else if (s === 'failed') end(false); }
       var t1 = setTimeout(function () { if (!opened) end(false); }, 5000);
       var t2 = setTimeout(function () { end(false); }, 120000);
       try { B.advertisement.on(B.EVENT_NAME.INTERSTITIAL_STATE_CHANGED, onS); B.advertisement.showInterstitial(placement); } catch (e) { end(false); }
@@ -122,8 +122,8 @@
     return new Promise(function (resolve) {
       if (!B || adBusy || !PG.rewardedSupported()) { resolve(false); return; }
       adBusy = true; var opened = false, got = false, fin = false;
-      function end() { if (fin) return; fin = true; adBusy = false; try { B.advertisement.off(B.EVENT_NAME.REWARDED_STATE_CHANGED, onS); } catch (e) { } clearTimeout(t1); clearTimeout(t2); resolve(got); }
-      function onS(s) { if (s === 'opened') opened = true; else if (s === 'rewarded') got = true; else if (s === 'closed' || s === 'failed') end(); }
+      function end() { if (fin) return; fin = true; adBusy = false; PG.adOpen = false; PG._applyAudio(); try { B.advertisement.off(B.EVENT_NAME.REWARDED_STATE_CHANGED, onS); } catch (e) { } clearTimeout(t1); clearTimeout(t2); resolve(got); }
+      function onS(s) { if (s === 'opened') { opened = true; PG.adOpen = true; PG._applyAudio(); } else if (s === 'rewarded') got = true; else if (s === 'closed' || s === 'failed') end(); }
       var t1 = setTimeout(function () { if (!opened) end(); }, 5000);
       var t2 = setTimeout(end, 180000);
       try { B.advertisement.on(B.EVENT_NAME.REWARDED_STATE_CHANGED, onS); B.advertisement.showRewarded(placement); } catch (e) { end(); }
@@ -134,16 +134,26 @@
   /* ---------------- ad policy ----------------
      Interstitials only at natural breaks (game over -> play again), never in the first 25s of a session,
      and only after enough real play since the last one. Rewarded offers are opt-in and never gate progress. */
-  var lastAdPlay = -1, lastAdWall = -1e9, lastRewardWall = -1e9, breaks = 0;
+  var lastAdPlay = -1, lastAdWall = -1e9, lastRewardWall = -1e9, lastFailWall = -1e9, breaks = 0, offerSeenAt = {};
+  // impression log for rewarded offers (debounced), so conversion = rewarded_completed / ad_offer_shown can be read from telemetry
+  PG.offerSeen = function (key) { var n = performance.now(); if (n - (offerSeenAt[key] || -1e9) > 1500) PG.track('ad_offer_shown', { placement: key }); offerSeenAt[key] = n; };
   PG.adBreak = function (placement, minPlayMs) {
-    var need = minPlayMs || 40000, sinceAd = lastAdPlay < 0 ? PG.playMs : PG.playMs - lastAdPlay;
-    var rewardCool = performance.now() - lastRewardWall < 90000;
+    var need = minPlayMs || 40000, now = performance.now(), sinceAd = lastAdPlay < 0 ? PG.playMs : PG.playMs - lastAdPlay;
+    var rewardCool = now - lastRewardWall < 90000;
+    // the platform refuses interstitials closer than minimumDelayBetweenInterstitial (60 s of wall clock): do not burn attempts inside it
+    var wallOk = now - lastAdWall > 62000 && now - lastFailWall > 20000;
     breaks++;
-    if (PG.playMs < 25000 || sinceAd < need || rewardCool) return Promise.resolve(false);
-    return PG.interstitial(placement).then(function (shown) { if (shown) { lastAdPlay = PG.playMs; lastAdWall = performance.now(); PG.track('interstitial_shown', { placement: placement, play_s: Math.round(PG.playMs / 1000) }); } return shown; });
+    if (now < 100000 || PG.playMs < 45000 || sinceAd < need || rewardCool || !wallOk) return Promise.resolve(false);
+    var since = lastAdWall < -1e8 ? -1 : Math.round((now - lastAdWall) / 1000);
+    PG.track('interstitial_attempt', { placement: placement, play_s: Math.round(PG.playMs / 1000), since_ad_s: since });
+    return PG.interstitial(placement).then(function (shown) {
+      if (shown) { lastAdPlay = PG.playMs; lastAdWall = performance.now(); PG.track('interstitial_shown', { placement: placement, play_s: Math.round(PG.playMs / 1000), since_ad_s: since }); }
+      else { lastFailWall = performance.now(); PG.track('interstitial_failed', { placement: placement, since_ad_s: since }); }
+      return shown;
+    });
   };
   var rewardedRaw = PG.rewarded;
-  PG.rewarded = function (placement) { return rewardedRaw(placement).then(function (ok) { if (ok) { lastRewardWall = performance.now(); lastAdPlay = PG.playMs; PG.track('rewarded_completed', { placement: placement }); } return ok; }); };
+  PG.rewarded = function (placement) { return rewardedRaw(placement).then(function (ok) { if (!ok) PG.track('rewarded_failed', { placement: placement }); if (ok) { lastRewardWall = performance.now(); lastAdPlay = PG.playMs; PG.track('rewarded_completed', { placement: placement }); } return ok; }); };
   PG.canOffer = function (key, cooldownMs) { PG._offer = PG._offer || {}; return PG.rewardedSupported() && performance.now() - (PG._offer[key] || -1e9) > (cooldownMs || 0); };
   PG.markOffer = function (key) { PG._offer = PG._offer || {}; PG._offer[key] = performance.now(); };
   // small pulsing round "watch a video" badge; returns true when tapped
@@ -155,7 +165,7 @@
     c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = Math.max(2, r * 0.09); c.stroke();
     c.fillStyle = '#fff'; c.beginPath(); c.moveTo(-r * 0.22, -r * 0.42); c.lineTo(r * 0.5, 0); c.lineTo(-r * 0.22, r * 0.42); c.closePath(); c.fill();
     c.restore();
-    if (label) U.text(c, label, x, y + r + 12 * PG.scale(), 11 * PG.scale(), '#fff', 'center', { stroke: 'rgba(0,0,0,.55)', strokeWidth: 3 });
+    if (label) { U.text(c, label, x, y + r + 12 * PG.scale(), 11 * PG.scale(), '#fff', 'center', { stroke: 'rgba(0,0,0,.55)', strokeWidth: 3 }); PG.offerSeen('chip_' + label); }
     return hit;
   };
   // shop offer: watch a video for a coin bonus worth about half of the next upgrade; returns true after paying out
@@ -243,10 +253,10 @@
     if (dtms < 15.5) return; // cap at ~60fps on high refresh panels
     lastT = t;
     var dt = Math.min(dtms, 50) / 1000;
-    var halt = PG.paused || document.hidden;
+    var halt = PG.paused || PG.adOpen || document.hidden;
     if (!PG._inited) { ctx.setTransform(PG.dpr, 0, 0, PG.dpr, 0, 0); drawLoading(ctx, t / 1000); return; }
     if (!halt) {
-      PG.time += dt;
+      PG.time += dt; PG._musicAuto(dt);
       if (!PG.userPaused) userUpdate(dt);
       PG._perfFrame(dtms);
       updateTransition(dt);
@@ -333,6 +343,7 @@
   // immediate-mode button: theme draws it, returns true when clicked
   U.button = function (c, x, y, w, h, label, o) {
     o = o || {}; var s = U.state(x, y, w, h); s.disabled = !!o.disabled;
+    if (label && /^Ad:|\(ad\)|^Daily gift/i.test(label)) PG.offerSeen(label.replace(/[+x]?\d+/g, '#').trim().slice(0, 40));
     c.save(); (PG.theme.button || defaultButton)(c, x, y, w, h, label, o, s); c.restore();
     if (!o.disabled && U.hit(x, y, w, h)) return true;
     return false;
@@ -445,7 +456,7 @@
   PG.transitioning = function () { return trans.t > 0; };
 
   /* ---------------- audio: samples + music (Kenney / OpenGameArt CC0), synth fallback ---------------- */
-  var AC = null, master = null, sfxGain = null, musicGain = null, buffers = {}, musicEl = null, musicNode = null, musicWanted = false, synthCfg = null, synthTimer = 0, synthStep = 0;
+  var AC = null, master = null, sfxGain = null, musicGain = null, buffers = {}, musicEl = null, musicNode = null, musicWanted = false;
   function initAudio() {
     try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; return; }
     master = AC.createGain(); master.connect(AC.destination);
@@ -475,7 +486,7 @@
     if (!PG._unlocked) { PG._unlocked = true; try { var b = AC.createBuffer(1, 1, 22050), s = AC.createBufferSource(); s.buffer = b; s.connect(AC.destination); s.start(0); } catch (e) { } }
     PG._applyAudio();
   };
-  function audible() { return !PG.muted && PG.platAudio && !PG.paused && !document.hidden; }
+  function audible() { return !PG.muted && PG.platAudio && !PG.paused && !PG.adOpen && !document.hidden; }
   PG._applyAudio = function () {
     if (!AC) return;
     var on = audible();
@@ -485,22 +496,9 @@
     var playMusic = on && musicWanted && !PG.musicOff && PG._unlocked;
     if (musicEl) { if (playMusic && musicEl.paused) { var p = musicEl.play(); if (p && p.catch) p.catch(function () { }); } else if (!playMusic && !musicEl.paused) musicEl.pause(); }
   };
-  function tone(f, t0, dur, type, vol, slide, dest) {
-    var o = AC.createOscillator(), g = AC.createGain(); o.type = type || 'sine'; o.frequency.setValueAtTime(f, t0);
-    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, f * slide), t0 + dur);
-    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g); g.connect(dest || sfxGain); o.start(t0); o.stop(t0 + dur + 0.05);
-  }
-  function noise(t0, dur, vol, hp, lp) {
-    var n = Math.floor(AC.sampleRate * dur), buf = AC.createBuffer(1, n, AC.sampleRate), d = buf.getChannelData(0);
-    for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2);
-    var s = AC.createBufferSource(); s.buffer = buf; var g = AC.createGain(); g.gain.value = vol; var f = AC.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = hp || 800;
-    var last = f; if (lp) { var f2 = AC.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = lp; f.connect(f2); last = f2; }
-    s.connect(f); last.connect(g); g.connect(sfxGain); s.start(t0);
-  }
-  var lastSfx = {};
+  var lastSfx = {}; PG._missing = {};
   PG.sfx = function (name, pitch, vol) {
-    if (!AC || PG.muted || PG.sfxOff || !PG.platAudio || PG.paused || AC.state !== 'running') return;
+    if (!AC || PG.muted || PG.sfxOff || !PG.platAudio || PG.paused || PG.adOpen || AC.state !== 'running') return;
     var now = AC.currentTime; if (lastSfx[name] && now - lastSfx[name] < 0.03) return; lastSfx[name] = now;
     var p = pitch || 1, b = buffers[name];
     if (name === 'win' || name === 'lose' || name === 'golden' || name === 'ace' || name === 'boss') PG.musicDuck(0.3, 2.2);
@@ -509,50 +507,26 @@
       var src = AC.createBufferSource(), g = AC.createGain(); src.buffer = b.list[i]; src.playbackRate.value = p * (0.96 + Math.random() * 0.08);
       g.gain.value = b.vol * (vol === undefined ? 1 : vol); src.connect(g); g.connect(sfxGain); src.start(now); return;
     }
-    synth(name, p, now);
+    if (PG.debugAudio && !PG._missing[name]) { PG._missing[name] = 1; console.warn('no recorded sound for', name); }
   };
-  function synth(name, p, now) {
-    switch (name) {
-      case 'tap': tone(520 * p, now, 0.06, 'triangle', 0.12, 1.3); break;
-      case 'coin': tone(988 * p, now, 0.07, 'square', 0.06); tone(1319 * p, now + 0.06, 0.14, 'square', 0.06); break;
-      case 'pop': noise(now, 0.06, 0.4, 900, 4000); tone(420 * p, now, 0.08, 'sine', 0.22, 2); break;
-      case 'merge': tone(330 * p, now, 0.1, 'triangle', 0.2, 1.5); tone(495 * p, now + 0.07, 0.16, 'triangle', 0.18, 1.2); break;
-      case 'hit': noise(now, 0.1, 0.3, 400, 3000); tone(140 * p, now, 0.1, 'square', 0.1, 0.5); break;
-      case 'boom': noise(now, 0.45, 0.5, 60, 1200); tone(80 * p, now, 0.35, 'sine', 0.35, 0.4); break;
-      case 'splash': noise(now, 0.35, 0.35, 300, 2500); noise(now + 0.05, 0.25, 0.2, 1500); break;
-      case 'shoot': tone(700 * p, now, 0.08, 'sawtooth', 0.07, 0.4); break;
-      case 'jump': tone(300 * p, now, 0.15, 'sine', 0.25, 2.4); break;
-      case 'land': noise(now, 0.07, 0.25, 200, 1500); break;
-      case 'win': case 'golden': case 'ace': [523, 659, 784, 1047].forEach(function (f, i) { tone(f * p, now + i * 0.09, 0.22, 'triangle', 0.2); }); break;
-      case 'lose': [392, 330, 262, 196].forEach(function (f, i) { tone(f * p, now + i * 0.13, 0.28, 'triangle', 0.16); }); break;
-      case 'whoosh': noise(now, 0.2, 0.14, 900, 3500); break;
-      case 'drop': tone(220 * p, now, 0.12, 'sine', 0.25, 0.5); break;
-      case 'perfect': tone(880 * p, now, 0.1, 'triangle', 0.2); tone(1320 * p, now + 0.08, 0.2, 'triangle', 0.2); break;
-      case 'upgrade': [440, 554, 659, 880].forEach(function (f, i) { tone(f * p, now + i * 0.06, 0.16, 'triangle', 0.12); }); break;
-      case 'err': tone(160, now, 0.16, 'square', 0.08); break;
-      case 'ghost': tone(300 * p, now, 0.5, 'sine', 0.15, 0.5); tone(306 * p, now, 0.5, 'sine', 0.15, 0.5); break;
-      case 'bell': tone(1568 * p, now, 0.45, 'sine', 0.15); tone(2093 * p, now, 0.3, 'sine', 0.08); break;
-      default: tone(440 * p, now, 0.06, 'sine', 0.12);
-    }
-  }
-  // Background music: the game's CC0 track if it ships one, otherwise a soft generative loop.
-  PG.music = function (cfg) {
-    if (!AC) return; musicWanted = true;
-    if (ASSETS.music) {
-      if (!musicEl) {
-        musicEl = new Audio(ASSETS.music); musicEl.loop = true; musicEl.preload = 'auto'; musicEl.crossOrigin = 'anonymous';
-        try { musicNode = AC.createMediaElementSource(musicEl); musicNode.connect(musicGain); } catch (e) { musicEl.volume = PG.theme.musicVolume; }
-      }
-      PG._applyAudio(); return;
-    }
-    synthCfg = cfg; clearInterval(synthTimer); if (!cfg) return; var stepMs = 60000 / cfg.bpm / 2;
-    synthTimer = setInterval(function () {
-      if (!AC || PG.muted || PG.musicOff || !PG.platAudio || PG.paused || document.hidden || AC.state !== 'running') return;
-      var now = AC.currentTime, sc = cfg.scale, i = synthStep++;
-      var deg = [0, 2, 4, 2, 5, 4, 2, 1, 0, 3, 5, 3, 6, 5, 3, 2][i % 16] + (Math.floor(i / 16) % 2 ? 1 : 0);
-      var oct = Math.floor(deg / sc.length), f = cfg.root * Math.pow(2, (sc[deg % sc.length] + 12 * oct) / 12);
-      if (i % 2 === 0 || Math.random() < 0.45) tone(f * 2, now, 0.45, cfg.wave || 'triangle', (cfg.vol || 0.07), 1, musicGain);
-    }, stepMs);
+  // Background music: recorded CC0 tracks only. PG.music('menu'|'play') picks the track; PG._musicAuto switches on its own.
+  var musicSrc = '', musicKind = '', kindWanted = '', kindT = 0;
+  PG.music = function (kind) {
+    if (!AC) return; musicWanted = true; kind = kind === 'menu' ? 'menu' : 'play';
+    var src = kind === 'menu' ? (ASSETS.musicMenu || ASSETS.music) : (ASSETS.musicPlay || ASSETS.music); if (!src) return;
+    musicKind = kind;
+    if (!musicEl) {
+      musicEl = new Audio(src); musicSrc = src; musicEl.loop = true; musicEl.preload = 'auto'; musicEl.crossOrigin = 'anonymous';
+      try { musicNode = AC.createMediaElementSource(musicEl); musicNode.connect(musicGain); } catch (e) { musicEl.volume = PG.theme.musicVolume; }
+    } else if (musicSrc !== src) { musicSrc = src; musicEl.src = src; musicEl.load(); }
+    PG._applyAudio();
+  };
+  // menu track while idle, gameplay track while a run is active (back to menu 2.5 s after a run ends)
+  PG._musicAuto = function (dt) {
+    if (!musicWanted || !ASSETS.musicMenu || !ASSETS.musicPlay) return;
+    var want = PG.playing ? 'play' : 'menu'; if (want === musicKind) { kindT = 0; return; }
+    if (want === 'play') { PG.music('play'); return; }
+    kindT += dt; if (kindT > 2.5) { kindT = 0; PG.music('menu'); }
   };
   PG.musicDuck = function (amount, time) { if (!musicGain || !AC) return; var g = musicGain.gain, now = AC.currentTime, v = PG.theme.musicVolume; g.cancelScheduledValues(now); g.setValueAtTime(v * amount, now); g.linearRampToValueAtTime(v, now + (time || 1.2)); };
 
@@ -592,7 +566,7 @@
   PG.fmt = function (n) { n = Math.floor(n); if (n >= 1e12) return (n / 1e12).toFixed(1) + 'T'; if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B'; if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (n >= 1e4) return (n / 1e3).toFixed(1) + 'K'; return String(n); };
   // animated counters: PG.count('score', target) returns a smoothly rising display value
   var counts = {};
-  PG.count = function (key, target) { var c = counts[key]; if (!c || target < c.v) { c = counts[key] = { v: target, t: target }; } c.t = target; return c.v; };
+  PG.count = function (key, target) { var c = counts[key]; if (!c || target < c.v) { c = counts[key] = { v: target, t: target }; } c.t = target; return Math.floor(target) === target ? Math.floor(c.v) : c.v; };
   function updateCounts(dt) { for (var k in counts) { var c = counts[k]; if (c.v < c.t) c.v = Math.min(c.t, c.v + Math.max(1, (c.t - c.v) * Math.min(1, dt * 9))); } }
   // generic particle system (shape: c circle, s square, or a function(c,p,k))
   PG.parts = [];

@@ -60,7 +60,7 @@
   function firstHook() { return { x: 0, y: 0, pts: [], tg: 0, wob: 0, side: -1, flower: '#f25f5c' }; }
   function startRun() {
     st.state = 'play'; st.hooks = [firstHook()]; st.cur = 0; st.phase = 0.9; st.flying = false; st.leaves = []; st.bees = []; st.coinsRun = 0; st.dist = 0; st.perfects = 0; st.streak = 0;
-    st.rescues = lvl('vine'); st.doubled = false; st.usedRev = false; st.bestHit = false; st.runIdx++; st.deadT = 0; st.t = 0; st.stretch = 0;
+    st.rescues = lvl('vine') + (st.boost ? 1 : 0); st.boost = 0; st.doubled = false; st.usedRev = false; st.bestHit = false; st.runIdx++; st.deadT = 0; st.t = 0; st.stretch = 0;
     st.body = bodyOnHook(st.hooks[0], theta()); st.rot = -theta(); extendWorld(); PG.playing = true; PG.parts = []; PG.pops = [];
     cam.x = st.body.x + 60; cam.y = st.body.y - 40; st.tut = PG.save.runs ? 0 : 1;
     PG.track('progression_started', { step_id: 'run', step_index: Math.min(st.runIdx, 50) }); PG.msg('level_started', { level: String(st.runIdx) });
@@ -238,6 +238,10 @@
   /* ---------- ambient life: drifting pollen, fireflies at dusk, butterflies and a passing toucan (screen space, light parallax) ---------- */
   function drawAmbient(c, w, h, pal, t) {
     var sc = scale, n = 22, par = cam.x * 0.35;
+    if (pal.day > 0.25) { // slow god rays through the canopy
+      c.save(); c.globalCompositeOperation = 'lighter'; for (var rb = 0; rb < 5; rb++) { var rx = ((rb * 0.23 + 0.06) * w - par * 0.05 + Math.sin(t * 0.18 + rb * 1.7) * 26 * sc), rw = (34 + rb * 9) * sc, ra = 0.07 * pal.day * (0.6 + 0.4 * Math.sin(t * 0.5 + rb * 2.1));
+        var rg = c.createLinearGradient(rx, 0, rx + rw * 1.6, h * 0.8); rg.addColorStop(0, 'rgba(255,244,190,' + ra + ')'); rg.addColorStop(1, 'rgba(255,244,190,0)'); c.fillStyle = rg; c.beginPath(); c.moveTo(rx, 0); c.lineTo(rx + rw, 0); c.lineTo(rx + rw * 2.8, h * 0.85); c.lineTo(rx + rw * 1.2, h * 0.85); c.closePath(); c.fill(); }
+      c.restore(); }
     for (var i = 0; i < n; i++) { // pollen motes / fireflies
       var gx = ((PG.hash(i * 3.1) * (w + 80) - par * (0.5 + PG.hash(i) * 0.6) + t * (6 + PG.hash(i * 7) * 10)) % (w + 80) + (w + 80)) % (w + 80) - 40, gy = PG.hash(i * 5.7) * h * 0.85 + Math.sin(t * 0.8 + i) * 14 * sc;
       var glow = 0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.7), night = 1 - pal.day, r = (1.4 + PG.hash(i * 2.3) * 1.8) * sc;
@@ -399,10 +403,12 @@
     var sw = Math.min(w * 0.8, 270 * sc); paperCard(c, w / 2 - sw / 2, ty + sz * 1.6, sw, 32 * sc, '#cfe8b5', DARK, -0.015); U.text(c, 'Very slow. Very determined.', w / 2, ty + sz * 1.6 + 17 * sc, 15 * sc, DARK, 'center', { font: 'body', shadow: false });
     var bw = Math.min(230 * sc, w * 0.7), bh = 58 * sc, y0 = h * 0.68;
     if (U.button(c, w / 2 - bw / 2, y0, bw, bh, 'Swing!', { color: '#ffd166' })) PG.go(startRun);
+    if (!st.boost && PG.canOffer('boost', 0)) { if (PG.adChip(c, w / 2 + bw / 2 + 36 * sc, y0 + bh / 2 - 8 * sc, 22 * sc, 'SAFETY VINE', '#6fae4f', t)) PG.rewarded('boost').then(function (ok) { if (ok) { st.boost = 1; PG.sfx('upgrade'); PG.track('rewarded_boost', { game: 'sloth' }); } }); }
+    else if (st.boost) U.text(c, 'Vine ready', w / 2 + bw / 2 + 36 * sc, y0 + bh / 2, 12 * sc, '#c8f2a8', 'center', { font: 'body', shadow: false, stroke: DARK, strokeWidth: 3 });
     if (U.button(c, w / 2 - bw / 2, y0 + bh + 14 * sc, bw, bh * 0.8, 'Upgrades', { color: '#9ad08a' })) { st.state = 'upgrades'; PG.track('shop_opened', { source: 'menu' }); }
     leafIcon(c, w / 2 - 34 * sc, y0 + bh * 2.42 + 6 * sc, 10 * sc); U.text(c, PG.fmt(PG.save.coins || 0), w / 2 - 18 * sc, y0 + bh * 2.42 + 7 * sc, 21 * sc, '#ffe07a', 'left', { stroke: DARK, strokeWidth: 4 * sc, shadow: false });
     PG.dailyGift(c, w / 2 - bw / 2, y0 + bh * 2.42 + 30 * sc, bw, 42 * sc, 12, { color: '#c7a6e6', size: 16 * sc });
-    U.text(c, PG.save.best ? 'Best ' + PG.save.best + ' m' : 'Music: emmntt   Sounds: Kenney', w / 2, h - 16 * sc, 12 * sc, CREAM, 'center', { font: 'body', shadow: false, stroke: DARK, strokeWidth: 3 });
+    U.text(c, PG.save.best ? 'Best ' + PG.save.best + ' m' : 'Audio: CC0 recordings, OpenGameArt', w / 2, h - 16 * sc, 12 * sc, CREAM, 'center', { font: 'body', shadow: false, stroke: DARK, strokeWidth: 3 });
   }
   function drawUpgrades(c, w, h) {
     var sc = PG.scale(); c.fillStyle = 'rgba(15,35,25,.55)'; c.fillRect(0, 0, w, h);
@@ -482,7 +488,7 @@
   PG.onDown = function () { tapAction(); };
   PG.setup(document.getElementById('c'), update, render);
   window.__sloth = { update: update, st: st, predict: predict, release: release, start: startRun, grabR: grabR, cam: cam };
-  PG.init({ id: 'sloth_sprint', version: '1.4.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
-    st.hooks = [firstHook()]; PG.music();
+  PG.init({ id: 'sloth_sprint', version: '1.5.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
+    st.hooks = [firstHook()]; PG.music('menu');
   });
 })();
