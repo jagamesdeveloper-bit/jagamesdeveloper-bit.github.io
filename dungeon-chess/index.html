@@ -1117,12 +1117,12 @@ function paintTile(x,y,delay){ // one board cell; seeded per tile so a scrolled 
     m.material=WALL_MAT;m.scale.set(0.96,h+0.3,0.96);m.position.set(x-3,h/2-0.15,y-4);
     m.rotation.y=(rng()-0.5)*0.12;m.castShadow=true;
   }else{
-    m.material=TILE_MATS[(x+y-(G.dist|0))&1][(rng()*4)|0];
+    m.material=TILE_MATS[(x+(G.ox|0)+y+(G.oy|0))&1][(rng()*4)|0];
     m.scale.set(0.985,0.3,0.985);m.position.set(x-3,-0.15+(rng()-0.5)*0.03,y-4);m.rotation.y=0;m.castShadow=false;
   }
   m.rotation.x=0;m.rotation.z=0;m.visible=true;
   u.fall=null;u.by=m.position.y;u.delay=delay!=null?delay:Math.hypot(x-3,y-8)*0.05+rng()*0.08;
-  if(t.k===2){u.fall={vy:0,spin:0};m.position.y=-11;m.visible=false;} // a hole shows the pit, not a tile
+  if(t.k>=2){u.fall={vy:0,spin:0};m.position.y=-11;m.visible=false;} // a hole shows the pit (k 2) or nothing at all (k 3, the void)
 }
 function buildDecor(){
   fragDecals.length=0;spikeList.length=0;
@@ -1216,6 +1216,11 @@ function makeItem(it){
     const shaft=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.3,0.1),gm);shaft.position.y=0.15;
     const head=cone(0.2,0.28,gm);head.position.y=0.44;
     arrow.add(shaft);arrow.add(head);g.add(arrow);g.userData.arrow=arrow;g.add(glowPlane(2.2,0xffd060,0.8));
+  }else if(it.t==='sign'){ // a wooden signpost; its words are drawn crisp on the HUD above it
+    const wood=TOON({color:0x8a5a30}),post=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.06,0.9,8),wood);post.position.y=0.45;post.castShadow=true;g.add(post);
+    const [ax,az]=D8[it.dir||0],board=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.2,0.05),TOON({color:0xd9b27a}));board.position.set(ax*0.12,0.78,az*0.12);
+    board.rotation.y=Math.atan2(ax,az)+Math.PI/2;board.castShadow=true;outlineOf(board,true);g.add(board);
+    const tip=cone(0.12,0.16,TOON({color:0xd9b27a}));tip.rotation.z=-Math.PI/2;tip.position.set(0.37,0,0);board.add(tip);
   }else if(it.t==='chest'){
     const wood=TOON({color:0xa8662c});
     const body=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.3,0.4),wood);body.position.y=0.15;body.castShadow=true;g.add(body);
@@ -1749,79 +1754,155 @@ function loadChess(){
   setupRoomVisuals();
 }
 /* ---------- explore mode: an endless path that scrolls under you ---------- */
-let runMode=['explore','chess'].includes(SET.mode)?SET.mode:'dungeon',scrollZ=0;
-const PATH_ROW=5,REGION=36,BOSS_EVERY=72; // the player is kept on row 5 or below; stepping past it scrolls the path
+let runMode=['explore','chess'].includes(SET.mode)?SET.mode:'dungeon',scrollZ=0,scrollX=0;
+/* the path is carved into an endless world map; the 7x9 board is a window onto it that follows you */
+const REGION=36,BOSS_EVERY=72,JUNCTION_EVERY=30,LOOKAHEAD=16,CRUMBLE_BEHIND=25;
 const CAMP_KINDS=['fountain','anvil','altar','cauldron','lectern','shrine','merchant','chest'];
-function pathRow(clean){
-  const f=G.floor,row=[];
-  for(let x=0;x<COLS;x++)row.push({k:0,sp:null,s:Math.random()*1000});
-  if(clean)return row;
-  if(Math.random()<0.34)for(let i=Math.random()<0.4?2:1;i>0;i--)row[ri(0,COLS-1)].k=1;
-  if(f>=2&&Math.random()<0.16){const x=ri(0,COLS-1);if(!row[x].k)row[x].k=2;}
-  for(const t of row){
-    if(t.k)continue;
-    if(f>=2&&Math.random()<0.02+0.004*Math.min(f,10))t.sp={off:rand(3)};
-    else if(f>=3&&Math.random()<0.025)t.frag=true;
-  }
-  return row;
+const D8=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]],ARROW='↑↗→↘↓↙←↖'; // up first, then clockwise
+const BRANCHES={camp:'Camp',treasure:'Treasure',danger:'Danger',calm:'Calm',shrine:'Shrine'};
+function wt(x,y){ // world tile, created as void the first time anyone looks
+  const key=x+','+y;let t=G.world.get(key);
+  if(!t){t={k:3,sp:null,s:Math.random()*1000};G.world.set(key,t);}
+  return t;
 }
-function pathOk(k){ // every open tile in the first k rows can be reached by the player's own moves
-  const st=P.y*COLS+P.x,seen=new Set([st]),q=[st];
-  for(let i=0;i<q.length;i++){const n=q[i];for(const m of staticDests(P.t,n%COLS,(n/COLS)|0))if(!seen.has(m)){seen.add(m);q.push(m);}}
-  for(let y=0;y<k;y++)for(let x=0;x<COLS;x++)if(tiles[y][x].k===0&&!seen.has(y*COLS+x))return false;
+function carve(x,y,h,centre){
+  const t=wt(x,y),fresh=t.k===3;
+  if(fresh){t.k=0;t.pi=h.pi;t.dir=h.dir;t.branch=h.branch;t.wx=x;t.wy=y;t.sp=null;t.frag=false;G.carved.push(t);}
+  if(centre){t.k=0;t.sp=null;t.frag=false;return t;} // the centre cross always stays walkable
+  if(fresh){
+    const f=G.floor,r=Math.random();
+    if(f>=2&&r<0.02+0.004*Math.min(f,10))t.sp={off:rand(3)};
+    else if(f>=3&&r<0.05)t.frag=true;
+  }
+  return t;
+}
+function stamp(h){ // a 3x3 brush around the head: pillars only on its corners, so the middle never closes
+  let c=null;
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    const cross=Math.abs(dx)+Math.abs(dy)<=1,t=carve(h.x+dx,h.y+dy,h,cross);
+    if(!dx&&!dy)c=t;
+    if(!cross&&t.pi===h.pi&&Math.random()<0.05)t.k=1;
+  }
+  return c;
+}
+function clearAhead(h,dir,n){ // would heading this way run into path we already have?
+  const[dx,dy]=D8[dir];
+  for(let i=2;i<=n;i++)for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){
+    const t=G.world.get((h.x+dx*i+ox)+','+(h.y+dy*i+oy));
+    if(t&&t.k!==3&&t.pi<h.pi-1)return false;
+  }
   return true;
 }
-function addRows(k){
-  const old=tiles.slice(0,ROWS-k);
-  for(let tries=0;tries<16;tries++){
-    const fresh=[];for(let i=0;i<k;i++)fresh.push(pathRow(false));
-    tiles=fresh.concat(old);
-    if(pathOk(k))return;
+function stepHead(h,quiet){ // advance one tile, turning when the straight runs out
+  if(h.seg<=0){
+    const opts=[0,0,1,-1,2,-2].map(o=>(h.dir+o+8)%8).filter(d=>clearAhead(h,d,8));
+    if(opts.length){const nd=pick(opts);if(nd!==h.dir)h.turns=(h.turns||0)+1;h.dir=nd;}
+    h.seg=ri(5,12);
   }
-  for(let y=0;y<k;y++)for(const t of tiles[y])t.k=0; // never ship a dead end
+  h.seg--;h.x+=D8[h.dir][0];h.y+=D8[h.dir][1];h.pi++;
+  const c=stamp(h);if(!quiet)planStep(h,c);
+  return c;
 }
-function pathPopulate(y){
-  G.gen=(G.gen||0)+1;
-  const row=tiles[y],bossUp=room.boss&&!room.boss.dead;
-  if(G.gen>=G.nextBoss&&!bossUp){
-    G.nextBoss+=BOSS_EVERY;
-    for(const t of row){t.k=0;t.sp=null;t.frag=false;}
-    spawnBoss(3,y);return;
-  }
-  if(G.gen>=G.nextCamp){
-    G.nextCamp+=REGION;
-    const t=row[3];t.k=0;t.sp=null;t.frag=false;
-    const kinds=CAMP_KINDS.filter(k=>G.floor>=2||(k!=='merchant'&&k!=='shrine'));
-    items.push({x:3,y,t:pick(kinds),camp:true});return;
-  }
-  const c=[];for(let x=0;x<COLS;x++)if(row[x].k===0&&!row[x].sp&&!row[x].frag&&!occ(x,y)&&!items.some(it=>it.x===x&&it.y===y))c.push(x);
-  if(!c.length)return;
-  if(Math.random()<0.03){items.push({x:pick(c),y,t:'chest',mimic:G.floor>=2&&Math.random()<0.2});return;}
-  if(bossUp)return;
-  const alive=enemies.filter(e=>!e.dead&&!e.boss).length,cap=Math.min(8,2+Math.floor(G.floor*0.7));
-  if(alive>=cap||Math.random()>Math.min(0.8,0.42+0.04*G.floor))return;
+function freeBrush(h){const o=[];for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const t=G.world.get((h.x+dx)+','+(h.y+dy));if(t&&t.k===0&&!t.plan&&!t.sp&&!t.frag)o.push(t);}return o;}
+function planStep(h,c){ // decide what this stretch of path will hold once it comes into view
+  if(h.pi<5)return;
+  const bp=h.plan||{kind:'',left:0};if(bp.left>0)bp.left--;
+  const at=bp.kind&&bp.left>0?20-bp.left:-1;
+  if(bp.kind==='camp'&&at===3){c.plan={item:{t:pick(CAMP_KINDS.filter(k=>G.floor>=2||(k!=='merchant'&&k!=='shrine'))),camp:true}};return;}
+  if(bp.kind==='treasure'&&(at===4||(at===10&&Math.random()<0.5))){c.plan={item:{t:'chest',mimic:G.floor>=2&&Math.random()<0.3}};return;}
+  if(bp.kind==='shrine'&&at===4){c.plan={item:{t:G.floor>=2&&Math.random()<0.5?'shrine':'altar',camp:true}};return;}
+  if(bp.kind==='calm'&&at===5){c.plan={item:{t:'heart'}};return;}
+  if(bp.kind==='danger'&&at===19){c.plan={item:{t:'chest'}};return;}
+  if(h.pi>=G.nextCamp){G.nextCamp+=REGION;c.plan={item:{t:pick(CAMP_KINDS.filter(k=>G.floor>=2||(k!=='merchant'&&k!=='shrine'))),camp:true}};return;}
+  const free=freeBrush(h);if(!free.length)return;
+  if(Math.random()<0.03){pick(free).plan={item:{t:'chest',mimic:G.floor>=2&&Math.random()<0.2}};return;}
+  const mult=bp.left>0?{danger:1.9,calm:0.25,camp:0.6}[bp.kind]||1:1;
+  if(Math.random()>Math.min(0.85,(0.42+0.04*G.floor)*mult))return;
   const allowed=['P','P','N'];if(G.floor>=2)allowed.push('B');if(G.floor>=3)allowed.push('R','T');if(G.floor>=5)allowed.push('Q');if(G.floor>=6)allowed.push('A','C');
-  for(let i=G.floor>=4&&Math.random()<0.3?2:1;i>0&&c.length;i--){
-    let t=pick(allowed);if(t==='T'&&enemies.some(e=>!e.dead&&e.t==='T'))t='N';
-    enemies.push(makeEnemy(t,c.splice((Math.random()*c.length)|0,1)[0],y));
+  for(let i=(G.floor>=4&&Math.random()<0.3)||mult>1.5?2:1;i>0&&free.length;i--)free.splice((Math.random()*free.length)|0,1)[0].plan={e:pick(allowed)};
+}
+function makeJunction(h){ // a crossroads: two or three ways on, each with a signpost saying what lies down it
+  const dirs=[(h.dir+6)%8,h.dir,(h.dir+2)%8].filter(d=>clearAhead(h,d,9));
+  if(dirs.length<2)return false;
+  if(dirs.length===3&&Math.random()<0.35)dirs.splice(ri(0,2),1);
+  const kinds=Object.keys(BRANCHES).filter(k=>k!=='shrine'||G.floor>=2).sort(()=>Math.random()-0.5);
+  G.pending=dirs.map((d,i)=>{
+    const b={x:h.x,y:h.y,dir:d,seg:ri(6,11),pi:h.pi,branch:++G.branchId,plan:{kind:kinds[i],left:20},cells:[],turns:h.turns};
+    for(let k=0;k<6;k++){
+      const before=G.carved.length;stepHead(b,true);b.seg=Math.max(b.seg,1);
+      for(let j=before;j<G.carved.length;j++)b.cells.push(G.carved[j]);
+      if(k===0){const[dx,dy]=D8[d];const side=wt(b.x-dy,b.y+dx);(side.k===0?side:wt(b.x,b.y)).plan={item:{t:'sign',label:BRANCHES[b.plan.kind],dir:d}};}
+    }
+    return b;
+  });
+  G.junctionPi=h.pi;G.head=null;
+  return true;
+}
+function commitBranch(b){ // the road you take holds; the others crumble away
+  const keep=new Set();for(const t of b.cells)for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)keep.add((t.wx+dx)+','+(t.wy+dy));
+  for(const o of G.pending){
+    if(o===b)continue;
+    for(const t of o.cells)if(t.branch===o.branch&&!keep.has(t.wx+','+t.wy))t.crumbleNow=true;
+  }
+  G.head=b;G.pending=null;crumbleMarked();sfx('quake',0.6,1.1);shake=Math.max(shake,5);
+  floatText(P.x,P.y-1,BRANCHES[b.plan.kind].toUpperCase(),'#ffd86b',1.2);
+}
+function growPath(){ // keep the path generated a little ahead of where you have been
+  if(!G.head)return;
+  let n=0;
+  while(G.head&&G.head.pi<G.maxPi+LOOKAHEAD&&n++<40){
+    const h=G.head;
+    if(h.pi>=G.nextBoss){ // a guardian's arena: the path widens and the view locks until it falls
+      G.nextBoss+=BOSS_EVERY;
+      for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)carve(h.x+dx,h.y+dy,h,true);
+      wt(h.x,h.y).plan={boss:true};stepHead(h,true);continue;
+    }
+    if(h.pi===G.nextBoss-6){const[dx,dy]=D8[h.dir];const t=wt(h.x-dy,h.y+dx);if(t.k===0)t.plan={item:{t:'sign',label:'Guardian',dir:h.dir}};}
+    if(h.pi>=G.nextJunction&&G.nextBoss-h.pi>18){G.nextJunction=h.pi+JUNCTION_EVERY+ri(-4,6);if(makeJunction(h))return;}
+    stepHead(h,false);
+  }
+}
+function crumbleMarked(){ // tiles marked to go fall into the void; those in view drop visibly
+  let any=false;
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    const t=tiles[y][x];if(!t.crumbleNow)continue;
+    t.crumbleNow=false;if(t.k===3)continue;
+    if((P.x===x&&P.y===y)||enemies.some(e=>!e.dead&&e.x===x&&e.y===y))continue;
+    if(tileMeshes[y][x].visible&&t.k!==2)dropTile(tileMeshes[y][x],0,0);
+    t.k=3;t.plan=null;items=items.filter(it=>!(it.x===x&&it.y===y));any=true;
+  }
+  for(const t of G.world.values())if(t.crumbleNow){t.crumbleNow=false;t.k=3;t.plan=null;}
+  if(any){for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)paintTile(x,y,-99);buildDecor();}
+}
+function crumbleBehind(){ // the path falls away well behind your furthest point
+  let marked=false;
+  while(G.carved.length&&G.carved[0].pi<G.maxPi-CRUMBLE_BEHIND){const t=G.carved.shift();if(t.k!==3){t.crumbleNow=true;marked=true;}}
+  if(marked)crumbleMarked();
+}
+function readWindow(){tiles=[];for(let y=0;y<ROWS;y++){const r=[];for(let x=0;x<COLS;x++)r.push(wt(G.ox+x,G.oy+y));tiles.push(r);}}
+function spawnPlans(){ // anything planned on a tile that is now in view appears
+  const cap=Math.min(8,2+Math.floor(G.floor*0.7));
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    const t=tiles[y][x],pl=t.plan;if(!pl||t.k!==0)continue;
+    if(pl.boss){if(occ(x,y))continue;t.plan=null;for(const e of enemies)if(!e.dead&&!e.boss){e.dead=true;if(e.vis){entVis.delete(e.vis);scene.remove(e.vis);disposeGroup(e.vis);e.vis=null;}}spawnBoss(x,y);continue;}
+    if(pl.item){if(items.some(it=>it.x===x&&it.y===y))continue;t.plan=null;items.push(Object.assign({},pl.item,{x,y}));continue;}
+    if(pl.e){t.plan=null;if(occ(x,y)||Math.hypot(x-P.x,y-P.y)<2.5||room.boss&&!room.boss.dead)continue;if(enemies.filter(e=>!e.dead&&!e.boss).length>=cap)continue;let tp=pl.e;if(tp==='T'&&enemies.some(e=>!e.dead&&e.t==='T'))tp='N';enemies.push(makeEnemy(tp,x,y));}
   }
 }
 function loadPath(){
   room={kind:'path',seed:Math.random()*1000,waves:[],waveT:0,cleared:false,boss:null,t:0,zones:[],pads:null,variant:null};
-  items=[];enemies=[];P.x=3;P.y=7;P.anim=null;queued=null;fade=1;if(P.ward)P.shield=1;P.tpLock=false;P.hist=[];P.escUsed=false;P.echoes=[];
-  for(let tries=0;tries<30;tries++){
-    tiles=[];for(let y=0;y<ROWS;y++)tiles.push(pathRow(y>=5));
-    if(pathOk(ROWS))break;
-    if(tries===29)for(const r of tiles)for(const t of r)t.k=0;
-  }
-  G.gen=0;for(let y=2;y>=0;y--)pathPopulate(y);
+  items=[];enemies=[];P.anim=null;queued=null;fade=1;if(P.ward)P.shield=1;P.tpLock=false;P.hist=[];P.escUsed=false;P.echoes=[];
+  G.world=new Map();G.carved=[];G.ox=0;G.oy=0;G.maxPi=0;G.branchId=0;G.pending=null;G.nextJunction=JUNCTION_EVERY;
+  const h={x:3,y:7,dir:0,seg:6,pi:0,branch:0,plan:null,turns:0};G.head=h;
+  stamp(h);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)carve(3+dx,8+dy,h,true);
+  P.x=3;P.y=7;growPath();readWindow();spawnPlans();
   setupRoomVisuals();
 }
 const dropPool=[];
-function dropTile(src,dz){ // a tile left behind falls away into the void
+function dropTile(src,dx,dz){ // a tile left behind falls away into the void
   let m=dropPool.find(d=>!d.visible);
-  if(!m){if(dropPool.length>=42)return;m=new THREE.Mesh(tileGeo,src.material);m.add(new THREE.Mesh(tileGeo,olBox));scene.add(m);dropPool.push(m);}
-  m.material=src.material;m.scale.copy(src.scale);m.position.copy(src.position);m.position.z+=dz;m.rotation.copy(src.rotation);m.visible=true;
+  if(!m){if(dropPool.length>=48)return;m=new THREE.Mesh(tileGeo,src.material);m.add(new THREE.Mesh(tileGeo,olBox));scene.add(m);dropPool.push(m);}
+  m.material=src.material;m.scale.copy(src.scale);m.position.copy(src.position);m.position.x+=dx;m.position.z+=dz;m.rotation.copy(src.rotation);m.visible=true;
   m.userData.v={vy:rand(-1.2,0),spin:rand(-1.8,1.8),d:rand(0,0.18)};
 }
 function updateDrops(dt){
@@ -1831,37 +1912,56 @@ function updateDrops(dt){
     v.vy-=20*dt;m.position.y+=v.vy*dt;m.rotation.x+=v.spin*dt;m.rotation.z+=v.spin*0.6*dt;if(m.position.y<-12)m.visible=false;
   }
 }
-function pathShift(k){
-  for(let y=ROWS-k;y<ROWS;y++)for(let x=0;x<COLS;x++)if(tiles[y][x].k!==2&&tileMeshes[y][x].visible)dropTile(tileMeshes[y][x],k);
-  P.y+=k;if(P.anim){P.anim.fy+=k;if(P.anim.ty!=null)P.anim.ty+=k;}
-  for(const h of P.hist||[])h.y+=k;for(const o of P.echoes)o.y+=k;
-  if(queued){queued.y+=k;if(queued.y>=ROWS)queued=null;}
+function shiftWindow(dx,dy){ // move the board window over the world by (dx,dy); everything on it moves the other way
+  const inView=(x,y)=>x>=0&&y>=0&&x<COLS&&y<ROWS;
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(!inView(x-dx,y-dy)&&tiles[y][x].k!==3&&tiles[y][x].k!==2&&tileMeshes[y][x].visible)dropTile(tileMeshes[y][x],-dx,-dy);
+  const mv=o=>{o.x-=dx;o.y-=dy;},ma=a=>{if(!a)return;a.fx-=dx;a.fy-=dy;if(a.tx!=null){a.tx-=dx;a.ty-=dy;}};
+  mv(P);ma(P.anim);for(const h of P.hist||[])mv(h);for(const o of P.echoes)mv(o);
+  if(queued){mv(queued);if(!inView(queued.x,queued.y))queued=null;}
   for(const e of enemies){
-    e.y+=k;if(e.anim){e.anim.fy+=k;if(e.anim.ty!=null)e.anim.ty+=k;}
-    if(e.wind)e.wind.y+=k;if(e.blink)e.blink.y+=k;
-    if(e.y>=ROWS&&!e.boss){e.dead=true;if(e.vis){entVis.delete(e.vis);falling.push({g:e.vis,vx:0,vz:0.5,vy:0.4,spin:rand(-2,2),t:0});e.vis=null;}}
-    else if(e.wind&&e.wind.y>=ROWS)e.wind=null;
+    mv(e);ma(e.anim);if(e.wind)mv(e.wind);if(e.blink)mv(e.blink);
+    if(!inView(e.x,e.y)&&!e.boss){e.dead=true;if(e.vis){entVis.delete(e.vis);falling.push({g:e.vis,vx:-dx*0.5,vz:-dy*0.5,vy:0.4,spin:rand(-2,2),t:0});e.vis=null;}}
+    else if(e.wind&&!inView(e.wind.x,e.wind.y))e.wind=null;
   }
   enemies=enemies.filter(e=>!e.dead);
-  for(const it of items)it.y+=k;items=items.filter(it=>it.y<ROWS);
-  for(const z of room.zones)z.tiles=z.tiles.map(([x,y])=>[x,y+k]).filter(t=>t[1]<ROWS);
-  room.zones=room.zones.filter(z=>z.tiles.length);
-  for(const t of texts)t.z+=k;
-  for(const sys of [dustSys,sparkSys])for(const p of sys.list)p.z+=k;
-  for(const c of chunks)c.m.position.z+=k;
-  for(const w of waves)w.m.position.z+=k;
-  for(const f of falling)f.g.position.z+=k;
-  G.dist+=k;G.score+=10*k;if(G.dist>=100)unlockAch('m100');if(G.dist>=300)unlockAch('m300');
-  addRows(k);
-  for(let y=k-1;y>=0;y--)pathPopulate(y);
-  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)paintTile(x,y,y<k?riseT+0.05*x+Math.random()*0.08:-99);
-  buildDecor();
-  scrollZ+=k;
-  const nf=1+Math.floor(G.dist/REGION);
-  if(nf>G.floor){
-    G.floor=nf;applyTheme();flashW=Math.max(flashW,0.3);G.regionT=1.2;syn('level');G.banner=`Region ${nf}: ${theme().name.replace(/^The /,'')}`;G.bannerT=2.6;G.score+=100;sfx('bell',0.7,0.8);
-    if(P.roomHeal)healPlayer(P.roomHeal);
+  for(const it of items){ // items that leave view wait on their tile for you to come back
+    const wx=it.x+G.ox,wy=it.y+G.oy;mv(it);
+    if(!inView(it.x,it.y)){const t=wt(wx,wy);if(t.k===0&&!t.plan){const c=Object.assign({},it);delete c.x;delete c.y;t.plan={item:c};}it.gone=true;}
   }
+  items=items.filter(it=>!it.gone);
+  for(const z of room.zones)z.tiles=z.tiles.map(([x,y])=>[x-dx,y-dy]).filter(t=>inView(t[0],t[1]));
+  room.zones=room.zones.filter(z=>z.tiles.length);
+  for(const t of texts){t.x-=dx;t.z-=dy;}
+  for(const sys of [dustSys,sparkSys])for(const p of sys.list){p.x-=dx;p.z-=dy;}
+  for(const c of chunks){c.m.position.x-=dx;c.m.position.z-=dy;}
+  for(const w of waves){w.m.position.x-=dx;w.m.position.z-=dy;}
+  for(const f of falling){f.g.position.x-=dx;f.g.position.z-=dy;}
+  G.ox+=dx;G.oy+=dy;readWindow();spawnPlans();
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)paintTile(x,y,inView(x+dx,y+dy)?-99:riseT+0.05*Math.hypot(x-P.x,y-P.y)+Math.random()*0.06);
+  buildDecor();
+  scrollX-=dx;scrollZ-=dy;
+}
+function exploreTick(){ // after every move: track progress, choose branches, grow and crumble the path, follow with the view
+  const t=tiles[P.y][P.x];
+  if(t.k===0&&t.pi!=null){
+    if(G.pending&&t.pi>=G.junctionPi+2){const b=G.pending.find(o=>o.branch===t.branch);if(b)commitBranch(b);}
+    if(t.pi>G.maxPi&&(!G.pending||t.branch===0||!G.pending.some(o=>o.branch===t.branch))){
+      const gain=t.pi-G.maxPi;G.maxPi=t.pi;G.dist+=gain;G.score+=10*gain;
+      if(G.dist>=100)unlockAch('m100');if(G.dist>=300)unlockAch('m300');
+      const nf=1+Math.floor(G.dist/REGION);
+      if(nf>G.floor){
+        G.floor=nf;applyTheme();flashW=Math.max(flashW,0.3);G.regionT=1.2;syn('level');G.banner=`Region ${nf}: ${theme().name.replace(/^The /,'')}`;G.bannerT=2.6;G.score+=100;sfx('bell',0.7,0.8);
+        if(P.roomHeal)healPlayer(P.roomHeal);
+      }
+    }
+  }
+  if(G.pending&&!G.crossSeen&&G.junctionPi-G.maxPi<=5){G.crossSeen=G.junctionPi;G.banner='A CROSSROADS';G.bannerT=1.6;sfx('bell',0.5,1.4);}
+  if(!G.pending)G.crossSeen=0;
+  growPath();crumbleBehind();
+  if(room.boss&&!room.boss.dead)return; // the arena holds still
+  const d=D8[t.dir!=null?t.dir:0],tx=P.x+G.ox-3+Math.round(d[0]*1.4),ty=P.y+G.oy-4+Math.round(d[1]*2.2);
+  const dx=clamp(tx-G.ox,-2,2),dy=clamp(ty-G.oy,-3,3);
+  if(dx||dy)shiftWindow(dx,dy);
 }
 function spawnBoss(x,y){
   const bi=bossIndex(),bd=BOSSES[bi],b=makeEnemy(bd.t,x,y);
@@ -2604,7 +2704,7 @@ function knock(o,sx,sy){
   if(o.boss||o.dead||o.t==='T')return;
   const nx=o.x+sx,ny=o.y+sy;
   if(nx<0||ny<0||nx>=COLS||ny>=ROWS){fallOff(o,sx,sy);return;}
-  if(tiles[ny][nx].k===2){o.x=nx;o.y=ny;fallOff(o,sx,sy);return;} // shoved into a hole
+  if(tiles[ny][nx].k>=2){o.x=nx;o.y=ny;fallOff(o,sx,sy);return;} // shoved into a hole or off the path
   if(P.pinball&&tiles[ny][nx].k===0){const b=enemies.find(q=>!q.dead&&q!==o&&q.spawn<=0&&q.x===nx&&q.y===ny);if(b){o.hitDir=[sx,sy];b.hitDir=[sx,sy];burst(nx,ny,10,[255,200,120],130,0.4,3);sfx('hit',0.9,0.8);hitEnemy(b,2);hitEnemy(o,2);return;}}
   if(tiles[ny][nx].k===0&&!occ(nx,ny,o)){const fx=o.x,fy=o.y;o.x=nx;o.y=ny;setAnim(o,fx,fy,0.2,false);o.wind=null;o.cd=Math.max(o.cd,0.5);}
 }
@@ -3081,7 +3181,7 @@ function update(dt){
     const ph=(time+tiles[P.y][P.x].sp.off)%3;
     if(ph>2.3&&P.inv<=0){hurtSrc={label:'spikes'};hurtPlayer(1);}
   }
-  if(G.mode==='explore'&&P.y<PATH_ROW&&!(room.boss&&!room.boss.dead))pathShift(PATH_ROW-P.y);
+  if(G.mode==='explore')exploreTick();
   if(!room.cleared&&room.kind!=='path'&&room.kind!=='chess'){
     const alive=enemies.some(e=>!e.dead);
     if(!alive){
@@ -3142,9 +3242,9 @@ function syncScene(dt){
   const pp0=epos(P),par=(state==='play'||state==='dead')?(pp0.x-3-boardCx())*0.1:0;
   camTarget.x+=(boardCx()+(state==='menu'?0:(pp0.x-3-boardCx())*0.12)-camTarget.x)*Math.min(1,dt*3);
   const pk=SET.shake?1:0;
-  camera.position.set(camBase.x+sw+par+(sk?rand(-sk,sk):0)+punch[0]*pk,camBase.y+(sk?rand(-sk,sk):0),camBase.z+(pp0.y-4-boardCz())*0.03+punch[1]*pk+scrollZ);
+  camera.position.set(camBase.x+sw+par+(sk?rand(-sk,sk):0)+punch[0]*pk+scrollX,camBase.y+(sk?rand(-sk,sk):0),camBase.z+(pp0.y-4-boardCz())*0.03+punch[1]*pk+scrollZ);
   punch[0]*=Math.exp(-dt*11);punch[1]*=Math.exp(-dt*11);
-  camera.lookAt(camTarget.x,camTarget.y,camTarget.z+scrollZ);scrollZ*=Math.exp(-dt*6);if(scrollZ<0.002)scrollZ=0;
+  camera.lookAt(camTarget.x+scrollX,camTarget.y,camTarget.z+scrollZ);scrollZ*=Math.exp(-dt*6);if(Math.abs(scrollZ)<0.002)scrollZ=0;scrollX*=Math.exp(-dt*6);if(Math.abs(scrollX)<0.002)scrollX=0;
   if(SET.shake&&Math.abs(camRoll)>0.0004)camera.rotateZ(camRoll);camRoll*=Math.exp(-dt*6);
   camera.fov+=((40-zoomKick)-camera.fov)*Math.min(1,dt*8);camera.updateProjectionMatrix();zoomKick*=Math.exp(-dt*5);
   if(window.__cover){camera.position.set(...window.__cover.pos);camera.lookAt(...window.__cover.look);camera.fov=window.__cover.fov;camera.updateProjectionMatrix();}
@@ -3195,6 +3295,7 @@ function syncScene(dt){
   for(const[it,o]of itemVis)if(!live.has(it)){scene.remove(o);itemVis.delete(it);}
   for(const it of items){
     let o=itemVis.get(it);if(!o){o=makeItem(it);itemVis.set(it,o);}
+    o.position.x=it.x-3;o.position.z=it.y-4; // the explore window moves items around
     if(o.userData.spin){o.userData.spin.rotation.y=time*2;o.userData.spin.position.y=0.5+Math.sin(time*3)*0.06;}
     if(o.userData.arrow)o.userData.arrow.position.y=Math.abs(Math.sin(time*3))*0.12+0.12;
     if(o.userData.gem){o.userData.gem.rotation.y=time*1.5;o.userData.gem.position.y=0.85+Math.sin(time*2)*0.05;}
@@ -3424,6 +3525,20 @@ function drawOverlay(){
     for(let x=0;x<COLS;x++){const[px,py]=proj(x-3,0,ROWS-4.3);ctx.fillText('abcdefgh'[x],px,py);}
     for(let y=0;y<ROWS;y++){const[px,py]=proj(-3.75,0,y-4);ctx.fillText(String(ROWS-y),px,py);}
   }
+  if(G.mode==='explore'&&G.pending&&state==='play'&&G.junctionPi-G.maxPi<=7&&!(room.boss&&!room.boss.dead)){ // at a crossroads, list every road even if its sign is off screen
+    const parts=G.pending.map(b=>({t:ARROW[b.dir]+' '+BRANCHES[b.plan.kind],bad:b.plan.kind==='danger'}));
+    ctx.font=FNT(800,14);ctx.textBaseline='middle';ctx.textAlign='left';
+    const gap=16,ws=parts.map(q=>ctx.measureText(q.t).width),tw=ws.reduce((a,b)=>a+b,0)+gap*(parts.length-1)+24,y0=WIDE?88:H-150;
+    ctx.fillStyle='rgba(30,20,10,.85)';rr(W/2-tw/2,y0-15,tw,30,6);ctx.fill();ctx.strokeStyle='#d9b27a';ctx.lineWidth=1.5;ctx.stroke();
+    let x=W/2-tw/2+12;parts.forEach((q,i)=>{ctx.fillStyle=q.bad?'#ff8a7a':'#ffe2a8';ctx.fillText(q.t,x,y0+1);x+=ws[i]+gap;});
+  }
+  if(G.mode==='explore')for(const it of items){ // signpost labels: where each road leads
+    if(it.t!=='sign')continue;
+    const[sx,sy]=proj(it.x-3,1.25,it.y-4),txt=ARROW[it.dir||0]+' '+it.label.toUpperCase();
+    ctx.font=FNT(800,14);ctx.textAlign='center';ctx.textBaseline='middle';const w=ctx.measureText(txt).width+14;
+    ctx.fillStyle='rgba(30,20,10,.82)';rr(sx-w/2,sy-11,w,22,5);ctx.fill();ctx.strokeStyle='#d9b27a';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle=it.label==='Danger'||it.label==='Guardian'?'#ff8a7a':'#ffe2a8';ctx.fillText(txt,sx,sy+1);
+  }
   if(G.mode==='chess'&&!playerDanger&&P.vis&&state==='play'){ // which white piece is you
     const p=epos(P),[mx,my]=proj(p.x-3,HEIGHT[P.t]*PSY+0.45+p.z,p.y-4),bob=Math.sin(time*4)*3;
     ctx.fillStyle='#ffd86b';ctx.strokeStyle='#2a1a04';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(mx-7,my-9+bob);ctx.lineTo(mx+7,my-9+bob);ctx.lineTo(mx,my+bob);ctx.closePath();ctx.stroke();ctx.fill();
@@ -3593,7 +3708,7 @@ renderPick();
 $('playBtn').onclick=()=>startRun(pickT);
 function resetPlayerVis(){if(P&&P.vis){scene.remove(P.vis);disposeGroup(P.vis);P.vis=null;}}
 function startRun(t){
-  tipQ.length=0;resetPlayerVis();newRun(t,runMode);scrollZ=0;state='play';startMusic();AD.startRun();PG.preload();PG.ev('run_started',{mode:runMode,scenario:runMode==='chess'?scenario().id:'',piece:t,mods:Object.keys(modsOn).filter(k=>modsOn[k]).join(',')||'none'});if(boonReady){boonReady=false;pickQ.push({type:'relic'});refreshBoon();}setTimeout(()=>tip('move','Tap a glowing dot to move. Tap a red ring to attack.'),700);
+  tipQ.length=0;resetPlayerVis();newRun(t,runMode);scrollZ=0;scrollX=0;state='play';startMusic();AD.startRun();PG.preload();PG.ev('run_started',{mode:runMode,scenario:runMode==='chess'?scenario().id:'',piece:t,mods:Object.keys(modsOn).filter(k=>modsOn[k]).join(',')||'none'});if(boonReady){boonReady=false;pickQ.push({type:'relic'});refreshBoon();}setTimeout(()=>tip('move','Tap a glowing dot to move. Tap a red ring to attack.'),700);
   document.body.classList.toggle('lowtip',runMode!=='dungeon');
   $('menu').classList.remove('show');$('dead').classList.remove('show');$('pick').classList.remove('show');
 }
@@ -3966,7 +4081,7 @@ function frame(now){
 }
 initPost();resize();showMenu();PG.init();
 requestAnimationFrame(frame);
-window.__cc={get state(){return state;},setMode(m){runMode=m;},ach:unlockAch,legal(){return legalMoves();},get allies(){return allies;},swapInto,get scrollZ(){return scrollZ;},pathShift,get drops(){return dropPool.filter(m=>m.visible).length;},get P(){return P;},get G(){return G;},get enemies(){return enemies;},get room(){return room;},get tiles(){return tiles;},get items(){return items;},get time(){return time;},get chunks(){return chunks.length;},get post(){return !!post;},get lowQ(){return lowQ;},
+window.__cc={get state(){return state;},setMode(m){runMode=m;},ach:unlockAch,legal(){return legalMoves();},get allies(){return allies;},swapInto,get scrollZ(){return scrollZ;},shiftWindow,get world(){return G.world;},get drops(){return dropPool.filter(m=>m.visible).length;},get P(){return P;},get G(){return G;},get enemies(){return enemies;},get room(){return room;},get tiles(){return tiles;},get items(){return items;},get time(){return time;},get chunks(){return chunks.length;},get post(){return !!post;},get lowQ(){return lowQ;},
   legalMoves,onTap,startRun,castActive,bossIndex,bombard,
   step(sec){for(let t=0;t<sec;t+=0.05)update(0.05);},
   knock(i,sx,sy){knock(enemies[i],sx,sy);},
