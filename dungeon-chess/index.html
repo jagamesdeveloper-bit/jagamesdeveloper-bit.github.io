@@ -359,46 +359,25 @@ function sfx(name,vol=1,rate=1){
     s.connect(g);g.connect(sfxBus);s.start();
   }catch(e){}
 }
-/* procedural sound layer: small synthesized cues that sit on top of the sample set */
-function tone(f,dur,type,vol,f2,delay,lp){
-  if(silent()||!ac||!sfxBus)return;
-  try{
-    const t=ac.currentTime+(delay||0),o=ac.createOscillator(),g=ac.createGain();let out=g;
-    o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(Math.max(20,f2),t+dur);
-    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(Math.max(0.0002,vol*SET.sfx),t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
-    o.connect(g);if(lp){const fl=ac.createBiquadFilter();fl.type='lowpass';fl.frequency.value=lp;g.connect(fl);out=fl;}
-    out.connect(sfxBus);o.start(t);o.stop(t+dur+0.05);
-  }catch(e){}
-}
-let noiseBuf=null;
-function hiss(f,f2,dur,vol,q,delay){ // band-passed noise, the wet part of a clay sound
-  if(silent()||!ac||!sfxBus)return;
-  try{
-    if(!noiseBuf){noiseBuf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}
-    const t=ac.currentTime+(delay||0),src=ac.createBufferSource(),fl=ac.createBiquadFilter(),g=ac.createGain();
-    src.buffer=noiseBuf;src.loop=true;fl.type='bandpass';fl.Q.value=q||1.4;fl.frequency.setValueAtTime(f,t);fl.frequency.exponentialRampToValueAtTime(Math.max(60,f2||f),t+dur);
-    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(Math.max(0.0002,vol*SET.sfx),t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
-    src.connect(fl);fl.connect(g);g.connect(sfxBus);src.start(t,Math.random()*0.5);src.stop(t+dur+0.05);
-  }catch(e){}
-}
-const pv=()=>0.9+Math.random()*0.2;
-const PENT=[0,2,4,7,9];
+/* the cue layer: extra feel on top of the main sounds, built only from the recorded samples (pitch is just playback speed) */
+const later=(ms,f)=>setTimeout(()=>{if(!silent())f();},ms);
+const COMBO_STEPS=[0,2,4,7,9]; // a pentatonic climb, so a long combo rises like a melody
 const SYN={
-  ui(){const r=pv();tone(520*r,0.09,'sine',0.16,300*r);hiss(700,350,0.05,0.05,2);},
-  clayStep(){const r=pv();tone(150*r,0.13,'sine',0.38,58*r);hiss(420,160,0.07,0.1,1.1);},
-  clayHit(){const r=pv();tone(240*r,0.1,'sine',0.3,95*r);hiss(950,300,0.1,0.14,1.6);},
-  clayKill(){const r=pv();tone(320*r,0.15,'sine',0.34,60*r);hiss(1600,380,0.16,0.18,1.8);tone(210*r,0.11,'sine',0.2,70,0.08);hiss(900,300,0.1,0.1,2,0.08);},
-  clayHurt(){const r=pv();tone(130*r,0.22,'sine',0.5,48*r);hiss(600,150,0.22,0.22,1);tone(90,0.16,'triangle',0.25,45,0.05);},
-  clayStretch(){const r=pv();tone(110*r,0.22,'triangle',0.2,280*r,0,700);hiss(500,900,0.2,0.07,2.2);},
-  pick(){tone(660,0.07,'triangle',0.12);tone(990,0.09,'triangle',0.1,null,0.05);},
-  combo(n){const k=Math.max(0,n-1),f=330*Math.pow(2,(PENT[k%5]+12*Math.floor(k/5))/12);tone(Math.min(f,1900),0.18,'sine',0.14);tone(Math.min(f*2,3800),0.1,'triangle',0.05,null,0.02);},
-  beat(){tone(70,0.16,'sine',0.5,38);tone(62,0.2,'sine',0.4,34,0.17);},
-  level(){[523,659,784,1047].forEach((f,i)=>tone(f,0.22,'triangle',0.13,null,i*0.07));},
-  gate(){tone(520,0.7,'sawtooth',0.12,110,0,900);tone(260,0.8,'square',0.06,70,0.05,600);},
-  final(){tone(150,1.1,'sawtooth',0.2,40,0,500);tone(75,1.2,'sine',0.45,38);},
-  ready(){tone(880,0.12,'sine',0.1);tone(1320,0.14,'sine',0.08,null,0.06);},
-  coin(){tone(1568,0.08,'square',0.05);tone(2093,0.14,'square',0.05,null,0.06);},
-  thump(){tone(90,0.14,'sine',0.5,45);},
+  ui(){sfx('tick',0.35,1.15);},
+  clayStep(){sfx('soft',0.28,0.8);},
+  clayHit(){sfx('soft',0.45,1.05);},
+  clayKill(){sfx('soft',0.55,0.75);later(70,()=>sfx('stone',0.25,1.3));},
+  clayHurt(){sfx('soft',0.7,0.6);},
+  clayStretch(){sfx('cloth',0.5,0.85);},
+  pick(){sfx('select',0.45,1.1);},
+  combo(n){const k=Math.max(0,n-1);sfx('select',0.4,Math.min(2.4,Math.pow(2,(COMBO_STEPS[k%5]+12*Math.floor(k/5))/12)*0.9));},
+  beat(){sfx('soft',0.55,0.5);later(170,()=>sfx('stone',0.3,0.45));},
+  level(){sfx('confirm',0.6,1.1);later(90,()=>sfx('bell',0.35,1.3));},
+  gate(){sfx('cast',0.7,0.7);later(60,()=>sfx('quake',0.4,0.8));},
+  final(){sfx('quake',0.8,0.6);later(80,()=>sfx('bell',0.6,0.5));},
+  ready(){sfx('tick',0.4,1.4);},
+  coin(){sfx('coins',0.45,1.2);},
+  thump(){sfx('stone',0.5,0.6);},
 };
 function syn(n,a){try{SYN[n](a);}catch(e){}}
 document.addEventListener('pointerdown',e=>{if(e.target.closest&&e.target.closest('button'))syn('ui');},true);
@@ -3616,7 +3595,7 @@ function drawOverlay(){
     }else{ctx.font=FNT(400,26);ctx.fillStyle='rgba(255,255,255,.22)';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('+',bx,by+1);}
   }
   ctx.textBaseline='top';ctx.textAlign='center';ctx.font=FNT(600,15);ctx.fillStyle='#f0eaff';
-  if(G.roomIdx===0&&G.floor===1&&P.lvl===1&&!WIDE&&!meta.runs&&G.mode!=='explore')ot('Tap dots to move · red rings attack · dodge red tiles',W/2,H-28,4);
+  if(G.roomIdx===0&&G.floor===1&&P.lvl===1&&!WIDE&&!meta.runs&&G.mode==='dungeon'&&!P.act.length)ot('Tap dots to move · red rings attack · dodge red tiles',W/2,H-28,4);
   if(G.bannerT>0){
     ctx.globalAlpha=clamp(G.bannerT,0,1);ctx.font='700 27px Georgia,"Times New Roman",serif';{const tw=ctx.measureText(G.banner).width;if(tw>W-30)ctx.font=`700 ${Math.floor(27*(W-30)/tw)}px Georgia,"Times New Roman",serif`;}ctx.fillStyle='#efc56e';ctx.shadowBlur=0;ctx.textBaseline='middle';
     ctx.lineJoin='round';ctx.lineWidth=6;ctx.strokeStyle='#120d06';ctx.strokeText(G.banner,W/2,H*0.36);ctx.fillText(G.banner,W/2,H*0.36);ctx.shadowBlur=0;ctx.globalAlpha=1;
@@ -3667,12 +3646,12 @@ hud.addEventListener('pointerdown',e=>{
   if(t)onTap(t[0],t[1]);
 });
 addEventListener('keydown',e=>{
-  if(e.repeat&&(e.key==='Escape'||e.key.toLowerCase()==='p'))return;
+  if(e.repeat&&e.key.toLowerCase()==='p')return;
   const k=e.key.toLowerCase();
   if(state==='menu'&&document.querySelectorAll('.ov.show').length===1){const o=['P','N','B','R'],i=o.indexOf(pickT);if(k==='enter'||k===' '){e.preventDefault();startRun(pickT);return;}if(k==='arrowright'||k==='d'){pickT=o[(i+1)%4];SET.piece=pickT;saveSet();renderPick();return;}if(k==='arrowleft'||k==='a'){pickT=o[(i+3)%4];SET.piece=pickT;saveSet();renderPick();return;}}
   if(state==='dead'&&k==='enter'&&$('dead').classList.contains('show')&&document.querySelectorAll('.ov.show').length===1){$('again').click();return;}
-  if(state!=='play'){if(k==='escape')document.querySelectorAll('.ov.show .close,.ov.show .x').forEach(b=>b.click());return;}
-  if(k==='escape'||k==='p'){if(userPaused)closePause();else openPause();return;}
+  if(state!=='play')return;
+  if(k==='p'){if(userPaused)closePause();else openPause();return;} // Esc stays with the browser: it leaves full screen
   if(userPaused||paused)return;
   if(G.mode==='chess'&&(k==='tab'||k==='q')){ // keyboard players hop to the next white piece, nearest first
     e.preventDefault();const live=allies.filter(o=>!o.dead).sort((a,b)=>Math.hypot(a.x-P.x,a.y-P.y)-Math.hypot(b.x-P.x,b.y-P.y));
