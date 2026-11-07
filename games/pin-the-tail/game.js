@@ -58,8 +58,9 @@
     PG.burst(rp.x, rp.y + 4, 7, { colors: ['#c8935f', '#e8c9a0', CREAM], g: 500, angle: Math.PI / 2, spread: 2.2, min: 60, max: 220, shape: 's', s0: 1.5, s1: 3 });
     for (i = st.apples.length - 1; i >= 0; i--) if (angDiff(st.apples[i].a, a) < 13) {
       var ap = st.apples.splice(i, 1)[0], v = 2; st.coinsRun += v; PG.save.coins += v; PG.sfx('pop', 1.5); PG.sfx('coin');
-      PG.popText(rp.x, rp.y - geo.r * 0.3, '+2 tokens', MUST, 24);
-      PG.burst(rp.x, rp.y - geo.r * 0.28, 18, { colors: [ap.c, CREAM, MUST], g: 260, min: 80, max: 300, shape: 's', s0: 2, s1: 5 });
+      var bdx = rp.x - geo.cx, bdy = rp.y - geo.cy, bl = Math.hypot(bdx, bdy) || 1, bpx = rp.x + bdx / bl * geo.r * 0.24, bpy = rp.y + bdy / bl * geo.r * 0.24;
+      PG.popText(bpx, bpy - 24, '+2 tokens', MUST, 24);
+      PG.burst(bpx, bpy, 18, { colors: [ap.c, CREAM, MUST], g: 260, min: 80, max: 300, shape: 's', s0: 2, s1: 5 });
     }
     if (st.left <= 0 && st.fly.length === 0) clearStage();
   }
@@ -256,7 +257,7 @@
     c.save(); c.rotate(st.rot * D2R);
     st.pins.forEach(function (p) { c.save(); c.rotate(p.a * D2R); c.translate(r * 0.95, 0); c.rotate(Math.sin(t * 40) * p.w * 0.08); drawDart(c, p.c, L); c.restore(); });
     var face = wheelFace(st.theme, st.boss, r); c.drawImage(face, -face.lw / 2, -face.lh / 2, face.lw, face.lh);
-    st.apples.forEach(function (ap) { c.save(); c.rotate(ap.a * D2R); c.translate(r * 0.62, 0); balloon(c, ap.c, r * 0.14, t + ap.a); c.restore(); });
+    st.apples.forEach(function (ap) { c.save(); c.rotate(ap.a * D2R); c.translate(r * 0.95 + r * 0.14 * 1.7, 0); balloon(c, ap.c, r * 0.14, t + ap.a); c.restore(); });
     var nb = 16, chase = Math.floor(t * 4);
     for (var i = 0; i < nb; i++) { var a = i * TAU / nb; bulb(c, Math.cos(a) * r * 0.93, Math.sin(a) * r * 0.93, Math.max(2, r * 0.035), st.boss ? (i + chase) % 2 === 0 : (i + chase) % 4 !== 0); }
     c.restore();

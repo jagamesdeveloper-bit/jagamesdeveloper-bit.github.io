@@ -226,7 +226,8 @@
     if (st.sel === i) lift = -th * 0.16 + Math.sin(t * 5) * 2;
     if (a && a.from === i) { var tt = a.t, e = tt < 0.25 ? PG.ease.io(tt / 0.25) : tt > 0.8 ? PG.ease.io(1 - (tt - 0.8) / 0.2) : 1, tp = tubePos(a.to), dir = tp.x >= P.x ? 1 : -1; if (Math.abs(tp.x - P.x) < 2) dir = (P.x > PG.w / 2 ? -1 : 1);
       px = PG.lerp(P.x, tp.x - dir * tw * 0.75, e); py = PG.lerp(P.y, tp.y - th * 0.45, e); tilt = dir * e * (0.9 + a.n * 0.12);
-      pour = tt > 0.2 && tt < 0.85 ? PG.clamp((tt - 0.2) / 0.65, 0, 1) : (tt >= 0.85 ? 1 : 0); drawn = T.length - a.n * pour; }
+      pour = tt > 0.2 && tt < 0.85 ? PG.clamp((tt - 0.2) / 0.65, 0, 1) : (tt >= 0.85 ? 1 : 0); drawn = T.length - a.n * pour;
+      var ext = th * Math.abs(Math.sin(tilt)) + tw * 0.62; px = tilt > 0 ? Math.max(px, ext) : Math.min(px, PG.w - ext); }
     if (a && a.to === i) { var pr = a.t > 0.2 && a.t < 0.85 ? PG.clamp((a.t - 0.2) / 0.65, 0, 1) : (a.t >= 0.85 ? 1 : 0); ghost = a.n * pr; ghostC = a.color; }
     var isDone = done(T) && !(a && (a.from === i || a.to === i)), topC = T.length ? T[T.length - 1].c : -1;
     // inner glow of the potion
@@ -234,27 +235,38 @@
     c.save(); c.translate(px, py + lift); c.rotate(tilt);
     c.save(); tubePath(c, tw, th); c.clip();
     c.fillStyle = 'rgba(190,210,255,.07)'; c.fillRect(-tw, 0, tw * 2, th);
-    c.save(); c.rotate(-tilt); // liquid stays level in world space
-    var cosT = Math.cos(tilt), sinT = Math.abs(Math.sin(tilt)), baseY = th * cosT + tw / 2 * sinT - tw * 0.04, wob = (a && (a.from === i || a.to === i)) ? 2.2 : 1.1;
-    var total = drawn + ghost, nTop = Math.ceil(total - 0.001);
+    // liquid is solved in tube space: every layer boundary is a line that stays level in the world, so a tilted flask shows true, pooled layers
+    var thp = th - tw * 0.04, sl = Math.tan(tilt), wob = (a && (a.from === i || a.to === i)) ? 2.2 : 1.1, total = drawn + ghost, nTop = Math.ceil(total - 0.001);
+    function levelYc(vol) { // centre-line height for a given liquid volume (in layers)
+      var A = Math.max(0, vol) * sh * tw, lo = -thp * 2, hi = thp * 2;
+      for (var it = 0; it < 14; it++) { var mid = (lo + hi) / 2, ar = 0; for (var q = 0; q < 10; q++) { var xq = -tw / 2 + (q + 0.5) * tw / 10; ar += Math.min(thp, Math.max(0, thp - (mid - sl * xq))) * tw / 10; } if (ar > A) lo = mid; else hi = mid; }
+      return (lo + hi) / 2;
+    }
+    var ycPrev = thp + tw * 2;
     for (var k = 0; k < nTop; k++) {
       var seg = k < T.length ? T[k] : null, colIdx = k < T.length ? T[k].c : ghostC; if (k >= T.length && !ghost) break;
-      var frac = Math.min(1, total - k), y1 = baseY - k * sh, y0 = y1 - sh * frac, hid = seg && seg.hid && k < T.length - 1 && !(a && a.from === i), isTop = k === nTop - 1;
-      var col = hid ? '#2a2236' : COLORS[colIdx];
-      c.fillStyle = col; c.beginPath(); c.moveTo(-tw, y1 + 1); c.lineTo(-tw, y0);
-      if (isTop) { for (var xx = -tw; xx <= tw; xx += 3) c.lineTo(xx, y0 + Math.sin(t * 3.2 + xx * 0.18 + i) * wob); } else c.lineTo(tw, y0 - 0.5);
-      c.lineTo(tw, y1 + 1); c.closePath(); c.fill();
-      if (hid) { var sm = c.createLinearGradient(0, y0, 0, y1); sm.addColorStop(0, 'rgba(120,100,150,.25)'); sm.addColorStop(1, 'rgba(0,0,0,.2)'); c.fillStyle = sm; c.fillRect(-tw, y0, tw * 2, y1 - y0); U.text(c, '?', 0, (y0 + y1) / 2, sh * 0.55, 'rgba(230,215,255,.45)', 'center', { shadow: false }); }
+      var vTop = Math.min(k + 1, total), ycTop = levelYc(vTop), hid = seg && seg.hid && k < T.length - 1 && !(a && a.from === i), isTop = k === nTop - 1;
+      var col = hid ? '#2a2236' : COLORS[colIdx], xL = -tw, xR = tw;
+      function yLine(yc, x, wave) { return yc - sl * x + (wave ? Math.sin(t * 3.2 + x * 0.18 + i) * wob : 0); }
+      c.fillStyle = col; c.beginPath(); c.moveTo(xL, yLine(ycTop, xL, isTop));
+      for (var xx = xL + 3; xx <= xR; xx += 3) c.lineTo(xx, yLine(ycTop, xx, isTop));
+      c.lineTo(xR, yLine(ycPrev, xR, false)); c.lineTo(xL, yLine(ycPrev, xL, false)); c.closePath(); c.fill();
+      var ym = (yLine(ycTop, 0, false) + yLine(ycPrev, 0, false)) / 2, lh = Math.abs(ycPrev - ycTop);
+      if (hid) { var sm = c.createLinearGradient(0, ycTop, 0, ycPrev); sm.addColorStop(0, 'rgba(120,100,150,.25)'); sm.addColorStop(1, 'rgba(0,0,0,.2)'); c.fillStyle = sm; c.fillRect(-tw, Math.min(ycTop, ycPrev) - tw, tw * 2, lh + tw * 2); c.save(); c.translate(0, ym); c.rotate(-tilt); U.text(c, '?', 0, 0, sh * 0.55, 'rgba(230,215,255,.45)', 'center', { shadow: false }); c.restore(); }
       else {
-        c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(-tw, y1 - 2, tw * 2, 2);
-        c.strokeStyle = LIGHT[colIdx] ? 'rgba(70,40,10,.5)' : 'rgba(255,250,235,.55)'; c.lineWidth = Math.max(1.4, tw * 0.045); c.lineJoin = 'round'; c.lineCap = 'round'; sigil(c, colIdx, 0, (y0 + y1) / 2 + 1, Math.min(tw * 0.42, sh * 0.42));
+        // soft depth: darker toward the glass edges and the layer's lower seam
+        var ld = c.createLinearGradient(0, ycTop - sl * 0, 0, ycPrev); ld.addColorStop(0, 'rgba(255,255,255,.10)'); ld.addColorStop(0.5, 'rgba(255,255,255,0)'); ld.addColorStop(1, 'rgba(0,0,0,.16)');
+        c.save(); c.beginPath(); c.moveTo(xL, yLine(ycTop, xL, false)); c.lineTo(xR, yLine(ycTop, xR, false)); c.lineTo(xR, yLine(ycPrev, xR, false)); c.lineTo(xL, yLine(ycPrev, xL, false)); c.closePath(); c.fillStyle = ld; c.fill(); c.restore();
+        c.strokeStyle = 'rgba(0,0,0,.2)'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(xL, yLine(ycPrev, xL, false)); c.lineTo(xR, yLine(ycPrev, xR, false)); c.stroke();
+        c.save(); c.translate(0, ym); c.rotate(-tilt); c.strokeStyle = LIGHT[colIdx] ? 'rgba(70,40,10,.5)' : 'rgba(255,250,235,.55)'; c.lineWidth = Math.max(1.4, tw * 0.045); c.lineJoin = 'round'; c.lineCap = 'round'; sigil(c, colIdx, 0, 0, Math.min(tw * 0.42, sh * 0.42)); c.restore();
       }
       if (isTop && !hid) { // meniscus highlight and rising bubbles
-        c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = 1.5; c.beginPath(); for (xx = -tw * 0.45; xx <= tw * 0.45; xx += 3) c.lineTo(xx, y0 + 1.5 + Math.sin(t * 3.2 + xx * 0.18 + i) * wob); c.stroke();
-        for (var b = 0; b < 3; b++) { var bt = (t * 0.55 + b * 0.33 + i * 0.17) % 1; c.strokeStyle = 'rgba(255,255,255,' + 0.6 * (1 - bt) + ')'; c.lineWidth = 1; c.beginPath(); c.arc(Math.sin(b * 5 + i) * tw * 0.22, y1 - bt * (y1 - y0 - 3), 1.3 + b * 0.5, 0, TAU); c.stroke(); }
+        c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 1.6; c.beginPath(); for (xx = -tw * 0.45; xx <= tw * 0.45; xx += 3) c.lineTo(xx, yLine(ycTop, xx, true) + 1.8); c.stroke();
+        c.fillStyle = 'rgba(255,255,255,.14)'; c.beginPath(); c.moveTo(-tw * 0.5, yLine(ycTop, -tw * 0.5, true)); for (xx = -tw * 0.5; xx <= tw * 0.5; xx += 4) c.lineTo(xx, yLine(ycTop, xx, true)); c.lineTo(tw * 0.5, yLine(ycTop, tw * 0.5, false) + 5); c.lineTo(-tw * 0.5, yLine(ycTop, -tw * 0.5, false) + 5); c.closePath(); c.fill();
+        for (var b = 0; b < 3; b++) { var bt = (t * 0.55 + b * 0.33 + i * 0.17) % 1, bx = Math.sin(b * 5 + i) * tw * 0.22, by1 = yLine(ycPrev, bx, false), by0 = yLine(ycTop, bx, false); c.strokeStyle = 'rgba(255,255,255,' + 0.6 * (1 - bt) + ')'; c.lineWidth = 1; c.beginPath(); c.arc(bx, by1 - bt * (by1 - by0 - 3), 1.3 + b * 0.5, 0, TAU); c.stroke(); }
       }
+      ycPrev = ycTop;
     }
-    c.restore();
     c.fillStyle = glassGrad(c, tw); c.fillRect(-tw / 2, 0, tw, th);
     c.restore();
     // glass: rim flare, outline, reflections
@@ -269,9 +281,16 @@
     c.restore();
     if (a && a.from === i && a.t > 0.2 && a.t < 0.85) { // stream from the lip to the target surface
       var lip = { x: px + Math.cos(tilt) * (tilt > 0 ? tw / 2 : -tw / 2), y: py + Math.sin(tilt) * (tilt > 0 ? tw / 2 : -tw / 2) }, tp2 = tubePos(a.to);
-      var tgtLevel = tp2.y + (st.layout.th - tw * 0.04) - (st.tubes[a.to].length + a.n * pour) * sh;
-      c.lineCap = 'round'; c.beginPath(); c.moveTo(lip.x, lip.y); c.quadraticCurveTo(lip.x + (tp2.x - lip.x) * 0.35 + Math.sin(PG.time * 30) * 1.2, lip.y + (tgtLevel - lip.y) * 0.1, tp2.x + Math.sin(PG.time * 25) * 1.5, tgtLevel);
-      c.strokeStyle = COLORS[a.color]; c.lineWidth = tw * 0.16; c.stroke(); c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = tw * 0.05; c.stroke();
+      var tgtLevel = tp2.y + (st.layout.th - tw * 0.04) - (st.tubes[a.to].length + a.n * pour) * sh, dxs = tp2.x - lip.x, dys = tgtLevel - lip.y, nst = 20, strength = Math.min(1, (a.t - 0.2) / 0.1, (0.85 - a.t) / 0.1 + 0.3);
+      // the stream leaves the lip sideways and falls under gravity, thinning as it goes
+      var pts = []; for (var u = 0; u <= nst; u++) { var uu = u / nst; pts.push({ x: lip.x + dxs * (1 - (1 - uu) * (1 - uu)) + Math.sin(PG.time * 22 + uu * 9) * 0.8 * uu, y: lip.y + dys * uu * uu }); }
+      c.lineCap = 'round'; c.lineJoin = 'round';
+      for (var pass = 0; pass < 3; pass++) {
+        c.strokeStyle = pass === 0 ? 'rgba(10,6,20,.35)' : pass === 1 ? COLORS[a.color] : 'rgba(255,255,255,.5)';
+        for (var q = 1; q < pts.length; q++) { var wq = tw * (0.2 - 0.09 * q / nst) * strength * (pass === 0 ? 1.35 : pass === 1 ? 1 : 0.28); c.lineWidth = Math.max(0.8, wq); c.beginPath(); c.moveTo(pts[q - 1].x + (pass === 2 ? -wq * 0.15 : 0), pts[q - 1].y); c.lineTo(pts[q].x + (pass === 2 ? -wq * 0.15 : 0), pts[q].y); c.stroke(); }
+      }
+      // ripples and a little splash crown where the stream meets the surface
+      for (var rp2 = 0; rp2 < 2; rp2++) { var rk = (PG.time * 2.2 + rp2 * 0.5) % 1; c.strokeStyle = hexA(COLORS[a.color], 0.7 * (1 - rk)); c.lineWidth = 1.4; c.beginPath(); c.ellipse(tp2.x, tgtLevel, tw * (0.12 + rk * 0.34), tw * (0.04 + rk * 0.07), 0, 0, TAU); c.stroke(); }
       if (Math.random() < 0.5) PG.parts.push({ x: tp2.x + PG.rand(-tw * 0.2, tw * 0.2), y: tgtLevel, vx: PG.rand(-40, 40), vy: PG.rand(-90, -30), life: 0.4, t: 0, size: 2.2, color: COLORS[a.color], g: 300, shape: 'c' });
     }
     // completed flasks glow and throw off little twinkles
@@ -372,7 +391,7 @@
   }
   function update(dt) {
     PG.updateParts(dt); PG.updatePops(dt); st.shake = Math.max(0, st.shake - dt * 30); if (st.won) st.winT += dt;
-    if (st.anim) { st.anim.t += dt / (0.95 + st.anim.n * 0.08); if (st.anim.t >= 1) finishPour(); }
+    if (st.anim) { st.anim.t += dt / (1.3 + st.anim.n * 0.1); if (st.anim.t >= 1) finishPour(); }
   }
   function render(c, w, h) {
     var t = PG.time; c.save(); if (st.shake > 0.2) c.translate((Math.random() - 0.5) * st.shake, 0);
