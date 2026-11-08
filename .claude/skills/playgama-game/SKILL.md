@@ -62,7 +62,7 @@ The user is a Unity programmer and pro gamer who works from a phone. They like s
 6. Report the live URL, what changed, what you verified, and what you could not (real phones, real ad networks).
 
 ## Rules about publishing
-- Publishing to the sandbox is public. Do it when the user asked to update/upload. When they only ask for changes, build and offer to publish.
+- Publishing to the sandbox is public. The user has said "always publish": after every finished, tested build, upload and publish it to the sandbox without asking. Never submit to moderation or send a catalog update without an explicit yes.
 - **Never republish just to bump visibility or "get to the top".** It does nothing for ranking, risks a block and the 15-publishes-per-hour limit. Refuse politely and offer real options: moderation submission in the console (no tool, human only), `get_sandbox_traffic` / referral bonuses, sharing the link.
 - Multiplayer games need Playgama to whitelist hosts, and the sandbox refuses `multiplayer:true`. Plan co-op as a separate build and say so up front.
 - Never ask the user for tokens or auth codes. If the Playgama connector is "Needs authentication", tell them to add/reauthorize it in claude.ai connectors and start a new session.
