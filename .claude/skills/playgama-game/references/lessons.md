@@ -1,41 +1,46 @@
 # Lessons learned (real moderation history)
 
-Source: `list_moderation_comments` / `get_application` on the developer's games, read 2026-11-08.
-Root causes marked *unrecorded* were not written down at the time - confirm before assuming. **Append new entries at the bottom of each section; keep them short.**
+Source: `list_moderation_comments` / `get_application`, read 2026-11-08. Causes marked *unrecorded* were never written down - confirm before assuming. **Append new entries at the bottom of their section; keep them short.**
 
-## Pre-flight checklist distilled from rejections
-Run this mentally on every Unity build before upload:
-1. `game_ready` is sent only after the first meaningful frame is visible (not on scene load) - Elska rejected for this; archives on Bridge 1.33.0 got `GAME_NOT_READY`.
-2. Interstitial: subscribe to the ad state - `Opened` -> pause game + mute; `Closed`/`Failed` -> resume + unmute (req 2.1.6).
-3. Page hidden / tab switched / minimized -> sound stops, resumes on return (req 3.3.5). Use the Bridge visibility/pause events.
-4. Platform audio state respected at startup and via events (req 3.3.4).
-5. Desktop controls: every advertised key works in the WebGL build (not just in the Editor). Test with the canvas focused and unfocused (req 1.5.1).
-6. **If the form says IOS/ANDROID, the game needs touch controls** (virtual joystick or equivalent, req 1.4.4). Otherwise set `supportedDevices` to `["DESKTOP"]` only.
-7. UI never cut off at any aspect ratio, including 1:1 (req 1.6.x). Test the size matrix from `game-development/responsive-layout`.
-8. Enemies / gameplay actually spawn in the WebGL build (Y8 reported "no enemies").
-9. No white-square sprites: all sprites present in the build (atlas/Addressables/stripping suspects; cause *unrecorded*).
-10. No external network dependency that can fail on the platform (Photon errors blocked loading, see below). Req 1.2.5 / prefer Bridge multiplayer.
-11. Decompression Fallback enabled (req 5.1.1) - `get_archive_status.archiveData.decompressionFallback` must be `true`.
-12. Saves only via Bridge storage, never `PlayerPrefs` (req 3.2.1).
+## Pre-flight list distilled from rejections (JS games)
+1. `game_ready` only after the first meaningful frame is visible and loading screen hidden. (Elska rejected; builds on old Bridge got `GAME_NOT_READY`.)
+2. Interstitial open -> pause + mute; closed/failed -> resume + unmute. (2.1.6)
+3. Tab hidden / minimized -> silence, resume on return. (3.3.5)  Platform audio state applied at start AND via events. (3.3.4)
+4. **Sound must be real audio files, not code-synthesized** - Tangle Tails: "sounds are standard JS/AI-generated" (3.3.2).
+5. **No scroll bars/page scroll on any screen**, incl. main menu and win screen - Tangle Tails (1.6.3).
+6. Enough content: modes, progression, depth - Tangle Tails was asked for "more game modes and progression" (3.1.2); 2048 remaster rejected as AI-made (see below).
+7. Desktop keys work in the real build; touch controls exist whenever mobile is declared (1.4.4, 1.5.1). Elska: dead keys, then Xiaomi "no on-screen controls". If only one input works, restrict `supportedDevices`.
+8. UI never cut off at any aspect ratio incl. 1:1 (1.6.x); enemies/gameplay present in the shipped build (Y8: "no enemies").
+9. No missing-image "white square" (assets referenced but not shipped / failed load).
+10. No external services that can fail on the platform (Elska: Photon errors blocked loading) (1.2.5, 1.7.1).
+11. Saves only via Bridge storage (3.2.1). English default + language from `platform.language` (3.4).
+12. No emoji-as-icons / generic template UI (4.3.2).
 
-## Game log
+## Games
 
-### Elska - dog vs zombies! Multiplayer co-op (`cmplfo3fp00xvlw0heev23n3x`, Unity, live on Playgama, Y8, Lagged)
-| Date | Platform | Complaint | Maps to | Notes |
-|---|---|---|---|---|
-| 2026-05-27 | PLAYGAMA | Game and music don't pause during interstitial; sound continues after minimize; image shows as white square | 2.1.6, 3.3.5 | wiki: Unity interstitial state event + `visibilityStateChanged`; white square cause unrecorded |
-| 2026-06-01 | PLAYGAMA | Game Ready fired before first visible frame | SDK required step 6 | send after first meaningful frame |
-| 2026-06-04 | PLAYGAMA | Desktop controls dead except Space/Ctrl (dash) | 1.5.1 | cause unrecorded - check WebGL keyboard capture/focus |
-| 2026-06-17 | Y8 | Keyboard controls not working | 1.5.1 | same symptom as above |
-| 2026-06-23 | PLAYGAMA | Massive Photon errors, game doesn't load | 1.7.1, 1.2.5 | multiplayer backend; consider Bridge multiplayer (`api/multiplayer`) vs Photon |
-| 2026-09-15 | Y8 | No enemies in game, UI cut off | 1.7.2, 1.6.2 | |
-| 2026-11-05 | XIAOMI | No on-screen movement controls on touch devices | 1.4.4 | form lists IOS+ANDROID but game is WASD+mouse -> add virtual joystick OR drop mobile devices |
+### Tangle Tails (`cmuu0p2qo0c91g40hs2lhctmq`, js, live in Playgama catalog)
+- ~30 archives `tangle-tails-1.0.0 .. 3.4.0` in five weeks, all PASSED on Bridge 2.3.x -> 2.4.1 (javascript), initial size ~160 KB, load ~0.3-0.5 s. Iterating semver per build works well.
+- 2026-10-07 PLAYGAMA: refine sound design (standard JS/AI-generated sounds); add more modes and progression. -> req 3.3.2, 3.1.2.
+- 2026-10-13 PLAYGAMA: scroll in main menu and win screen. -> req 1.6.3. Published the same day.
+- Form used: 8 languages, desktop+mobile, both orientations, leaderboards on, distributeEverywhere on.
 
-Build history: three Bridge 1.33.0 archives all `PROBLEM / GAME_NOT_READY`; `elskawebglnew` (Bridge 2.4.1, ~166 MB zip, ~72 MB initial, load ~4.7 s) `PASSED`. Large initial size - revisit with `performance-and-optimization/unity`.
+### Bloomfall (`cmw6hql3w0jrrno0h716gku7s`, js, created via MCP by claude-opus, sandbox)
+- bloomfall-1.0.0: 1.6 MB zip, initial 0.77 MB, load ~0.4 s, PASSED on Bridge 2.4.1. 7 languages, keyboard + touch controls described in `howToPlayText`. No moderation feedback yet.
 
 ### 2048 +Reverb +Slowed (remastered) (`cmsq6b2f802m1o60half8on52`)
-- 2026-09-15 PLAYGAMA: **REJECTED** - AI-created games are not taken into the main catalog directly; Playgama directs them to the MCP sandbox route (publish to sandbox, collect real player data, strongest get catalog placement). Lesson: for AI-built games go straight to the sandbox path (Ship step 8) and do not expect a first-pass catalog moderation; also req 4.2.2 (copies/variants of existing games) and 4.3 (generative AI).
+- 2026-09-15 PLAYGAMA **REJECTED**: AI-created games are not taken into the main catalog directly; Playgama points to the MCP sandbox route (get first players, performance data, best get catalog placement). -> Go straight to Ship step 8 (sandbox) for AI-built games. Also mind 4.2.2 (variants/copies of existing games) and 4.3.
+
+### Elska - dog vs zombies! (`cmplfo3fp00xvlw0heev23n3x`, **Unity**, live: Playgama, Y8, Lagged; Xiaomi pending)
+| Date | Platform | Complaint | Req |
+|---|---|---|---|
+| 2026-05-27 | PLAYGAMA | no pause/mute during interstitial; sound continues after minimize; white square instead of image | 2.1.6, 3.3.5 |
+| 2026-06-01 | PLAYGAMA | Game Ready fired before first visible frame | SDK 6 |
+| 2026-06-04 | PLAYGAMA | desktop controls dead except Space/Ctrl | 1.5.1 (cause *unrecorded*) |
+| 2026-06-17 | Y8 | keyboard controls not working | 1.5.1 |
+| 2026-06-23 | PLAYGAMA | massive Photon errors, doesn't load | 1.7.1, 1.2.5 |
+| 2026-09-15 | Y8 | no enemies; UI cut off | 1.7.2, 1.6.2 |
+| 2026-11-05 | XIAOMI | no on-screen movement controls on touch | 1.4.4 (form lists IOS+ANDROID, game is WASD+mouse) |
+Build history: three Bridge 1.33.0 archives `GAME_NOT_READY`; `elskawebglnew` (Bridge 2.4.1, 166 MB, ~72 MB initial, load 4.7 s) PASSED.
 
 ## Platform quirks
-- Partner platforms (Y8, Xiaomi, Lagged, ...) re-moderate after the Playgama pass and can raise new issues weeks later. After any fix, check `list_moderation_comments` for **all** task types.
-- Platform-specific rules: `get_game_checklist(page: "platform-specific-requirements")`.
+- Partner platforms re-moderate after the Playgama pass and raise new issues weeks later. After any fix check `list_moderation_comments` for **all** task types; platform rules: `get_game_checklist(page:"platform-specific-requirements")`.

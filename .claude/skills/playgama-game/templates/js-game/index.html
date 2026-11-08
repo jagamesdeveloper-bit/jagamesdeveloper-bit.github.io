@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>__TITLE__</title>
+<!-- Bridge MUST be the first script in <head>: not async, not defer, not injected later. -->
+<script src="https://bridge.playgama.com/v2/stable/playgama-bridge.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+  <div id="ui"></div>
+</div>
+<div id="loading">
+  <div id="loading-title">__TITLE__</div>
+  <div id="bar"><i id="bar-fill"></i></div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

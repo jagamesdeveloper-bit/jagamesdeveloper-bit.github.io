@@ -1,7 +1,7 @@
 # Game registry (snapshot 2026-11-08)
 
 Snapshot only - **status changes; call `list_applications` for truth.** Use this to recognise a game by title and reuse its id.
-Org has 33 games. Live/active: Elska. Rejected: 2048 remaster. Processing: Tangle Tails, Last Square. Everything else is DRAFT.
+Org has 33 games. Live/active: Elska (Unity, the only Unity one known), Tangle Tails (js). Rejected: 2048 remaster. Processing: Tangle Tails, Last Square. Everything else is DRAFT; Bloomfall, Tangle Tails confirmed agent-built js (check `get_application` engine/createdVia for the rest).
 
 | Title | applicationId | Status | Last updated |
 |---|---|---|---|

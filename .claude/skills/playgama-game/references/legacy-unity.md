@@ -1,4 +1,4 @@
-# Unity WebGL for Playgama
+# Unity WebGL for Playgama (LEGACY - only for updating Elska-type Unity games; new games are plain JS)
 
 Always fetch live details: `get_bridge_sdk_docs(page, engine: "Unity")`. Pages most used: `api`, `api/platform`, `api/storage`, `api/advertisement/interstitial`, `api/advertisement/rewarded`, `api/payments`, `api/device`, `api/analytics`, setup page for Unity.
 
