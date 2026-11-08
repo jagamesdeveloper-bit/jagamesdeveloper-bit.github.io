@@ -5,30 +5,92 @@
   var U = PG.ui, TAU = 6.2832, VW = 400, FH = 30, BASE_W = 150;
   var NAVY = '#1d2d44', CREAM = '#f4e9d0', TEAL = '#2a9d8f', MUST = '#e9b44c', CORAL = '#e76f51', SKY = '#8ecae6';
   var UPS = [
-    { id: 'mortar', n: 'Sticky Mortar', d: 'Bigger perfect zone', max: 8, base: 20, grow: 1.5 },
-    { id: 'found', n: 'Wide Foundation', d: '+6% starting width', max: 8, base: 30, grow: 1.5 },
-    { id: 'slow', n: 'Slow Crane', d: 'Crane swings 5% slower', max: 8, base: 25, grow: 1.5 },
-    { id: 'net', n: 'Safety Net', d: 'Forgive a miss once per run', max: 3, base: 90, grow: 2.4 },
-    { id: 'shield', n: 'Wind Shield', d: 'Wind pushes 12% less', max: 6, base: 40, grow: 1.6 },
-    { id: 'coin', n: 'Gold Bricks', d: '+15% coins', max: 8, base: 30, grow: 1.5 }
+    { id: 'mortar', tab: 0, n: 'Sticky Mortar', d: 'Bigger perfect zone', max: 8, base: 20, grow: 1.5 },
+    { id: 'found', tab: 0, n: 'Wide Foundation', d: '+6% starting width', max: 8, base: 30, grow: 1.5 },
+    { id: 'magnet', tab: 0, n: 'Magnet Crane', d: 'Near misses snap to perfect', max: 3, base: 120, grow: 2.2 },
+    { id: 'slow', tab: 1, n: 'Slow Crane', d: 'Crane swings 5% slower', max: 8, base: 25, grow: 1.5 },
+    { id: 'shield', tab: 1, n: 'Wind Shield', d: 'Wind pushes 12% less', max: 6, base: 40, grow: 1.6 },
+    { id: 'pilot', tab: 1, n: 'Pilot Training', d: 'Power-ups sooner and longer', max: 5, base: 60, grow: 1.7 },
+    { id: 'net', tab: 2, n: 'Safety Net', d: 'Forgive a miss once per run', max: 3, base: 90, grow: 2.4 },
+    { id: 'lucky', tab: 2, n: 'Lucky Brick', d: '4% free perfect per level', max: 5, base: 70, grow: 1.8 },
+    { id: 'keeper', tab: 2, n: 'Combo Keeper', d: 'A miss keeps part of your combo', max: 4, base: 80, grow: 1.9 },
+    { id: 'coin', tab: 3, n: 'Gold Bricks', d: '+15% coins', max: 8, base: 30, grow: 1.5 },
+    { id: 'hunter', tab: 3, n: 'Bonus Hunter', d: 'Crates and girders pay +25%', max: 4, base: 50, grow: 1.7 },
+    { id: 'start', tab: 3, n: 'Head Start', d: 'Begin each run with a combo', max: 3, base: 100, grow: 2.3 }
   ];
+  var TABS = ['Precision', 'Crane', 'Luck', 'Economy'];
+  var MODS = [
+    { id: 'normal', n: 'NORMAL DAY', w: 3 }, { id: 'gusty', n: 'GUSTY DAY', w: 2 }, { id: 'rush', n: 'RUSH HOUR', w: 2 }, { id: 'heavy', n: 'HEAVY FLOORS', w: 2 },
+    { id: 'calm', n: 'CALM MORNING', w: 2 }, { id: 'double', n: 'DOUBLE OR NOTHING', w: 1.5 }, { id: 'lucky', n: 'LUCKY STREAK', w: 1.5 }
+  ];
+  var MODINFO = { normal: 'Standard rules', gusty: 'Strong wind from floor 1', rush: 'Fast crane, perfects pay 2x', heavy: 'Wide floors, fast crane', calm: 'No wind, narrow start', double: 'Coins x2, no safety nets', lucky: 'Every 4th floor is free' };
   var THEMES = [ // facade, window band, accent
     [CREAM, TEAL, CORAL], [CORAL, NAVY, CREAM], ['#f2d492', '#3d5a80', CORAL], [TEAL, '#14404a', MUST], ['#e8c9a8', '#2f4858', TEAL], [MUST, NAVY, CREAM], ['#b5c99a', '#33415c', CORAL], ['#f4a261', '#264653', CREAM]
   ];
   var st = { state: 'menu', floors: [], cur: null, x: 0, dir: 1, t: 0, falling: null, cut: [], combo: 0, perfects: 0, coinsRun: 0, paid: 0, camY: 0, over: false, overT: 0, netLeft: 0, revUsed: false, doubled: false, runIdx: 0, sway: 0, wind: 0, windT: 0, squash: 0, shake: 0, newBest: false, perfectFx: [], banner: null, tut: true };
-  var scale = 1, clouds = []; for (var i = 0; i < 7; i++) clouds.push({ x: Math.random() * 500 - 50, y: Math.random() * 1400, s: 0.6 + Math.random(), v: 4 + Math.random() * 6 });
+  var scale = 1, clouds = []; st.tab = 0; st.pattern = 'pend'; st.mod = 'normal'; st.modName = ''; st.lastMod = ''; for (var i = 0; i < 7; i++) clouds.push({ x: Math.random() * 500 - 50, y: Math.random() * 1400, s: 0.6 + Math.random(), v: 4 + Math.random() * 6 });
 
   function up(id) { return PG.upLevel(id); }
   function tol() { return 5 + 1.6 * up('mortar'); }
-  function swingSpeed() { return Math.min(330, 120 + st.floors.length * 3.6) * (1 - 0.05 * up('slow')); }
+  function tolFor(ty) { return tol() * (ty === 'glass' ? 1.4 : 1); }
+  function modIs(id) { return st.mod === id; }
+  function rollMod(excl) { var pool = MODS.filter(function (m) { return m.id !== excl; }), tot = 0; pool.forEach(function (m) { tot += m.w; }); var r = Math.random() * tot; for (var i = 0; i < pool.length; i++) { r -= pool[i].w; if (r <= 0) return pool[i]; } return pool[0]; }
+  function pickType(n) { if (n > 0 && n % 10 === 0) return 'penthouse'; var r = Math.random(), k = Math.min(0.36, 0.05 + n * 0.012); if (r < k * 0.34) return 'glass'; if (r < k * 0.66) return 'girder'; if (r < k) return 'balcony'; return 'std'; }
+  function windFactor(wk) { if (modIs('calm')) return 0; if (modIs('gusty')) wk = Math.max(wk, 0.45) * 1.6; if (st.evt && st.evt.type === 'storm') wk = Math.max(wk, 1.3); return wk; }
+  function dayNo() { return Math.floor(Date.now() / 864e5); }
+  function dailyDef() { var d = dayNo(), k = d % 3, md = MODS[1 + (d % 6)]; return { day: d, kind: ['floors', 'perfects', 'coins'][k], target: [20, 6, 25][k], mod: md, text: ['Reach 20 floors', 'Land 6 perfects', 'Earn 25 coins'][k] }; }
+  function missionDefs() { var d = dayNo(); return [{ kind: 'floors', target: 10 + (d % 4) * 3, text: 'Build ' }, { kind: 'perfects', target: 3 + (d % 3) * 2, text: 'Perfects ' }, { kind: 'coins', target: 10 + (d % 5) * 4, text: 'Coins ' }]; }
+  function metric(kind, n) { return kind === 'floors' ? n : kind === 'perfects' ? st.perfects : st.coinsRun; }
+  function banner(s) { st.banner = { s: s, t: 0 }; }
+  function checkPU() {
+    var thr = Math.max(3, 5 - up('pilot')); if (st.combo <= 0 || st.combo % thr !== 0) return;
+    var k = ['slow', 'wide', 'magnet'][(st.puN++) % 3], ext = 1 + 0.15 * up('pilot');
+    if (k === 'slow') { st.slowT = 3 * ext; banner('SLOW-MO'); } else if (k === 'wide') { st.wideNext = true; banner('EXTRA WIDE'); } else { st.magnet = 1; banner('MAGNET'); }
+    PG.sfx('upgrade'); PG.track('powerup_used', { kind: k });
+  }
+  function initRun() {
+    var m = st.forceMod || st.nextMod || (PG.save.runs ? rollMod(st.lastMod) : MODS[0]); st.forceMod = null; st.nextMod = null; st.mod = m.id; st.modName = m.n; st.lastMod = m.id;
+    st.challenge = st.nextChallenge || null; st.nextChallenge = null; st.rerolled = false; st.note = ''; st.pattern = 'pend'; st.evt = null; st.crate = null; st.bird = null; st.slowT = 0; st.wideNext = false; st.magnet = 0; st.goldNext = false; st.puN = 0;
+    st.combo = Math.min(3, up('start')); st.nextEvt = 8 + Math.floor(Math.random() * 6); st.coinMul = (modIs('rush') || modIs('double')) ? 2 : 1;
+    if (modIs('heavy')) st.floors[0].w = Math.min(st.floors[0].w * 1.15, 260); if (modIs('calm')) st.floors[0].w *= 0.9; if (modIs('double')) st.netLeft = 0;
+    if (st.mod !== 'normal') banner(st.modName);
+  }
+  function afterLand(f, ty, nx, nw, n) {
+    var hunt = 1 + 0.25 * up('hunter');
+    if (ty === 'girder') { st.coinsRun += 3 * hunt; PG.popText(f.x, f.y - 30, '+' + Math.round(3 * hunt) + ' girder', '#e9b44c', 20); }
+    if (ty === 'penthouse') { st.coinsRun += 6 * hunt; banner('PENTHOUSE'); PG.sfx('win'); }
+    if (st.crate && st.crate.x >= nx - nw / 2 - 6 && st.crate.x <= nx + nw / 2 + 6) { var cv = Math.round(5 * hunt); st.coinsRun += cv; PG.popText(st.crate.x, f.y - 40, '+' + cv + ' crate', '#e9b44c', 24); PG.sfx('coin'); }
+    st.crate = null;
+    if (st.evt) { st.evt.left--; if (st.evt.left <= 0) { if (st.evt.type === 'swap') st.pattern = 'pend'; st.evt = null; } }
+    if (n >= st.nextEvt && !st.evt && !st.bird) {
+      var kinds = ['crate', 'stutter', 'bird', 'storm', 'swap'], k = kinds[Math.floor(Math.random() * kinds.length)];
+      if (k === 'crate') { st.crate = { x: PG.rand(-90, 90) }; banner('BONUS CRATE'); }
+      else if (k === 'stutter') { st.evt = { type: 'stutter', left: 5 }; banner('CRANE STUTTER'); }
+      else if (k === 'bird') { st.bird = { t: 0 }; banner('TAP THE BIRD'); }
+      else if (k === 'storm') { st.evt = { type: 'storm', left: 5 }; banner('STORM FRONT'); }
+      else { st.pattern = ['sweep', 'double', 'drift'][Math.floor(Math.random() * 3)]; st.evt = { type: 'swap', left: 6 }; banner('CRANE SWAP'); }
+      st.nextEvt = n + 8 + Math.floor(Math.random() * 7); PG.track('event_triggered', { kind: k, floors: Math.min(n, 200) });
+    }
+  }
+  function swingSpeed() {
+    var s = Math.min(330, 120 + st.floors.length * 3.6) * (1 - 0.05 * up('slow'));
+    if (modIs('rush')) s *= 1.25; if (modIs('heavy')) s *= 1.15; if (st.slowT > 0) s *= 0.5;
+    if (st.evt && st.evt.type === 'stutter') s *= Math.sin(st.t * 7) > 0.2 ? 1.6 : 0.2;
+    return s;
+  }
+  function swingX() {
+    var amp = 170 + st.wind * 25, p = st.ph, v;
+    if (st.pattern === 'sweep') v = 2 / Math.PI * Math.asin(Math.sin(p)); else if (st.pattern === 'double') v = Math.sin(p + 0.9 * Math.sin(p * 0.5)); else if (st.pattern === 'drift') v = Math.sin(p + 0.7 * Math.sin(p * 2.3)); else v = Math.sin(p);
+    return v * amp + st.wind * 14;
+  }
   function swayOff(i, n) { var k = i / Math.max(8, n); return st.sway * k * k * 1.4; } // drawn offset of floor i in an n-floor tower
   function startRun() {
-    st.state = 'play'; var w0 = Math.min(BASE_W * (1 + 0.06 * up('found')), 230); st.floors = [{ x: 0, w: w0, i: 0 }]; st.combo = 0; st.perfects = 0; st.coinsRun = 0; st.paid = 0; st.over = false; st.cut = []; st.falling = null; st.netLeft = up('net') + (st.boost ? 2 : 0); st.boost = 0; st.revUsed = false; st.doubled = false; st.runIdx++; st.t = 0; st.camY = 0; st.newBest = false; st.banner = null; st.wind = 0; st.squash = 0;
+    st.state = 'play'; var w0 = Math.min(BASE_W * (1 + 0.06 * up('found')), 230); st.floors = [{ x: 0, w: w0, i: 0 }]; st.combo = 0; st.perfects = 0; st.coinsRun = 0; st.paid = 0; st.over = false; st.cut = []; st.falling = null; st.netLeft = up('net') + (st.boost ? 2 : 0); st.boost = 0; st.revUsed = false; st.doubled = false; st.runIdx++; initRun(); st.t = 0; st.camY = 0; st.newBest = false; st.banner = null; st.wind = 0; st.squash = 0;
     st.tut = !PG.save.runs; PG.parts = []; PG.pops = []; PG.playing = true; nextBlock();
-    PG.track('progression_started', { step_id: 'run', step_index: Math.min(st.runIdx, 50) }); PG.msg('level_started', { level: String(st.runIdx) });
+    PG.track('progression_started', { step_id: 'run', step_index: Math.min(st.runIdx, 50), mod: st.mod, daily: st.challenge ? 1 : 0 }); PG.msg('level_started', { level: String(st.runIdx) });
   }
-  function nextBlock() { var top = st.floors[st.floors.length - 1]; st.cur = { w: top.w, i: st.floors.length }; st.x = (st.runIdx + st.floors.length) % 2 ? -190 : 190; st.dir = st.x < 0 ? 1 : -1; st.ph = st.x < 0 ? -Math.PI / 2 : Math.PI / 2; }
-  function drop() { if (st.state !== 'play' || st.over || st.falling || !st.cur || PG.userPaused) return; st.tut = false; st.falling = { x: st.x, y: craneY(), vy: 0, w: st.cur.w, i: st.cur.i }; PG.sfx('whoosh'); }
+  function nextBlock() { var top = st.floors[st.floors.length - 1], ty = pickType(st.floors.length), bw = top.w * (ty === 'girder' ? 0.7 : ty === 'balcony' ? 1.12 : 1); if (st.wideNext) { bw *= 1.15; st.wideNext = false; } st.cur = { w: bw, i: st.floors.length, type: ty }; st.x = (st.runIdx + st.floors.length) % 2 ? -190 : 190; st.dir = st.x < 0 ? 1 : -1; st.ph = st.x < 0 ? -Math.PI / 2 : Math.PI / 2; }
+  function drop() { if (st.state !== 'play' || st.over || st.falling || !st.cur || PG.userPaused) return; st.tut = false; st.falling = { x: st.x, y: craneY(), vy: 0, w: st.cur.w, i: st.cur.i, type: st.cur.type }; PG.sfx('whoosh'); }
   function craneY() { return -(st.floors.length * FH) - 140; }
   function land(f) { // everything is compared where the player sees it: the swaying top floor
     var n = st.floors.length, top = st.floors[n - 1], so = swayOff(n - 1, n), tx = top.x + so, dx = f.x - tx, aL = Math.max(f.x - f.w / 2, tx - top.w / 2), aR = Math.min(f.x + f.w / 2, tx + top.w / 2), ov = aR - aL;
@@ -36,10 +98,17 @@
       st.falling = null; PG.sfx('lose'); st.cut.push({ x: f.x, y: f.y, w: f.w, vx: dx > 0 ? 60 : -60, vy: 0, r: 0, vr: dx > 0 ? 3 : -3, i: f.i, t: 0 });
       if (st.netLeft > 0) { st.netLeft--; st.combo = 0; PG.popText(f.x, f.y - 40, 'Safety net!', '#b5e48c', 24); PG.sfx('upgrade'); nextBlock(); return; } gameOver(); return;
     }
-    var perfect = Math.abs(dx) <= tol(), nw = ov, nx = (aL + aR) / 2, maxW = BASE_W * (1 + 0.06 * up('found'));
-    if (perfect) { st.flash = Math.min(1, 0.55 + st.combo * 0.08); nw = top.w; nx = tx; st.combo++; st.perfects++; if (st.combo >= 3 && top.w < maxW) nw = Math.min(top.w + 7, maxW); var cn = (1 + 0.15 * up('coin')) * (st.combo >= 3 ? 2 : 1); st.coinsRun += cn; PG.sfx('perfect', 1 + Math.min(st.combo, 8) * 0.06); st.perfectFx.push({ x: nx, y: -(n * FH) - FH / 2, w: nw, t: 0 }); PG.popText(nx, -(n * FH) - 50, st.combo > 1 ? 'PERFECT x' + st.combo : 'PERFECT', MUST, 28); PG.burst(nx, -(n * FH), 14, { colors: [MUST, CREAM, CORAL], g: 200, up: 120, life: 0.9, shape: spark }); }
-    else { st.combo = 0; var cutL = f.x - f.w / 2 < tx - top.w / 2, cw = f.w - ov, cx = cutL ? aL - cw / 2 : aR + cw / 2; st.cut.push({ x: cx, y: f.y, w: cw, vx: cutL ? -40 : 40, vy: 0, r: 0, vr: cutL ? -2 : 2, i: f.i, t: 0 }); PG.sfx('drop', 0.8 + (ov / f.w) * 0.4); PG.burst(nx, -(n * FH), 6, { colors: [CREAM, '#d6cbb3'], g: 300, min: 30, max: 140, life: 0.5, shape: 's' }); }
-    st.floors.push({ x: nx - swayOff(n, n + 1), w: nw, i: f.i }); st.falling = null; st.squash = 1; st.shake = perfect ? 3 : 6; PG.vibrate(perfect ? 6 : 14);
+    var ty = f.type || 'std', tl = tolFor(ty), perfect = Math.abs(dx) <= tl, nw = ov, nx = (aL + aR) / 2, maxW = BASE_W * (1 + 0.06 * up('found'));
+    if (!perfect) {
+      var forced = false, adx = Math.abs(dx);
+      if (st.goldNext) { st.goldNext = false; forced = true; } else if (st.magnet > 0 && adx <= tl * 2) { st.magnet--; forced = true; PG.popText(f.x, f.y - 40, 'Magnet!', '#b5e48c', 22); }
+      else if (up('magnet') > 0 && n % Math.max(3, 8 - 2 * up('magnet')) === 0 && adx <= tl * 1.5) { forced = true; PG.popText(f.x, f.y - 40, 'Snap!', '#b5e48c', 22); }
+      else if (Math.random() < 0.04 * up('lucky') || (modIs('lucky') && n % 4 === 0)) { forced = true; PG.popText(f.x, f.y - 40, 'Lucky!', '#e9b44c', 24); }
+      if (forced) perfect = true;
+    }
+    if (perfect) { st.flash = Math.min(1, 0.55 + st.combo * 0.08); nw = top.w; nx = tx; st.combo++; st.perfects++; checkPU(); if (st.combo >= 3 && top.w < maxW) nw = Math.min(top.w + 7, maxW); var cn = (1 + 0.15 * up('coin')) * (st.combo >= 3 ? 2 : 1) * st.coinMul * (ty === 'glass' ? 0.5 : 1); st.coinsRun += cn; PG.sfx('perfect', 1 + Math.min(st.combo, 8) * 0.06); st.perfectFx.push({ x: nx, y: -(n * FH) - FH / 2, w: nw, t: 0 }); PG.popText(nx, -(n * FH) - 50, st.combo > 1 ? 'PERFECT x' + st.combo : 'PERFECT', MUST, 28); PG.burst(nx, -(n * FH), 14, { colors: [MUST, CREAM, CORAL], g: 200, up: 120, life: 0.9, shape: spark }); }
+    else { st.combo = Math.floor(st.combo * 0.125 * up('keeper')); var cutL = f.x - f.w / 2 < tx - top.w / 2, cw = f.w - ov, cx = cutL ? aL - cw / 2 : aR + cw / 2; st.cut.push({ x: cx, y: f.y, w: cw, vx: cutL ? -40 : 40, vy: 0, r: 0, vr: cutL ? -2 : 2, i: f.i, t: 0 }); PG.sfx('drop', 0.8 + (ov / f.w) * 0.4); PG.burst(nx, -(n * FH), 6, { colors: [CREAM, '#d6cbb3'], g: 300, min: 30, max: 140, life: 0.5, shape: 's' }); }
+    if (!perfect && ty === 'balcony') nw = Math.max(24, nw - (f.w - ov)); st.floors.push({ x: nx - swayOff(n, n + 1), w: nw, i: f.i, type: ty }); afterLand(f, ty, nx, nw, n); st.falling = null; st.squash = 1; st.shake = perfect ? 3 : 6; PG.vibrate(perfect ? 6 : 14);
     st.coinsRun += (n % 5 === 0 ? 1 : 0) * (1 + 0.15 * up('coin')); if (n % 10 === 0) { st.banner = { s: n + ' FLOORS', t: 0 }; PG.sfx('win'); PG.track('floors_milestone', { floors: Math.min(n, 200) }); }
     if (n > (PG.save.best || 0)) { PG.save.best = n; st.newBest = true; }
     nextBlock();
@@ -47,6 +116,11 @@
   function gameOver() {
     st.over = true; st.overT = 0; PG.playing = false; var n = st.floors.length - 1; st.coinsRun = Math.round(st.coinsRun * 10) / 10;
     var owed = Math.round((st.coinsRun - st.paid) * 10) / 10; if (owed > 0) { PG.save.coins = Math.round(((PG.save.coins || 0) + owed) * 10) / 10; st.paid = st.coinsRun; } // continuing never pays twice
+    var notes = [];
+    if (st.challenge && PG.save.dcDone !== st.challenge.day && metric(st.challenge.kind, n) >= st.challenge.target) { PG.save.dcDone = st.challenge.day; PG.save.coins = (PG.save.coins || 0) + 50; notes.push('DAILY DONE +50'); PG.track('challenge_completed', { kind: st.challenge.kind }); }
+    var ms = PG.save.ms; if (!ms || ms.day !== dayNo()) ms = PG.save.ms = { day: dayNo(), done: [0, 0, 0] };
+    missionDefs().forEach(function (m, i) { if (!ms.done[i] && metric(m.kind, n) >= m.target) { ms.done[i] = 1; PG.save.coins = (PG.save.coins || 0) + 12; notes.push('MISSION +12'); } });
+    st.note = notes.join('  ');
     PG.save.runs = (PG.save.runs || 0) + 1; PG.commit(true);
     PG.track('progression_failed', { step_id: 'run', step_index: Math.min(st.runIdx, 50), floors: Math.min(n, 200), perfects: st.perfects }); PG.msg('level_failed', { level: String(st.runIdx) });
   }
@@ -59,11 +133,11 @@
     for (var i = st.perfectFx.length - 1; i >= 0; i--) { st.perfectFx[i].t += dt * 2.5; if (st.perfectFx[i].t > 1) st.perfectFx.splice(i, 1); }
     st.cut.forEach(function (c) { c.t += dt; c.vy += 900 * dt; c.y += c.vy * dt; c.x += c.vx * dt; c.r += c.vr * dt; }); st.cut = st.cut.filter(function (c) { return c.t < 2.2; });
     if (st.state !== 'play') return;
-    var n = st.floors.length, wk = Math.max(0, Math.min(1, (n - 10) / 28)) * (1 - 0.12 * up('shield')); st.windT += dt; var target = wk * Math.sin(st.windT * 0.45 + 1) * (0.6 + 0.4 * Math.sin(st.windT * 1.3)); st.wind += (target - st.wind) * Math.min(1, dt * 1.5);
+    var n = st.floors.length, wk = Math.max(0, Math.min(1, (n - 10) / 28)) * (1 - 0.12 * up('shield')); wk = windFactor(wk); if (st.slowT > 0) st.slowT -= dt; if (st.bird) { st.bird.t += dt; if (st.bird.t > 4.5) st.bird = null; } st.windT += dt; var target = wk * Math.sin(st.windT * 0.45 + 1) * (0.6 + 0.4 * Math.sin(st.windT * 1.3)); st.wind += (target - st.wind) * Math.min(1, dt * 1.5);
     st.sway = st.wind * 9 + Math.sin(st.t * 1.4) * Math.min(4, n * 0.1);
     if (PG.keyHit(' ') || PG.keyHit('enter') || PG.keyHit('arrowdown')) drop();
     if (!st.over) {
-      if (st.cur && !st.falling) { st.ph += dt * swingSpeed() / 170; var amp = 170 + st.wind * 25; st.x = Math.sin(st.ph) * amp + st.wind * 14; }
+      if (st.cur && !st.falling) { st.ph += dt * swingSpeed() / 170; var amp = 0; st.x = swingX(); }
       if (st.falling) { var f = st.falling; f.vy += 1900 * dt; f.y += f.vy * dt; f.x += st.wind * 160 * dt; var tgt = -(st.floors.length * FH) - FH / 2; if (f.y >= tgt) { f.y = tgt; land(f); } }
     }
     var topY = -(st.floors.length * FH), want = Math.min(0, topY + 0.12 * (PG.h || 800) / scale); st.camY += (want - st.camY) * Math.min(1, dt * 3.2);
@@ -159,15 +233,22 @@
     c.fillStyle = CORAL; c.beginPath(); c.moveTo(tp.x, tp.y - 24 * scale); c.lineTo(tp.x + (22 + st.wind * 18) * scale, tp.y - 19 * scale + Math.sin(t * 7) * 2 * scale); c.lineTo(tp.x, tp.y - 13 * scale); c.closePath(); c.fill();
     var tw = top.w * scale, tkx = tp.x - tw * 0.28, tky = tp.y; c.fillStyle = sk.night > 0.5 ? '#2c3e57' : '#8b5e3c'; c.fillRect(tkx - 9 * scale, tky - 16 * scale, 18 * scale, 14 * scale); c.fillStyle = sk.night > 0.5 ? '#1f2d44' : '#6b4429'; c.beginPath(); c.moveTo(tkx - 11 * scale, tky - 16 * scale); c.lineTo(tkx, tky - 24 * scale); c.lineTo(tkx + 11 * scale, tky - 16 * scale); c.closePath(); c.fill(); c.fillStyle = NAVY; c.fillRect(tkx - 8 * scale, tky - 8 * scale, 16 * scale, 1.6 * scale); c.fillRect(tkx - 7 * scale, tky - 2 * scale, 2 * scale, 4 * scale); c.fillRect(tkx + 5 * scale, tky - 2 * scale, 2 * scale, 4 * scale);
     if (sk.night > 0.25) { c.fillStyle = 'rgba(238,108,77,' + (0.35 + 0.65 * (Math.sin(t * 4) > 0 ? 1 : 0.15)) + ')'; c.beginPath(); c.arc(tp.x, tp.y - 25 * scale, 2.6 * scale, 0, TAU); c.fill(); }
+    if (st.crate) { var cp2 = w2s(st.crate.x, -(n * FH) - 16 + Math.sin(t * 3) * 3, w, h), cs = 13 * scale; c.fillStyle = 'rgba(255,226,150,.35)'; c.beginPath(); c.arc(cp2.x, cp2.y, cs * 1.7, 0, TAU); c.fill(); c.fillStyle = '#9c6b34'; c.fillRect(cp2.x - cs, cp2.y - cs * 0.8, cs * 2, cs * 1.6); c.fillStyle = MUST; c.fillRect(cp2.x - cs, cp2.y - cs * 0.15, cs * 2, cs * 0.3); c.fillRect(cp2.x - cs * 0.15, cp2.y - cs * 0.8, cs * 0.3, cs * 1.6); c.strokeStyle = NAVY; c.lineWidth = 1.5 * scale; c.strokeRect(cp2.x - cs, cp2.y - cs * 0.8, cs * 2, cs * 1.6); }
     st.perfectFx.forEach(function (fx) { var p = w2s(fx.x, fx.y, w, h); c.strokeStyle = rgb([233, 180, 76], 1 - fx.t); c.lineWidth = 3 * scale * (1 - fx.t); c.strokeRect(p.x - fx.w * scale / 2 - fx.t * 14 * scale, p.y - FH * scale / 2 - fx.t * 8 * scale, fx.w * scale + fx.t * 28 * scale, FH * scale + fx.t * 16 * scale); });
   }
   function craneYDraw() { return -(st.floors.length * FH) - 210; }
+  var TYPETAG = { glass: ['GLASS: WIDE ZONE', '#bfe6f0'], girder: ['GIRDER: +COINS', '#e9b44c'], balcony: ['BALCONY: RISKY', '#f4a261'], penthouse: ['PENTHOUSE', '#e76f51'] };
+  function drawBird(c, w, h, t) {
+    if (!st.bird) { st.birdS = null; return; }
+    var k = st.bird.t / 4.5, bx = -40 + k * (w + 80), by = h * 0.26 + Math.sin(t * 3 + k * 6) * 14 * scale, fl = Math.sin(t * 14) * 7 * scale, bs = 17 * scale; st.birdS = { x: bx, y: by };
+    c.save(); c.translate(bx, by); c.fillStyle = 'rgba(255,226,150,' + (0.25 + 0.15 * Math.sin(t * 8)) + ')'; c.beginPath(); c.arc(0, 0, bs * 2.1, 0, TAU); c.fill(); c.fillStyle = '#e9b44c'; c.beginPath(); c.ellipse(0, 0, bs, bs * 0.6, 0, 0, TAU); c.fill(); c.strokeStyle = NAVY; c.lineWidth = 2 * scale; c.stroke(); c.fillStyle = '#f4d58d'; c.beginPath(); c.moveTo(-bs * 0.2, -bs * 0.1); c.quadraticCurveTo(-bs * 0.5, -bs * 1.3 - fl, bs * 0.7, -bs * 0.2); c.closePath(); c.fill(); c.stroke(); c.fillStyle = NAVY; c.beginPath(); c.arc(bs * 0.55, -bs * 0.12, bs * 0.12, 0, TAU); c.fill(); c.fillStyle = CORAL; c.beginPath(); c.moveTo(bs * 0.95, -bs * 0.05); c.lineTo(bs * 1.5, bs * 0.08); c.lineTo(bs * 0.95, bs * 0.2); c.closePath(); c.fill(); c.restore();
+  }
   function drawCrane(c, w, h, sk) {
     var ay = h * 0.62 + (craneYDraw() - st.camY) * scale, steel = sk.night > 0.5 ? '#8da9c4' : NAVY;
     c.fillStyle = steel; c.fillRect(-10, ay - 10 * scale, w + 20, 3 * scale); c.fillRect(-10, ay, w + 20, 3 * scale);
     c.strokeStyle = steel; c.lineWidth = 2 * scale; c.beginPath(); for (var x = -10; x < w + 20; x += 18 * scale) { c.moveTo(x, ay); c.lineTo(x + 9 * scale, ay - 9 * scale); c.lineTo(x + 18 * scale, ay); } c.stroke();
     var tx = w / 2 + (st.falling ? st.falling.x : st.x) * scale; c.fillStyle = MUST; c.fillRect(tx - 14 * scale, ay - 4 * scale, 28 * scale, 12 * scale); c.fillStyle = NAVY; c.fillRect(tx - 14 * scale, ay + 6 * scale, 28 * scale, 3 * scale);
-    if (!st.falling && st.cur && !st.over) { var by = h * 0.62 + (craneY() - st.camY) * scale, sw = Math.cos(st.ph) * 0.04 * (st.wind + 1); c.strokeStyle = steel; c.lineWidth = 1.5 * scale; c.beginPath(); c.moveTo(tx, ay + 9 * scale); c.lineTo(tx - st.cur.w * scale * 0.45 + sw * 20, by - FH * scale / 2); c.moveTo(tx, ay + 9 * scale); c.lineTo(tx + st.cur.w * scale * 0.45 + sw * 20, by - FH * scale / 2); c.stroke(); drawFloor(c, { x: st.x, w: st.cur.w, i: st.cur.i }, craneY(), sk, w, h, 1, sw); }
+    if (!st.falling && st.cur && !st.over) { var by = h * 0.62 + (craneY() - st.camY) * scale, sw = Math.cos(st.ph) * 0.04 * (st.wind + 1); c.strokeStyle = steel; c.lineWidth = 1.5 * scale; c.beginPath(); c.moveTo(tx, ay + 9 * scale); c.lineTo(tx - st.cur.w * scale * 0.45 + sw * 20, by - FH * scale / 2); c.moveTo(tx, ay + 9 * scale); c.lineTo(tx + st.cur.w * scale * 0.45 + sw * 20, by - FH * scale / 2); c.stroke(); drawFloor(c, { x: st.x, w: st.cur.w, i: st.cur.i }, craneY(), sk, w, h, 1, sw); var tg = TYPETAG[st.cur.type]; if (tg) { c.save(); c.font = '700 ' + 13 * scale + 'px "DM Sans", sans-serif'; c.textAlign = 'center'; var tw2 = c.measureText(tg[0]).width + 14 * scale; tx = Math.max(tw2 / 2 + 6, Math.min(w - tw2 / 2 - 6, tx)); c.fillStyle = NAVY; c.fillRect(tx - tw2 / 2 + 2, by - FH * scale - 11 * scale + 2, tw2, 17 * scale); c.fillStyle = tg[1]; c.fillRect(tx - tw2 / 2, by - FH * scale - 11 * scale, tw2, 17 * scale); c.fillStyle = NAVY; c.fillText(tg[0], tx, by - FH * scale + 1.5 * scale); c.restore(); } }
     if (st.falling) drawFloor(c, { x: st.falling.x, w: st.falling.w, i: st.falling.i }, st.falling.y, sk, w, h);
   }
 
@@ -188,11 +269,18 @@
   function coinIcon(c, x, y, r) { c.fillStyle = NAVY; c.beginPath(); c.arc(x + 1.5, y + 1.5, r, 0, TAU); c.fill(); c.fillStyle = MUST; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); c.fillStyle = CREAM; c.fillRect(x - r * 0.12, y - r * 0.55, r * 0.24, r * 1.1); }
 
   /* ---------- screens ---------- */
+  function drawTags(c, w, h, sc) {
+    var y = 82 * sc, put = function (s, col) { U.text(c, s, 16 * sc, y, U.fit(c, s, 12 * sc, 150 * sc, { font: 'body' }), col, 'left', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.65)', strokeWidth: 3 }); y += 17 * sc; };
+    if (st.mod !== 'normal') put(st.modName, MUST);
+    if (st.challenge) { var nn = st.floors.length - 1; put('DAILY: ' + st.challenge.text + ' (' + Math.floor(metric(st.challenge.kind, nn)) + '/' + st.challenge.target + ')', '#bfe6f0'); }
+    if (st.slowT > 0) put('SLOW-MO ' + st.slowT.toFixed(1) + 's', '#b5e48c'); if (st.wideNext) put('NEXT FLOOR WIDER', '#b5e48c'); if (st.magnet > 0) put('MAGNET READY', '#b5e48c');
+    if (st.evt) put(({ stutter: 'CRANE STUTTER', storm: 'STORM', swap: 'CRANE SWAP' })[st.evt.type] + ' ' + st.evt.left, '#f4a261');
+  }
   function drawHUD(c, w, h) {
-    var sc = PG.scale(); poster(c, '' + (st.floors.length - 1), w / 2, 66 * sc, 76 * sc, CREAM); U.text(c, 'BEST ' + (PG.save.best || 0), w / 2, 108 * sc, 13 * sc, CREAM, 'center', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.6)', strokeWidth: 3 });
+    var sc = PG.scale(); drawTags(c, w, h, sc); poster(c, '' + (st.floors.length - 1), w / 2, 66 * sc, 76 * sc, CREAM); U.text(c, 'BEST ' + (PG.save.best || 0), w / 2, 108 * sc, 13 * sc, CREAM, 'center', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.6)', strokeWidth: 3 });
     coinIcon(c, 24 * sc, 26 * sc, 10 * sc); poster(c, '' + Math.round(st.coinsRun * 10) / 10, 40 * sc, 28 * sc, 24 * sc, CREAM, NAVY, 'left'); if (st.netLeft > 0) U.text(c, 'NET x' + st.netLeft, 16 * sc, 54 * sc, 12 * sc, '#b5e48c', 'left', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.6)', strokeWidth: 3 });
     if (Math.abs(st.wind) > 0.12) { var dir = st.wind > 0 ? 1 : -1; c.save(); c.translate(w / 2, 136 * sc); c.fillStyle = CREAM; for (var i = 0; i < 3; i++) { var ax = dir * (i * 16 + (st.t * 40 % 16)) * sc; c.beginPath(); c.moveTo(ax - 6 * dir * sc, -6 * sc); c.lineTo(ax + 6 * dir * sc, 0); c.lineTo(ax - 6 * dir * sc, 6 * sc); c.fill(); } c.restore(); U.text(c, 'WIND', w / 2, 154 * sc, 12 * sc, CREAM, 'center', { font: 'body', shadow: false }); }
-    if (st.banner) { var k = Math.min(1, st.banner.t * 4) * Math.min(1, (2 - st.banner.t) * 3), bw = 220 * sc; c.globalAlpha = Math.max(0, k); c.fillStyle = NAVY; c.fillRect(w / 2 - bw / 2 + 5, h * 0.3 - 26 * sc + 5, bw, 52 * sc); c.fillStyle = MUST; c.fillRect(w / 2 - bw / 2, h * 0.3 - 26 * sc, bw, 52 * sc); U.text(c, st.banner.s, w / 2, h * 0.3 + 2, 38 * sc, NAVY, 'center', { shadow: false, spacing: 3 }); c.globalAlpha = 1; }
+    if (st.banner) { var k = Math.min(1, st.banner.t * 4) * Math.min(1, (2 - st.banner.t) * 3), bw = 250 * sc; c.globalAlpha = Math.max(0, k); c.fillStyle = NAVY; c.fillRect(w / 2 - bw / 2 + 5, h * 0.3 - 26 * sc + 5, bw, 52 * sc); c.fillStyle = MUST; c.fillRect(w / 2 - bw / 2, h * 0.3 - 26 * sc, bw, 52 * sc); U.text(c, st.banner.s, w / 2, h * 0.3 + 2, U.fit(c, st.banner.s, 38 * sc, bw - 20 * sc, { spacing: 3 }), NAVY, 'center', { shadow: false, spacing: 3 }); c.globalAlpha = 1; }
     if (st.tut && st.floors.length < 3) { var tw = Math.min(w * 0.8, 260 * sc); c.fillStyle = NAVY; c.fillRect(w / 2 - tw / 2, h * 0.86 - 20 * sc, tw, 40 * sc); U.text(c, 'TAP TO DROP THE FLOOR', w / 2, h * 0.86 + 1, 24 * sc, CREAM, 'center', { shadow: false, spacing: 2 }); }
   }
   function drawOver(c, w, h) {
@@ -200,7 +288,7 @@
     var canRev = !st.revUsed && PG.rewardedSupported() && st.floors.length > 6, canDbl = !st.doubled && st.coinsRun >= 3 && PG.rewardedSupported(), pw = Math.min(w * 0.88, 370 * sc), ph = (324 + (canRev ? 56 : 0) + (canDbl ? 56 : 0)) * sc, px = w / 2 - pw / 2, py = Math.max(10 * sc, h * 0.5 - ph / 2) + (1 - k) * 60;
     U.panel(c, px, py, pw, ph, { band: CORAL }); U.text(c, 'TOPPED OUT', w / 2, py + 27 * sc, 34 * sc, CREAM, 'center', { shadow: false, spacing: 3 });
     poster(c, (st.floors.length - 1) + ' FLOORS', w / 2, py + 96 * sc, 54 * sc, TEAL); U.text(c, st.newBest ? 'NEW BEST!' : 'Best ' + (PG.save.best || 0), w / 2, py + 136 * sc, 15 * sc, st.newBest ? CORAL : '#5c677d', 'center', { font: 'body', shadow: false });
-    U.text(c, st.perfects + ' perfect drops', w / 2, py + 158 * sc, 13 * sc, '#5c677d', 'center', { font: 'body', shadow: false });
+    U.text(c, st.note || (st.perfects + ' perfect drops  ·  ' + st.modName), w / 2, py + 158 * sc, U.fit(c, st.note || (st.perfects + ' perfect drops  ·  ' + st.modName), 13 * sc, pw - 30 * sc, { font: 'body' }), st.note ? CORAL : '#5c677d', 'center', { font: 'body', shadow: false });
     coinIcon(c, w / 2 - 44 * sc, py + 188 * sc, 11 * sc); poster(c, '+' + (Math.round(st.coinsRun * 10) / 10) + (st.doubled ? ' (x2)' : ''), w / 2 - 26 * sc, py + 190 * sc, 30 * sc, MUST, NAVY, 'left');
     var bw = pw * 0.82, bh = 48 * sc, yy = py + 216 * sc;
     if (canRev) { if (U.button(c, w / 2 - bw / 2, yy, bw, bh, 'Ad: keep building', { color: TEAL, size: 24 * sc })) PG.rewarded('continue').then(function (ok) { if (ok) revive(); }); yy += bh + 10 * sc; }
@@ -211,10 +299,17 @@
   }
   function toMenu() { st.state = 'menu'; st.over = false; st.floors = [{ x: 0, w: BASE_W, i: 0 }]; st.cur = null; st.camY = 0; st.cut = []; }
   function drawShop(c, w, h) {
-    var sc = PG.scale(); c.fillStyle = 'rgba(13,27,42,.6)'; c.fillRect(0, 0, w, h); var pw = Math.min(w * 0.94, 440 * sc), rowH = 60 * sc, ph = 70 * sc + UPS.length * rowH + 70 * sc, px = w / 2 - pw / 2, py = Math.max(12 * sc, (h - ph) / 2); U.panel(c, px, py, pw, ph);
+    var sc = PG.scale(); c.fillStyle = 'rgba(13,27,42,.6)'; c.fillRect(0, 0, w, h);
+    var rows = UPS.filter(function (u) { return u.tab === st.tab; }), pw = Math.min(w * 0.94, 440 * sc), rowH = 60 * sc, ph = 70 * sc + 44 * sc + rows.length * rowH + 70 * sc, px = w / 2 - pw / 2, py = Math.max(12 * sc, (h - ph) / 2);
+    U.panel(c, px, py, pw, ph);
     U.text(c, 'UPGRADES', px + 22 * sc, py + 27 * sc, 32 * sc, CREAM, 'left', { shadow: false, spacing: 3 }); coinIcon(c, px + pw - 84 * sc, py + 26 * sc, 10 * sc); U.text(c, PG.fmt(PG.save.coins || 0), px + pw - 68 * sc, py + 28 * sc, 26 * sc, CREAM, 'left', { shadow: false });
-    UPS.forEach(function (u, i) { var y = py + 62 * sc + i * rowH, L = PG.upLevel(u.id), cost = PG.upCost(u.base, u.grow, L), maxed = L >= u.max;
-      U.text(c, u.n.toUpperCase(), px + 22 * sc, y + 17 * sc, 22 * sc, NAVY, 'left', { shadow: false, spacing: 1 }); U.text(c, u.d, px + 22 * sc, y + 37 * sc, 12 * sc, '#5c677d', 'left', { font: 'body', shadow: false });
+    var tw = (pw - 28 * sc - 3 * 6 * sc) / 4;
+    TABS.forEach(function (tn, ti) {
+      var aff = UPS.some(function (u) { return u.tab === ti && PG.upLevel(u.id) < u.max && (PG.save.coins || 0) >= PG.upCost(u.base, u.grow, PG.upLevel(u.id)); });
+      if (U.button(c, px + 14 * sc + ti * (tw + 6 * sc), py + 60 * sc, tw, 32 * sc, tn + (aff ? ' •' : ''), { color: ti === st.tab ? CORAL : CREAM, size: 15 * sc })) st.tab = ti;
+    });
+    rows.forEach(function (u, i) { var y = py + 104 * sc + i * rowH, L = PG.upLevel(u.id), cost = PG.upCost(u.base, u.grow, L), maxed = L >= u.max;
+      U.text(c, u.n.toUpperCase(), px + 22 * sc, y + 17 * sc, 22 * sc, NAVY, 'left', { shadow: false, spacing: 1 }); U.text(c, u.d, px + 22 * sc, y + 37 * sc, U.fit(c, u.d, 12 * sc, pw - 150 * sc, { font: 'body' }), '#5c677d', 'left', { font: 'body', shadow: false });
       for (var k = 0; k < u.max; k++) { c.fillStyle = k < L ? CORAL : 'rgba(29,45,68,.15)'; c.fillRect(px + 22 * sc + k * 12 * sc, y + 48 * sc, 9 * sc, 4 * sc); }
       var bw = 96 * sc, bh = 40 * sc, bx = px + pw - bw - 20 * sc; if (maxed) poster(c, 'MAX', bx + bw / 2, y + 26 * sc, 26 * sc, TEAL); else if (U.button(c, bx, y + 8 * sc, bw, bh, '' + cost, { color: (PG.save.coins || 0) >= cost ? MUST : '#b8b0a0', size: 24 * sc })) PG.buyUp(u.id, cost, u.max); });
     var minCost = 1e9; UPS.forEach(function (u) { if (PG.upLevel(u.id) < u.max) minCost = Math.min(minCost, PG.upCost(u.base, u.grow, PG.upLevel(u.id))); });
@@ -229,10 +324,16 @@
     c.fillStyle = NAVY; c.fillRect(cx - bw / 2 + 6, ty - big * 0.5 + 6, bw, big * 1.02); c.fillStyle = CREAM; c.fillRect(cx - bw / 2, ty - big * 0.5, bw, big * 1.02); U.text(c, 'SKYLINE', cx, ty + big * 0.03, big, NAVY, 'center', { shadow: false, spacing: big * 0.06 });
     poster(c, 'SNAP', cx, ty + big * 1.05, big * 1.15, CORAL); U.text(c, 'BUILD  TO  THE  STARS', cx, ty + big * 1.75, 13 * sc, CREAM, 'center', { font: 'body', shadow: false, spacing: 3, stroke: 'rgba(29,45,68,.5)', strokeWidth: 3 });
     var bh = 58 * sc, b2 = Math.min(240 * sc, w * 0.66), bx = land ? w * 0.72 - b2 / 2 : w / 2 - b2 / 2, y0 = land ? h * 0.32 : h * 0.68;
+    if (!st.nextMod) st.nextMod = PG.save.runs ? rollMod(st.lastMod) : MODS[0];
     if (U.button(c, bx, y0, b2, bh, 'Build!', { color: CORAL, size: 34 * sc })) PG.go(startRun);
+    U.text(c, 'TODAY: ' + st.nextMod.n + (st.nextMod.id === 'normal' ? '' : ' - ' + MODINFO[st.nextMod.id]), bx + b2 / 2, y0 - 12 * sc, U.fit(c, 'TODAY: ' + st.nextMod.n + ' - ' + MODINFO[st.nextMod.id], 12 * sc, Math.min(w * 0.94, 340 * sc), { font: 'body' }), CREAM, 'center', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.65)', strokeWidth: 3 });
+    if (PG.save.runs && !st.rerolled && PG.canOffer('boost', 0)) { if (PG.adChip(c, bx - 34 * sc, y0 + bh / 2 - 8 * sc, 22 * sc, 'REROLL', CORAL, t)) PG.rewarded('boost').then(function (ok) { if (ok) { st.nextMod = rollMod(st.nextMod.id); st.rerolled = true; PG.sfx('upgrade'); PG.track('rewarded_boost', { game: 'skyline_reroll' }); } }); }
     if (!st.boost && PG.canOffer('boost', 0)) { if (PG.adChip(c, bx + b2 + 34 * sc, y0 + bh / 2 - 8 * sc, 22 * sc, 'SAFETY NETS', TEAL, t)) PG.rewarded('boost').then(function (ok) { if (ok) { st.boost = 1; PG.sfx('upgrade'); PG.track('rewarded_boost', { game: 'skyline' }); } }); }
     else if (st.boost) U.text(c, 'NETS READY', bx + b2 + 34 * sc, y0 + bh / 2, 13 * sc, '#b5e48c', 'center', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.6)', strokeWidth: 3 });
-    if (U.button(c, bx, y0 + bh + 12 * sc, b2, bh * 0.8, 'Upgrades', { color: MUST, size: 26 * sc })) PG.go(function () { st.state = 'shop'; PG.track('shop_opened', { source: 'menu' }); });
+    var dd = dailyDef(), ddDone = PG.save.dcDone === dd.day, hw = (b2 - 8 * sc) / 2;
+    if (U.button(c, bx, y0 + bh + 12 * sc, hw, bh * 0.8, 'Upgrades', { color: MUST, size: 20 * sc })) PG.go(function () { st.state = 'shop'; PG.track('shop_opened', { source: 'menu' }); });
+    if (U.button(c, bx + hw + 8 * sc, y0 + bh + 12 * sc, hw, bh * 0.8, ddDone ? 'Done today' : 'Challenge', { color: ddDone ? '#b8b0a0' : TEAL, size: 20 * sc, disabled: ddDone })) { st.forceMod = dd.mod; st.nextChallenge = dd; PG.go(startRun); }
+    if (!ddDone) U.text(c, dd.text, bx + hw + 8 * sc + hw / 2, y0 + bh + 12 * sc + bh * 0.8 + 11 * sc, 11 * sc, '#bfe6f0', 'center', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.65)', strokeWidth: 3 });
     var ly = y0 + bh * 1.8 + 36 * sc; coinIcon(c, bx + b2 / 2 - 40 * sc, ly, 10 * sc); poster(c, PG.fmt(PG.save.coins || 0), bx + b2 / 2 - 24 * sc, ly + 2, 26 * sc, CREAM, NAVY, 'left'); U.text(c, 'Best ' + (PG.save.best || 0) + ' floors', bx + b2 / 2, ly + 26 * sc, 13 * sc, CREAM, 'center', { font: 'body', shadow: false, stroke: 'rgba(29,45,68,.6)', strokeWidth: 3 });
     PG.dailyGift(c, bx, ly + 48 * sc, b2, 42 * sc, 8, { color: TEAL, size: 20 * sc });
     U.text(c, 'Audio: CC0 recordings, OpenGameArt', w / 2, h - 14 * sc, 11 * sc, 'rgba(244,233,208,.75)', 'center', { font: 'body', shadow: false });
@@ -251,13 +352,14 @@
     st.cut.forEach(function (cp) { drawFloor(c, { x: cp.x, w: cp.w, i: cp.i }, cp.y, sk, w, h, Math.max(0, 1 - cp.t / 2.2), cp.r); });
     c.save(); c.translate(w / 2, h * 0.62 - st.camY * scale); c.scale(scale, scale); PG.drawParts(c); PG.drawPops(c); c.restore(); c.restore();
     if (st.flash > 0.02) { var fg = c.createRadialGradient(w / 2, h * 0.5, h * 0.1, w / 2, h * 0.5, h * 0.75); fg.addColorStop(0, 'rgba(255,244,214,0)'); fg.addColorStop(1, 'rgba(255,226,150,' + st.flash * 0.38 + ')'); c.fillStyle = fg; c.fillRect(0, 0, w, h); }
+    if (st.state === 'play') drawBird(c, w, h, t);
     PG.grain(c, w, h, 0.07, { mode: 'multiply' });
     if (st.state === 'menu') drawMenu(c, w, h, t); else if (st.state === 'shop') drawShop(c, w, h); else { drawHUD(c, w, h); if (st.over) drawOver(c, w, h); }
   }
-  PG.onDown = function () { if (st.state === 'play') drop(); };
+  PG.onDown = function (x, y) { if (st.state !== 'play') return; if (st.bird && st.birdS && Math.hypot(x - st.birdS.x, y - st.birdS.y) < 64 * scale) { st.bird = null; st.goldNext = true; banner('GOLDEN FLOOR'); PG.sfx('coin'); PG.burst(x, y, 14, { colors: ['#e9b44c', '#fff3b0'], g: 120 }); return; } drop(); };
   PG.setup(document.getElementById('c'), update, render);
   window.__sky = { st: st, start: startRun, drop: drop, update: update, gameOver: gameOver, revive: revive, swayOff: swayOff };
-  PG.init({ id: 'skyline_snap', version: '1.5.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
+  PG.init({ id: 'skyline_snap', version: '1.6.0', defaults: { best: 0, coins: 0, runs: 0, up: {}, muted: false } }).then(function () {
     st.floors = [{ x: 0, w: BASE_W, i: 0 }]; PG.music('menu');
   });
 })();

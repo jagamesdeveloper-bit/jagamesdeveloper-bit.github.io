@@ -10,6 +10,11 @@ module.exports = {
     shop: async (page) => { await page.evaluate(() => { window.__pg_debug.save.coins = 190; window.__gg.st.state = 'shop'; }); await page.waitForTimeout(600); },
   },
   'skyline-snap': {
+    brief: async (page) => { await page.evaluate(() => { window.__pg_debug.save.runs = 3; }); await page.waitForTimeout(400); },
+    shop2: async (page) => { await page.evaluate(() => { window.__sky.st.state = 'shop'; window.__sky.st.tab = 2; window.__pg_debug.save.coins = 500; }); await page.waitForTimeout(400); },
+    evt: async (page) => { await page.evaluate(() => { const S = window.__sky; window.__pg_debug.save.runs = 3; S.start(); S.st.mod = 'rush'; S.st.modName = 'RUSH HOUR'; S.st.crate = { x: 40 }; S.st.slowT = 2; S.st.cur.type = 'balcony'; S.st.challenge = { text: 'Reach 20 floors', kind: 'floors', target: 20, day: 1 }; }); await page.waitForTimeout(600); },
+    bird: async (page) => { await page.evaluate(() => { const S = window.__sky; window.__pg_debug.save.runs = 3; S.start(); S.st.bird = { t: 1.6 }; S.st.cur.type = 'glass'; }); await page.waitForTimeout(500); },
+
     menu: async (page) => { await page.waitForTimeout(700); },
     play: async (page) => { await page.evaluate(() => { const S = window.__sky; S.start(); for (let i = 1; i < 9; i++) S.st.floors.push({ x: Math.sin(i) * 6, w: 150 - i * 3, i }); S.st.coinsRun = 4; S.st.tut = false; }); await page.waitForTimeout(1500); },
     sunset: async (page) => { await page.evaluate(() => { const S = window.__sky; S.start(); for (let i = 1; i < 24; i++) S.st.floors.push({ x: Math.sin(i) * 8, w: 140 - i, i }); S.st.tut = false; }); await page.waitForTimeout(2200); },
